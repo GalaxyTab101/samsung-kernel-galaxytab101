@@ -1313,10 +1313,12 @@ static int _regulator_enable(struct regulator_dev *rdev)
 
 			trace_regulator_enable_delay(rdev_get_name(rdev));
 
-			if (delay >= 1000)
+			if (delay >= 1000) {
 				mdelay(delay / 1000);
-			else if (delay)
+				udelay(delay % 1000);
+			} else if (delay) {
 				udelay(delay);
+			}
 
 			trace_regulator_enable_complete(rdev_get_name(rdev));
 
