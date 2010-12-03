@@ -133,6 +133,27 @@ static int regulator_check_voltage(struct regulator_dev *rdev,
 	return 0;
 }
 
+/* Make sure we select a voltage that suits the needs of all
+ * regulator consumers
+ */
+static int regulator_check_consumers(struct regulator_dev *rdev,
+				     int *min_uV, int *max_uV)
+{
+	struct regulator *regulator;
+
+	list_for_each_entry(regulator, &rdev->consumer_list, list) {
+		if (*max_uV > regulator->max_uV)
+			*max_uV = regulator->max_uV;
+		if (*min_uV < regulator->min_uV)
+			*min_uV = regulator->min_uV;
+	}
+
+	if (*min_uV > *max_uV)
+		return -EINVAL;
+
+	return 0;
+}
+
 /* current constraint check */
 static int regulator_check_current_limit(struct regulator_dev *rdev,
 					int *min_uA, int *max_uA)
@@ -1638,6 +1659,10 @@ int regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV)
 	regulator->max_uV = max_uV;
 
 	trace_regulator_set_voltage(rdev_get_name(rdev), min_uV, max_uV);
+
+	ret = regulator_check_consumers(rdev, &min_uV, &max_uV);
+	if (ret < 0)
+		goto out;
 
 	ret = rdev->desc->ops->set_voltage(rdev, min_uV, max_uV);
 
