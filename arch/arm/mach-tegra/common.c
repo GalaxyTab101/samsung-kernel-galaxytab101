@@ -38,7 +38,7 @@
 #include "clock.h"
 #include "fuse.h"
 
-#define MC_SECURITY_CFG2 0x7c
+#define MC_SECURITY_CFG2	0x7c
 
 unsigned long tegra_bootloader_fb_start;
 unsigned long tegra_bootloader_fb_size;
@@ -68,7 +68,7 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "clk_m",	NULL,		0,		true },
 	{ "pll_m",	"clk_m",	600000000,	true },
-	{ "pll_p",	"clk_m",	216000000,	true },
+	{ "pll_p",	NULL,		216000000,	true },
 	{ "pll_p_out1",	"pll_p",	28800000,	true },
 	{ "pll_p_out2",	"pll_p",	48000000,	true },
 	{ "pll_p_out3",	"pll_p",	72000000,	true },
@@ -85,7 +85,7 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "rtc",	NULL,		0,		true },
 
 	/* set frequencies of some device clocks */
-	{ "pll_u",	"clk_m",	480000000,	false },
+	{ "pll_u",	NULL,		480000000,	false },
 	{ "sdmmc1",	"pll_p",	48000000,	false},
 	{ "sdmmc2",	"pll_p",	48000000,	false},
 	{ "sdmmc3",	"pll_p",	48000000,	false},
@@ -98,6 +98,7 @@ void __init tegra_init_cache(void)
 #ifdef CONFIG_CACHE_L2X0
 	void __iomem *p = IO_ADDRESS(TEGRA_ARM_PERIF_BASE) + 0x3000;
 
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 #ifndef CONFIG_TRUSTED_FOUNDATIONS
    /*
    ISSUE : Some registers of PL310 controler must be called from Secure context!
@@ -114,6 +115,35 @@ void __init tegra_init_cache(void)
 	writel(2, p + L2X0_PWR_CTRL);
 #endif
 
+#elif defined(CONFIG_ARCH_TEGRA_3x_SOC)
+#ifdef CONFIG_TEGRA_FPGA_PLATFORM
+	writel(0x770, p + L2X0_TAG_LATENCY_CTRL);
+	writel(0x770, p + L2X0_DATA_LATENCY_CTRL);
+	{
+		void __iomem *misc = IO_ADDRESS(TEGRA_APB_MISC_BASE);
+		u32 val = readl(misc + APB_MISC_HIDREV);
+		u32 major = (val>>4) & 0xf;
+		u32 netlist = readl(misc + 0x860);
+
+		if ((major == 0) && ((netlist & 0xFFFF) >= 12)) {
+			/* Enable PL310 double line fill feature. */
+			writel(((1<<30) | 7), p + L2X0_PREFETCH_OFFSET);
+		} else {
+			writel(7, p + L2X0_PREFETCH_OFFSET);
+		}
+	}
+#else
+	/* FIXME: Need characterized timing parameters for real silicon */
+	writel(0x331, p + L2X0_TAG_LATENCY_CTRL);
+	writel(0x441, p + L2X0_DATA_LATENCY_CTRL);
+	writel(7, p + L2X0_PREFETCH_OFFSET);
+	writel(2, p + L2X0_PWR_CTRL);
+#endif
+
+	/* Enable PL310 double line fill feature. */
+	writel(((1<<30) | 7), p + L2X0_PREFETCH_OFFSET);
+#endif
+#endif
 	l2x0_init(p, 0x6C480001, 0x8200c3fe);
 #endif
 

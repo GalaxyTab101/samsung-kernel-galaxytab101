@@ -40,6 +40,7 @@
 	str	\val, [\tmp]
 .endm
 
+#ifdef CONFIG_SMP
 /*
  *	tegra_secondary_startup
  *

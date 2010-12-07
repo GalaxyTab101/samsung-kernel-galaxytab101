@@ -48,8 +48,14 @@
 
 #include "power.h"
 
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 #define TEGRA_CPUIDLE_BOTH_IDLE		INT_QUAD_RES_24
 #define TEGRA_CPUIDLE_TEAR_DOWN		INT_QUAD_RES_25
+#else
+/* !!!FIXME!!! THIS MODEL IS BROKEN ON T30 -- 4 CPUS BREAKS THE "BOTH" IDLE CONCEPT .....*/
+#define TEGRA_CPUIDLE_BOTH_IDLE		INT_QUINT_RES_24
+#define TEGRA_CPUIDLE_TEAR_DOWN		INT_QUINT_RES_25
+#endif
 
 #define EVP_CPU_RESET_VECTOR \
 	(IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE) + 0x100)
@@ -64,7 +70,9 @@ static bool lp2_in_idle __read_mostly = true;
 static bool lp2_disabled_by_suspend;
 module_param(lp2_in_idle, bool, 0644);
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC		/* !!!DELETEME -- TEMPORARY FOR T30 */
 static s64 tegra_cpu1_idle_time = LLONG_MAX;;
+#endif
 static int tegra_lp2_exit_latency;
 static int tegra_lp2_power_off_time;
 
@@ -269,6 +277,8 @@ static inline void tegra_wake_cpu1(void)
 static void tegra_idle_enter_lp2_cpu0(struct cpuidle_device *dev,
 	struct cpuidle_state *state)
 {
+/* !!!FIXME!!!! PANICS ON TEGRA3.......................................................................*/
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	s64 request;
 	ktime_t enter;
 	ktime_t exit;
@@ -311,7 +321,7 @@ restart:
 		idle_stats.lp2_count++;
 		idle_stats.lp2_count_bin[bin]++;
 
-		if (tegra_suspend_lp2(sleep_time) == 0)
+		if (tegra_suspend_lp2(sleep_time, 0) == 0)
 			sleep_completed = true;
 		else
 			idle_stats.lp2_int_count[tegra_pending_interrupt()]++;
@@ -351,12 +361,15 @@ restart:
 			ktime_to_us(ktime_sub(exit, enter)),
 			offset, bin);
 	}
+#endif
 }
 
 #ifdef CONFIG_SMP
 static void tegra_idle_enter_lp2_cpu1(struct cpuidle_device *dev,
 	struct cpuidle_state *state)
 {
+/* !!!FIXME!!!! PANICS ON TEGRA3.......................................................................*/
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	u32 twd_ctrl;
 	u32 twd_load;
 	s64 request;
@@ -423,6 +436,7 @@ static void tegra_idle_enter_lp2_cpu1(struct cpuidle_device *dev,
 
 out:
 	tegra_legacy_force_irq_clr(TEGRA_CPUIDLE_BOTH_IDLE);
+#endif
 }
 #endif
 
@@ -545,6 +559,7 @@ static irqreturn_t tegra_cpuidle_irq(int irq, void *dev)
 	pr_err("%s: unexpected interrupt %d on cpu %d\n", __func__, irq,
 		smp_processor_id());
 	BUG();
+	return 0;
 }
 
 static int tegra_cpuidle_pm_notify(struct notifier_block *nb,

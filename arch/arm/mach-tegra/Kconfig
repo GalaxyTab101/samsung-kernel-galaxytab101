@@ -18,6 +18,20 @@ config ARCH_TEGRA_2x_SOC
 	  Support for NVIDIA Tegra AP20 and T20 processors, based on the
 	  ARM CortexA9MP CPU and the ARM PL310 L2 cache controller
 
+config ARCH_TEGRA_3x_SOC
+	bool "Tegra 3 family"
+	select CPU_V7
+	select ARM_GIC
+	select ARCH_REQUIRE_GPIOLIB
+	select TEGRA_IOVMM
+	select USB_ARCH_HAS_EHCI if USB_SUPPORT
+	select USB_EHCI_TEGRA if USB_SUPPORT
+	select USB_ULPI if USB_SUPPORT
+	select USB_ULPI_VIEWPORT if USB_SUPPORT
+	help
+	  Support for NVIDIA Tegra 3 family of SoCs, based upon the
+	  ARM CortexA9MP CPU and the ARM PL310 L2 cache controller
+
 endchoice
 
 comment "Tegra board type"
@@ -36,6 +50,16 @@ config MACH_WHISTLER
        bool "Whistler board"
        help
          Support for NVIDIA Whistler development platform
+
+config MACH_ARUBA
+       bool "Aruba board"
+       select TEGRA_FPGA_PLATFORM
+       help
+         Support for NVIDIA Aruba2 FPGA development platform
+
+config TEGRA_FPGA_PLATFORM
+	bool
+
 
 choice
         prompt "Low-level debug console UART"
@@ -114,6 +138,16 @@ config TEGRA_IOVMM_GART
 	  Enables support for remapping discontiguous physical memory
 	  shared with the operating system into contiguous I/O virtual
 	  space through the GART hardware included on Tegra SoCs
+
+config TEGRA_IOVMM_SMMU
+	bool "Enable I/O virtual memory manager for SMMU"
+	depends on ARCH_TEGRA_3x_SOC
+	default y
+	select TEGRA_IOVMM
+	help
+	  Enables support for remapping discontiguous physical memory
+	  shared with the operating system into contiguous I/O virtual
+	  space through the SMMU hardware included on Tegra SoCs
 
 config TEGRA_IOVMM
 	bool

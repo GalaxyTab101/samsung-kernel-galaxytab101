@@ -68,6 +68,7 @@ static struct resource i2c_resource3[] = {
 	},
 };
 
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 static struct resource i2c_resource4[] = {
 	[0] = {
 		.start  = INT_DVC,
@@ -80,6 +81,34 @@ static struct resource i2c_resource4[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 };
+
+#elif defined(CONFIG_ARCH_TEGRA_3x_SOC)
+static struct resource i2c_resource4[] = {
+	[0] = {
+		.start  = INT_I2C4,
+		.end    = INT_I2C4,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[1] = {
+		.start	= TEGRA_I2C4_BASE,
+		.end	= TEGRA_I2C4_BASE + TEGRA_I2C4_SIZE-1,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+static struct resource i2c_resource5[] = {
+	[0] = {
+		.start  = INT_I2C5,
+		.end    = INT_I2C5,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[1] = {
+		.start	= TEGRA_I2C5_BASE,
+		.end	= TEGRA_I2C5_BASE + TEGRA_I2C5_SIZE-1,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+#endif
 
 struct platform_device tegra_i2c_device1 = {
 	.name		= "tegra-i2c",
@@ -121,10 +150,22 @@ struct platform_device tegra_i2c_device4 = {
 	},
 };
 
+#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+struct platform_device tegra_i2c_device5 = {
+	.name		= "tegra-i2c",
+	.id		= 4,
+	.resource	= i2c_resource5,
+	.num_resources	= ARRAY_SIZE(i2c_resource5),
+	.dev = {
+		.platform_data = 0,
+	},
+};
+#endif
+
 static struct resource spi_resource1[] = {
 	[0] = {
-		.start  = INT_S_LINK1,
-		.end    = INT_S_LINK1,
+		.start  = INT_SPI_1,
+		.end    = INT_SPI_1,
 		.flags  = IORESOURCE_IRQ,
 	},
 	[1] = {
@@ -443,6 +484,7 @@ struct platform_device tegra_otg_device = {
 	.num_resources	= ARRAY_SIZE(tegra_otg_resources),
 };
 
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 static struct resource i2s_resource1[] = {
 	[0] = {
 		.start	= INT_I2S1,
@@ -459,6 +501,13 @@ static struct resource i2s_resource1[] = {
 		.end	= TEGRA_I2S1_BASE + TEGRA_I2S1_SIZE - 1,
 		.flags	= IORESOURCE_MEM
 	}
+};
+
+struct platform_device tegra_i2s_device1 = {
+	.name		= "i2s",
+	.id		= 0,
+	.resource	= i2s_resource1,
+	.num_resources	= ARRAY_SIZE(i2s_resource1),
 };
 
 static struct resource i2s_resource2[] = {
@@ -479,6 +528,13 @@ static struct resource i2s_resource2[] = {
 	}
 };
 
+struct platform_device tegra_i2s_device2 = {
+	.name		= "i2s",
+	.id		= 1,
+	.resource	= i2s_resource2,
+	.num_resources	= ARRAY_SIZE(i2s_resource2),
+};
+
 static struct resource spdif_resource[] = {
 	[0] = {
 		.start	= INT_SPDIF,
@@ -497,27 +553,6 @@ static struct resource spdif_resource[] = {
 	}
 };
 
-struct platform_device tegra_i2s_device1 = {
-	.name		= "i2s",
-	.id		= 0,
-	.resource	= i2s_resource1,
-	.num_resources	= ARRAY_SIZE(i2s_resource1),
-};
-
-struct platform_device tegra_i2s_device2 = {
-	.name		= "i2s",
-	.id		= 1,
-	.resource	= i2s_resource2,
-	.num_resources	= ARRAY_SIZE(i2s_resource2),
-};
-
-struct platform_device tegra_spdif_device = {
-	.name		= "spdif_out",
-	.id		= -1,
-	.resource	= spdif_resource,
-	.num_resources	= ARRAY_SIZE(spdif_resource),
-};
-
 static struct resource das_resource[] = {
 	[0] = {
 		.start	= TEGRA_APB_MISC_BASE,
@@ -533,6 +568,51 @@ struct platform_device tegra_das_device = {
 	.num_resources	= ARRAY_SIZE(das_resource),
 };
 
+#elif defined(CONFIG_ARCH_TEGRA_3x_SOC)
+static struct resource audio_resource[] = {
+	[0] = {
+		.start	= TEGRA_AUDIO_CLUSTER_BASE,
+		.end	= TEGRA_AUDIO_CLUSTER_BASE + TEGRA_AUDIO_CLUSTER_SIZE - 1,
+		.flags	= IORESOURCE_MEM
+	}
+};
+
+struct platform_device tegra_audio_device = {
+	.name		= "audio",
+	.id		= -1,
+	.resource	= audio_resource,
+	.num_resources	= ARRAY_SIZE(audio_resource),
+};
+
+static struct resource hda_resource[] = {
+	[0] = {
+		.start	= INT_HDA,
+		.end	= INT_HDA,
+		.flags	= IORESOURCE_IRQ
+	},
+	[1] = {
+		.start	= TEGRA_HDA_BASE,
+		.end	= TEGRA_HDA_BASE + TEGRA_HDA_SIZE - 1,
+		.flags	= IORESOURCE_MEM
+	}
+};
+
+struct platform_device tegra_hda_device = {
+	.name		= "hda",
+	.id		= -1,
+	.resource	= hda_resource,
+	.num_resources	= ARRAY_SIZE(hda_resource),
+};
+#endif
+
+struct platform_device tegra_spdif_device = {
+	.name		= "spdif_out",
+	.id		= -1,
+	.resource	= spdif_resource,
+	.num_resources	= ARRAY_SIZE(spdif_resource),
+};
+
+#if defined(CONFIG_TEGRA_IOVMM_GART)
 static struct resource tegra_gart_resources[] = {
 	[0] = {
 		.name	= "mc",
@@ -554,6 +634,31 @@ struct platform_device tegra_gart_device = {
 	.num_resources	= ARRAY_SIZE(tegra_gart_resources),
 	.resource	= tegra_gart_resources
 };
+#endif
+
+#if defined(CONFIG_TEGRA_IOVMM_SMMU)
+static struct resource tegra_smmu_resources[] = {
+	[0] = {
+		.name	= "mc",
+		.flags	= IORESOURCE_MEM,
+		.start	= TEGRA_MC_BASE,
+		.end	= TEGRA_MC_BASE + TEGRA_MC_SIZE - 1,
+	},
+	[1] = {
+		.name	= "smmu",
+		.flags	= IORESOURCE_MEM,
+		.start	= TEGRA_SMMU_BASE,
+		.end	= TEGRA_SMMU_BASE + TEGRA_SMMU_SIZE - 1,
+	}
+};
+
+struct platform_device tegra_smmu_device = {
+	.name		= "tegra_smmu",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(tegra_smmu_resources),
+	.resource	= tegra_smmu_resources
+};
+#endif
 
 static struct resource pmu_resources[] = {
 	[0] = {
@@ -566,6 +671,18 @@ static struct resource pmu_resources[] = {
 		.end	= INT_CPU1_PMU_INTR,
 		.flags	= IORESOURCE_IRQ,
 	},
+#if defined(CONFIG_ARCH_TEGRA_3x_SOC)
+	[2] = {
+		.start	= INT_CPU2_PMU_INTR,
+		.end	= INT_CPU2_PMU_INTR,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[3] = {
+		.start	= INT_CPU3_PMU_INTR,
+		.end	= INT_CPU3_PMU_INTR,
+		.flags	= IORESOURCE_IRQ,
+	},
+#endif
 };
 
 struct platform_device pmu_device = {

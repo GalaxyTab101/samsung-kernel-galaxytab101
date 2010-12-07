@@ -40,17 +40,20 @@
 #define ICTLR_COP_IER_CLR	0x38
 #define ICTLR_COP_IEP_CLASS	0x3c
 
-#define NUM_ICTLRS 4
+#define NUM_ICTLRS (INT_MAIN_NR/32)
 
 static void __iomem *ictlr_reg_base[] = {
 	IO_ADDRESS(TEGRA_PRIMARY_ICTLR_BASE),
 	IO_ADDRESS(TEGRA_SECONDARY_ICTLR_BASE),
 	IO_ADDRESS(TEGRA_TERTIARY_ICTLR_BASE),
 	IO_ADDRESS(TEGRA_QUATERNARY_ICTLR_BASE),
+#if (NUM_ICTLRS > 4)
+	IO_ADDRESS(TEGRA_QUINARY_ICTLR_BASE),
+#endif
 };
 
-static u32 tegra_legacy_wake_mask[4];
-static u32 tegra_legacy_saved_mask[4];
+static u32 tegra_legacy_wake_mask[NUM_ICTLRS];
+static u32 tegra_legacy_saved_mask[NUM_ICTLRS];
 
 /* When going into deep sleep, the CPU is powered down, taking the GIC with it
    In order to wake, the wake interrupts need to be enabled in the legacy

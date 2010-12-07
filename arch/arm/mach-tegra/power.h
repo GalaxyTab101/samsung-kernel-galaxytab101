@@ -25,7 +25,6 @@
 
 #include <asm/page.h>
 
-#define TEGRA_POWER_SDRAM_SELFREFRESH	0x400 /* SDRAM is in self-refresh */
 
 #define TEGRA_POWER_PWRREQ_POLARITY	0x1   /* core power request polarity */
 #define TEGRA_POWER_PWRREQ_OE		0x2   /* core power request enable */
@@ -37,6 +36,17 @@
 #define TEGRA_POWER_CPU_PWRREQ_OE	0x100 /* CPU power request enable */
 #define TEGRA_POWER_PMC_SHIFT		8
 #define TEGRA_POWER_PMC_MASK		0x1ff
+#define TEGRA_POWER_SDRAM_SELFREFRESH	0x400 /* SDRAM is in self-refresh */
+
+#define TEGRA_POWER_CLUSTER_G		0x1000	/* G CPU */
+#define TEGRA_POWER_CLUSTER_LP		0x2000	/* LP CPU */
+#define TEGRA_POWER_CLUSTER_MASK	0x3000
+#define TEGRA_POWER_CLUSTER_IMMEDIATE	0x4000	/* Immediate wake */
+#define TEGRA_POWER_CLUSTER_FORCE	0x8000	/* Force switch */
+
+/* CPU Context area (1KB per CPU) */
+#define CONTEXT_SIZE_BYTES_SHIFT 10
+#define CONTEXT_SIZE_BYTES (1<<CONTEXT_SIZE_BYTES_SHIFT)
 
 /* CPU Context area (1KB per CPU) */
 #define CONTEXT_SIZE_BYTES_SHIFT 10
@@ -56,8 +66,21 @@ void __cortex_a9_save(unsigned int mode);
 void __cortex_a9_restore(void);
 void __shut_off_mmu(void);
 void tegra_lp2_startup(void);
-unsigned int tegra_suspend_lp2(unsigned int us);
 void tegra_hotplug_startup(void);
+unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags);
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
+static inline int tegra_cluster_control(unsigned int us, unsigned int flags)
+{ return -EPERM; }
+#define tegra_cluster_switch_prolog(flags) do {} while (0)
+#define tegra_cluster_switch_epilog(flags) do {} while (0)
+static inline unsigned int is_lp_cluster(void)
+{ return 0; }
+#else
+int tegra_cluster_control(unsigned int us, unsigned int flags);
+void tegra_cluster_switch_prolog(unsigned int flags);
+void tegra_cluster_switch_epilog(unsigned int flags);
+unsigned int is_lp_cluster(void);
+#endif
 #endif
 
 #endif

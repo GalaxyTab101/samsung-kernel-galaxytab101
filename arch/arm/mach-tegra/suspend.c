@@ -54,6 +54,7 @@
 #include <mach/suspend.h>
 
 #include "board.h"
+#include "clock.h"
 #include "power.h"
 
 #ifdef CONFIG_TRUSTED_FOUNDATIONS
@@ -146,8 +147,15 @@ static void __iomem *tmrus = IO_ADDRESS(TEGRA_TMRUS_BASE);
 #define CLK_RESET_CCLK_BURST_POLICY_PLLM   3
 #define CLK_RESET_CCLK_BURST_POLICY_PLLX   8
 
-#define FLOW_CTRL_CPU_CSR	0x8
-#define FLOW_CTRL_CPU1_CSR	0x18
+#define FLOW_CTRL_CPUx_CSR(cpu) ((cpu) ? 0x18 + 8*((cpu)-1) : 0x8)
+
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
+#define FLOW_CTRL_BITMAP_MASK	(3<<4)
+#define FLOW_CTRL_BITMAP_CPU0	(1<<4)	/* CPU0 WFE bitmap */
+#else
+#define FLOW_CTRL_BITMAP_MASK	((0xF<<4) | (0xF<<8))
+#define FLOW_CTRL_BITMAP_CPU0	(1<<8)	/* CPU0 WFI bitmap */
+#endif
 
 #define EMC_MRW_0		0x0e8
 #define EMC_MRW_DEV_SELECTN     30
@@ -292,25 +300,46 @@ static noinline void restore_cpu_complex(void)
 {
 	unsigned int reg;
 
-	/* restore original burst policy setting; PLLX state restored
-	 * by CPU boot-up code - wait for PLL stabilization if PLLX
-	 * was enabled, or if explicitly requested by caller */
+	/* Is CPU complex already running on PLLX? */
+	reg = readl(clk_rst + CLK_RESET_CCLK_BURST);
+	reg &= 0xF;
+	if (reg != 0x8) {
+		/* restore original burst policy setting; PLLX state restored
+		 * by CPU boot-up code - wait for PLL stabilization if PLLX
+		 * was enabled */
 
-	BUG_ON(readl(clk_rst + CLK_RESET_PLLX_BASE) != tegra_sctx.pllx_base);
+		BUG_ON(readl(clk_rst + CLK_RESET_PLLX_BASE) !=
+		       tegra_sctx.pllx_base);
 
-	if (tegra_sctx.pllx_base & (1<<30)) {
-		while (readl(tmrus)-tegra_sctx.pll_timeout >= 0x80000000UL)
-			cpu_relax();
+		if (tegra_sctx.pllx_base & (1<<30)) {
+#if USE_PLL_LOCK_BITS
+			/* Enable lock detector */
+			reg = readl(clk_rst + CLK_RESET_PLLX_MISC);
+			reg |= 1<<18;
+			writel(reg, clk_rst + CLK_RESET_PLLX_MISC);
+			while (!(readl(clk_rst + CLK_RESET_PLLX_BASE) &&
+				 (1<<27)))
+				cpu_relax();
+#else
+			while (readl(tmrus)-tegra_sctx.pll_timeout
+			       >= 0x80000000UL)
+				cpu_relax();
+#endif
+		}
+		writel(tegra_sctx.cclk_divider, clk_rst +
+		       CLK_RESET_CCLK_DIVIDER);
+		writel(tegra_sctx.cpu_burst, clk_rst +
+		       CLK_RESET_CCLK_BURST);
 	}
-	writel(tegra_sctx.cclk_divider, clk_rst + CLK_RESET_CCLK_DIVIDER);
-	writel(tegra_sctx.cpu_burst, clk_rst + CLK_RESET_CCLK_BURST);
+
 	writel(tegra_sctx.clk_csite_src, clk_rst + CLK_RESET_SOURCE_CSITE);
 
 	/* do not power-gate the CPU when flow controlled */
-	reg = readl(flow_ctrl + FLOW_CTRL_CPU_CSR);
-	reg &= ~((1<<5) | (1<<4) | 1); /* clear WFE bitmask */
-	reg |= (1<<14); /* write-1-clear event flag */
-	writel(reg, flow_ctrl + FLOW_CTRL_CPU_CSR);
+	reg = readl(flow_ctrl + FLOW_CTRL_CPUx_CSR(0));
+	reg |= (1<<15)|(1<<14);	/* write to clear: INTR_FLAG|EVENT_FLAG */
+	/* Clear the WFE/WFI bitmaps and power-gate enable. */
+	reg &= ~(FLOW_CTRL_BITMAP_MASK | 1);
+	writel(reg, flow_ctrl + FLOW_CTRL_CPUx_CSR(0));
 	wmb();
 
 #ifdef CONFIG_HAVE_ARM_TWD
@@ -350,18 +379,19 @@ static noinline void suspend_cpu_complex(void)
 	local_timer_stop();
 #endif
 
-	reg = readl(flow_ctrl + FLOW_CTRL_CPU_CSR);
-	/* clear any pending events, set the WFE bitmap to specify just
-	 * CPU0, and clear any pending events for this CPU */
-	reg &= ~(1<<5); /* clear CPU1 WFE */
-	reg |= (1<<14) | (1<<4) | 1; /* enable CPU0 WFE */
-	writel(reg, flow_ctrl + FLOW_CTRL_CPU_CSR);
+	reg = readl(flow_ctrl + FLOW_CTRL_CPUx_CSR(0));
+	reg |= (1<<15)|(1<<14);	/* write to clear: INTR_FLAG|EVENT_FLAG */
+	reg &= ~FLOW_CTRL_BITMAP_MASK;	/* WFE/WFI bit maps*/
+	/* Set the flow controller bitmap to specify just CPU0. */
+	reg |= FLOW_CTRL_BITMAP_CPU0 | 1; /* CPU0 bitmap | power-gate enable */
+	writel(reg, flow_ctrl + FLOW_CTRL_CPUx_CSR(0));
 	wmb();
 
 	for (i=1; i<num_present_cpus(); i++) {
-		unsigned int offs = FLOW_CTRL_CPU1_CSR + (i-1)*8;
-		reg = readl(flow_ctrl + offs);
-		writel(reg | (1<<14), flow_ctrl + offs);
+		reg = readl(flow_ctrl + FLOW_CTRL_CPUx_CSR(i));
+		/* write to clear: EVENT_FLAG | INTR_FLAG*/
+		reg |= (1<<15) | (1<<14);
+		writel(reg, flow_ctrl + FLOW_CTRL_CPUx_CSR(i));
 		wmb();
 	}
 
@@ -369,7 +399,7 @@ static noinline void suspend_cpu_complex(void)
 	gic_dist_save(0);
 }
 
-unsigned int tegra_suspend_lp2(unsigned int us)
+unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 {
 	unsigned int mode;
 	unsigned long orig, reg;
@@ -377,6 +407,7 @@ unsigned int tegra_suspend_lp2(unsigned int us)
 
 	reg = readl(pmc + PMC_CTRL);
 	mode = (reg >> TEGRA_POWER_PMC_SHIFT) & TEGRA_POWER_PMC_MASK;
+	mode |= flags;
 	mode |= TEGRA_POWER_CPU_PWRREQ_OE;
 	if (pdata->separate_req)
 		mode |= TEGRA_POWER_PWRREQ_OE;
@@ -389,6 +420,9 @@ unsigned int tegra_suspend_lp2(unsigned int us)
 
 	set_power_timers(pdata->cpu_timer, pdata->cpu_off_timer,
 			 clk_get_rate_all_locked(tegra_pclk));
+
+	if (flags & TEGRA_POWER_CLUSTER_MASK)
+		tegra_cluster_switch_prolog(mode);
 
 	if (us)
 		tegra_lp2_set_trigger(us);
@@ -416,6 +450,9 @@ unsigned int tegra_suspend_lp2(unsigned int us)
 	if (us)
 		tegra_lp2_set_trigger(0);
 
+	if (flags & TEGRA_POWER_CLUSTER_MASK)
+		tegra_cluster_switch_epilog(mode);
+
 	writel(orig, evp_reset);
 
 	return remain;
@@ -433,7 +470,7 @@ static u8 *iram_save = NULL;
 static unsigned int iram_save_size = 0;
 static void __iomem *iram_code = IO_ADDRESS(TEGRA_IRAM_CODE_AREA);
 
-static void tegra_suspend_dram(bool do_lp0)
+void tegra_suspend_dram(bool do_lp0)
 {
 	unsigned int mode = TEGRA_POWER_SDRAM_SELFREFRESH;
 	unsigned long orig, reg;
@@ -655,7 +692,7 @@ static int tegra_suspend_enter(suspend_state_t state)
 	rtc_before = tegra_rtc_read_ms();
 
 	if (do_lp2)
-		tegra_suspend_lp2(0);
+		tegra_suspend_lp2(0, 0);
 	else
 		tegra_suspend_dram(do_lp0);
 

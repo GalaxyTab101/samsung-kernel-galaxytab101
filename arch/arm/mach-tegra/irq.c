@@ -44,6 +44,8 @@
 
 static void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
 
+/* !!!FIXME!!! T30 HAS MORE THAN 32 WAKEUP SOURCES SO A SINGLE u32 WON'T WORK ..........................*/
+
 static u32 tegra_lp0_wake_enb;
 static u32 tegra_lp0_wake_level;
 static u32 tegra_lp0_wake_level_any;
