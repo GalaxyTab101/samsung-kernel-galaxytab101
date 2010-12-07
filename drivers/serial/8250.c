@@ -300,12 +300,13 @@ static const struct serial8250_config uart_config[] = {
 		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_00,
 		.flags		= UART_CAP_FIFO | UART_CAP_AFE,
 	},
-	[PORT_U6_16550A] = {
-		.name		= "U6_16550A",
-		.fifo_size	= 64,
-		.tx_loadsz	= 64,
-		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_10,
-		.flags		= UART_CAP_FIFO | UART_CAP_AFE,
+	[PORT_TEGRA] = {
+		.name		= "Tegra",
+		.fifo_size	= 32,
+		.tx_loadsz	= 16,
+		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_T_TRIG_00 |
+				  UART_FCR_R_TRIG_01,
+		.flags		= UART_CAP_FIFO,
 	},
 	[PORT_TEGRA] = {
 		.name		= "Tegra",

@@ -1,7 +1,7 @@
 /*
  * tegra_pcm.c  --  ALSA Soc Audio Layer
  *
- * (c) 2010-2011 Nvidia Graphics Pvt. Ltd.
+ * (c) 2010-2011 Nvidia Corporation.
  *  http://www.nvidia.com
  *
  * (c) 2006 Wolfson Microelectronics PLC.
