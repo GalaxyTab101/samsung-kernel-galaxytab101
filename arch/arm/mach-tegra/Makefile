@@ -52,7 +52,11 @@ obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += headsmp-t2.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += headsmp-t3.o
 obj-$(CONFIG_TEGRA_SYSTEM_DMA)          += dma.o
 obj-$(CONFIG_CPU_FREQ)                  += cpu-tegra.o
-obj-$(CONFIG_CPU_IDLE)                  += cpuidle.o
+ifeq ($(CONFIG_CPU_IDLE),y)
+obj-y                                   += cpuidle.o
+obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += cpuidle-t2.o
+obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += cpuidle-t3.o
+endif
 obj-$(CONFIG_TEGRA_IOVMM)               += iovmm.o
 obj-$(CONFIG_TEGRA_IOVMM_GART)          += iovmm-gart.o
 obj-$(CONFIG_TEGRA_IOVMM_SMMU)          += iovmm-smmu.o

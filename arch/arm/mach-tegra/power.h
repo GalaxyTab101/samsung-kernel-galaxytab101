@@ -25,7 +25,6 @@
 
 #include <asm/page.h>
 
-
 #define TEGRA_POWER_PWRREQ_POLARITY	0x1   /* core power request polarity */
 #define TEGRA_POWER_PWRREQ_OE		0x2   /* core power request enable */
 #define TEGRA_POWER_SYSCLK_POLARITY	0x4   /* sys clk polarity */
@@ -56,18 +55,63 @@
 #define TEGRA_IRAM_CODE_AREA		TEGRA_IRAM_BASE + SZ_4K
 #define TEGRA_IRAM_CODE_SIZE		SZ_4K
 
+#define CLK_RESET_CLK_MASK_ARM 0x44
+
+#define FLOW_CTRL_WAITEVENT		(2<<29)
+#define FLOW_CTRL_WAIT_FOR_INTERRUPT	(4<<29)
+#define FLOW_CTRL_JTAG_RESUME		(1<<28)
+#define FLOW_CTRL_CSR_INTR_FLAG	(1<<15)
+#define FLOW_CTRL_CST_EVENT_FLAG	(1<<14)
+
+#define EVP_CPU_RESET_VECTOR \
+	(IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE) + 0x100)
+#define CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET \
+	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x340)
+#define CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR \
+	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x344)
+#define CLK_RST_CONTROLLER_CLK_CPU_CMPLX \
+	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x4c)
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
+#define CLK_RST_CONTROLLER_CPU_CMPLX_STATUS \
+	CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET
+#else
+#define CLK_RST_CONTROLLER_CPU_CMPLX_STATUS \
+	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x470)
+#endif
+
 #ifndef __ASSEMBLY__
+
+#define FLOW_CTRL_HALT_CPUx_EVENTS(cpu) ((cpu)?((cpu-1)*0x8 + 0x14) : 0x0)
+#define FLOW_CTRL_CPUx_CSR(cpu)	 ((cpu)?(((cpu)-1)*0x8 + 0x18) : 0x8)
+
+static inline void flowctrl_writel(unsigned long val, unsigned int offs)
+{
+	__raw_writel(val, IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + offs);
+	(void)__raw_readl(IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + offs);
+}
+
 extern void *tegra_context_area;
+
+struct cpuidle_device;
+struct cpuidle_state;
 
 u64 tegra_rtc_read_ms(void);
 void tegra_lp2_set_trigger(unsigned long cycles);
+void tegra_lp2_in_idle(bool enable);
 unsigned long tegra_lp2_timer_remain(void);
 void __cortex_a9_save(unsigned int mode);
 void __cortex_a9_restore(void);
 void __shut_off_mmu(void);
 void tegra_lp2_startup(void);
 void tegra_hotplug_startup(void);
+void tegra_flow_wfi(struct cpuidle_device *dev);
 unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags);
+void tegra_idle_stats_lp2_ready(unsigned int cpu);
+void tegra_idle_stats_lp2_time(unsigned int cpu, s64 us);
+void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
+	struct cpuidle_state *state);
+void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
+	struct cpuidle_state *state);
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
 static inline int tegra_cluster_control(unsigned int us, unsigned int flags)
 { return -EPERM; }
@@ -75,11 +119,14 @@ static inline int tegra_cluster_control(unsigned int us, unsigned int flags)
 #define tegra_cluster_switch_epilog(flags) do {} while (0)
 static inline unsigned int is_lp_cluster(void)
 { return 0; }
+int tegra_cpudile_init_soc(void);
 #else
 int tegra_cluster_control(unsigned int us, unsigned int flags);
 void tegra_cluster_switch_prolog(unsigned int flags);
 void tegra_cluster_switch_epilog(unsigned int flags);
 unsigned int is_lp_cluster(void);
+static inline int tegra_cpudile_init_soc(void)
+{ return 0; }
 #endif
 #endif
 

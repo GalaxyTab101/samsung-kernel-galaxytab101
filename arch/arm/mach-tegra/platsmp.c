@@ -61,8 +61,6 @@ const struct cpumask *const cpu_init_mask = to_cpumask(cpu_init_bits);
 	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x340)
 #define CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR \
 	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x344)
-#define FLOW_CTRL_HALT_CPUx_EVENTS(cpu)	\
-	(IO_ADDRESS(TEGRA_FLOW_CTRL_BASE + ((cpu)?(((cpu)-1)*8 + 0x14) : 0x0)))
 
 #define CPU_CLOCK(cpu)	(0x1<<(8+cpu))
 #define CPU_RESET(cpu)	(0x1111ul<<(cpu))
@@ -114,7 +112,7 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 void callGenericSMC(u32 param0, u32 param1, u32 param2);
 #endif
 
-int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
+int boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned long old_boot_vector;
 	unsigned long boot_vector;
@@ -141,7 +139,7 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	}
 
 	/*
-	 * set synchronisation state between this boot processor
+	 * set synchronization state between this boot processor
 	 * and the secondary one
 	 */
 	spin_lock(&boot_lock);
@@ -174,8 +172,7 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	   CPU this will cause the flow controller to stop driving reset.
 	   The CPU will remain in reset because the clock and reset block
 	   is now driving reset. */
-	writel(0, FLOW_CTRL_HALT_CPUx_EVENTS(cpu));
-	dmb();
+	flowctrl_writel(0, FLOW_CTRL_HALT_CPUx_EVENTS(cpu));
 
 	/* enable cpu clock on cpu */
 	reg = readl(CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
@@ -289,7 +286,7 @@ int platform_cpu_kill(unsigned int cpu)
 	} else {
 		writel(CPU_RESET(cpu), CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET);
 		/* put flow controller in WAIT_EVENT mode */
-		writel(2<<29, FLOW_CTRL_HALT_CPUx_EVENTS(cpu));
+		flowctrl_writel(2<<29, FLOW_CTRL_HALT_CPUx_EVENTS(cpu));
 	}
 
 	spin_lock(&boot_lock);

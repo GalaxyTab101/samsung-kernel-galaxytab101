@@ -147,8 +147,6 @@ static void __iomem *tmrus = IO_ADDRESS(TEGRA_TMRUS_BASE);
 #define CLK_RESET_CCLK_BURST_POLICY_PLLM   3
 #define CLK_RESET_CCLK_BURST_POLICY_PLLX   8
 
-#define FLOW_CTRL_CPUx_CSR(cpu) ((cpu) ? 0x18 + 8*((cpu)-1) : 0x8)
-
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
 #define FLOW_CTRL_BITMAP_MASK	(3<<4)
 #define FLOW_CTRL_BITMAP_CPU0	(1<<4)	/* CPU0 WFE bitmap */
@@ -788,6 +786,10 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 		}
 	}
 
+	if (plat->suspend_mode == TEGRA_SUSPEND_NONE) {
+		tegra_lp2_in_idle(false);
+	}
+
 	tegra_context_area = kzalloc(CONTEXT_SIZE_BYTES * NR_CPUS, GFP_KERNEL);
 
 	if (tegra_context_area && create_suspend_pgtable()) {
@@ -806,7 +808,7 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 		plat->suspend_mode = TEGRA_SUSPEND_LP2;
 	}
 	/* CPU reset vector for LP0 and LP1 */
-	writel(virt_to_phys(tegra_lp2_startup), pmc + PMC_SCRATCH41);
+	__raw_writel(virt_to_phys(tegra_lp2_startup), pmc + PMC_SCRATCH41);
 
 	/* Always enable CPU power request; just normal polarity is supported */
 	reg = readl(pmc + PMC_CTRL);
@@ -816,8 +818,8 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 
 	/* Configure core power request and system clock control if LP0
 	   is supported */
-	writel(pdata->core_timer, pmc + PMC_COREPWRGOOD_TIMER);
-	writel(pdata->core_off_timer, pmc + PMC_COREPWROFF_TIMER);
+	__raw_writel(pdata->core_timer, pmc + PMC_COREPWRGOOD_TIMER);
+	__raw_writel(pdata->core_off_timer, pmc + PMC_COREPWROFF_TIMER);
 	reg = readl(pmc + PMC_CTRL);
 	mode = (reg >> TEGRA_POWER_PMC_SHIFT) & TEGRA_POWER_PMC_MASK;
 
@@ -837,7 +839,7 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 	reg |= (TEGRA_POWER_SYSCLK_OE << TEGRA_POWER_PMC_SHIFT);
 	if (pdata->separate_req)
 		reg |= (TEGRA_POWER_PWRREQ_OE << TEGRA_POWER_PMC_SHIFT);
-	writel(reg, pmc + PMC_CTRL);
+	__raw_writel(reg, pmc + PMC_CTRL);
 
 	if (pdata->suspend_mode == TEGRA_SUSPEND_LP0)
 		lp0_suspend_init();

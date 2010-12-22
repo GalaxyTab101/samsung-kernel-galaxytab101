@@ -351,8 +351,9 @@ void __init lp0_suspend_init(void)
 			r |= v;
 		}
 
-		writel(r, scratch[i].scratch_addr);
+		__raw_writel(r, scratch[i].scratch_addr);
 	}
+	wmb();
 }
 
 #define NUM_WAKE_EVENTS 31
