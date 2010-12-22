@@ -97,3 +97,10 @@ obj-${CONFIG_MACH_WHISTLER}             += board-whistler-sensors.o
 obj-${CONFIG_MACH_WHISTLER}             += board-whistler-kbc.o
 obj-${CONFIG_MACH_WHISTLER}             += board-whistler-baseband.o
 obj-${CONFIG_MACH_WHISTLER}             += board-whistler-memory.o
+
+obj-${CONFIG_MACH_CARDHU}                += board-cardhu.o
+obj-${CONFIG_MACH_CARDHU}                += board-cardhu-panel.o
+obj-${CONFIG_MACH_CARDHU}                += board-cardhu-pinmux.o
+obj-${CONFIG_MACH_CARDHU}                += board-cardhu-power.o
+obj-${CONFIG_MACH_CARDHU}                += board-cardhu-sdhci.o
+obj-${CONFIG_MACH_CARDHU}                += board-cardhu-sensors.o

@@ -61,6 +61,11 @@ config MACH_ARUBA
        help
          Support for NVIDIA Aruba2 FPGA development platform
 
+config MACH_CARDHU
+       bool "Cardhu board"
+       help
+         Support for NVIDIA Cardhu development platform
+
 config TEGRA_FPGA_PLATFORM
 	bool
 
