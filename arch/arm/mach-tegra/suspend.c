@@ -778,12 +778,14 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 	(void)reg;
 	(void)mode;
 
-	if (plat->suspend_mode == TEGRA_SUSPEND_LP0 && tegra_lp0_vec_size) {
-		wb0_restore = tegra_lp0_vec_start;
-	} else {
-		pr_warning("Suspend mode LP0 requested, but missing lp0_vec\n");
-		pr_warning("Disabling LP0\n");
-		plat->suspend_mode = TEGRA_SUSPEND_LP1;
+	if (plat->suspend_mode == TEGRA_SUSPEND_LP0) {
+		if (tegra_lp0_vec_size)
+			wb0_restore = tegra_lp0_vec_start;
+		else {
+			pr_warning("Suspend mode LP0 requested, but missing lp0_vec\n");
+			pr_warning("Disabling LP0\n");
+			plat->suspend_mode = TEGRA_SUSPEND_LP1;
+		}
 	}
 
 	tegra_context_area = kzalloc(CONTEXT_SIZE_BYTES * NR_CPUS, GFP_KERNEL);
