@@ -30,6 +30,7 @@
 #include <mach/gpio.h>
 #include <mach/iomap.h>
 #include <mach/irqs.h>
+#include <mach/suspend.h>
 #include <asm/hardware/gic.h>
 
 #include "clock.h"
@@ -267,9 +268,6 @@ done:
 
 static void cluster_switch_epilog_gic(void)
 {
-	unsigned int max_irq, i;
-	void __iomem *gic_base = IO_ADDRESS(TEGRA_ARM_INT_DIST_BASE);
-
 	/* Nothing to do if currently running on the LP CPU. */
 	if (is_lp_cluster())
 		return;
@@ -281,12 +279,7 @@ static void cluster_switch_epilog_gic(void)
 	   as all zero. This causes all interrupts to be effectively
 	   disabled when back on the G CPU because they aren't routable
 	   to any CPU. See bug 667720 for details. */
-
-	max_irq = readl(gic_base + GIC_DIST_CTR) & 0x1f;
-	max_irq = (max_irq + 1) * 32;
-
-	for (i = 32; i < max_irq; i += 4)
-		writel(0x01010101, gic_base + GIC_DIST_TARGET + i * 4 / 4);
+	tegra_irq_affinity_to_cpu0();
 }
 
 void tegra_cluster_switch_epilog(unsigned int flags)

@@ -44,18 +44,18 @@
 #define TEGRA_POWER_CLUSTER_FORCE	0x8000	/* Force switch */
 
 /* CPU Context area (1KB per CPU) */
-#define CONTEXT_SIZE_BYTES_SHIFT 10
-#define CONTEXT_SIZE_BYTES (1<<CONTEXT_SIZE_BYTES_SHIFT)
+#define CONTEXT_SIZE_BYTES_SHIFT	10
+#define CONTEXT_SIZE_BYTES		(1<<CONTEXT_SIZE_BYTES_SHIFT)
 
 /* CPU Context area (1KB per CPU) */
-#define CONTEXT_SIZE_BYTES_SHIFT 10
-#define CONTEXT_SIZE_BYTES (1<<CONTEXT_SIZE_BYTES_SHIFT)
+#define CONTEXT_SIZE_BYTES_SHIFT	10
+#define CONTEXT_SIZE_BYTES		(1<<CONTEXT_SIZE_BYTES_SHIFT)
 
 /* layout of IRAM used for LP1 save & restore */
 #define TEGRA_IRAM_CODE_AREA		TEGRA_IRAM_BASE + SZ_4K
 #define TEGRA_IRAM_CODE_SIZE		SZ_4K
 
-#define CLK_RESET_CLK_MASK_ARM 0x44
+#define CLK_RESET_CLK_MASK_ARM		0x44
 
 #define FLOW_CTRL_WAITEVENT		(2<<29)
 #define FLOW_CTRL_WAIT_FOR_INTERRUPT	(4<<29)
@@ -81,8 +81,8 @@
 
 #ifndef __ASSEMBLY__
 
-#define FLOW_CTRL_HALT_CPUx_EVENTS(cpu) ((cpu)?((cpu-1)*0x8 + 0x14) : 0x0)
-#define FLOW_CTRL_CPUx_CSR(cpu)	 ((cpu)?(((cpu)-1)*0x8 + 0x18) : 0x8)
+#define FLOW_CTRL_HALT_CPUx_EVENTS(cpu)	((cpu)?(((cpu)-1)*0x8 + 0x14) : 0x0)
+#define FLOW_CTRL_CPUx_CSR(cpu)		((cpu)?(((cpu)-1)*0x8 + 0x18) : 0x8)
 
 static inline void flowctrl_writel(unsigned long val, unsigned int offs)
 {
@@ -122,6 +122,9 @@ static inline unsigned int is_lp_cluster(void)
 static inline unsigned long tegra_get_lpcpu_max_rate(void)
 { return 0; }
 int tegra_cpudile_init_soc(void);
+static inline bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
+	struct cpuidle_state *state)
+{ return true; }
 #else
 int tegra_cluster_control(unsigned int us, unsigned int flags);
 void tegra_cluster_switch_prolog(unsigned int flags);
@@ -130,6 +133,8 @@ unsigned int is_lp_cluster(void);
 unsigned long tegra_get_lpcpu_max_rate(void);
 static inline int tegra_cpudile_init_soc(void)
 { return 0; }
+bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
+	struct cpuidle_state *state);
 #endif
 #endif
 

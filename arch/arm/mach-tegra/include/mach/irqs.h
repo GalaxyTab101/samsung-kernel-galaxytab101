@@ -23,7 +23,7 @@
 
 #define INT_GIC_BASE			0
 
-#define IRQ_LOCALTIMER                  29
+#define IRQ_LOCALTIMER			29
 
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
 /* Primary Interrupt Controller */
@@ -167,7 +167,9 @@
 #define INT_QUAD_RES_30			(INT_QUAD_BASE + 30)
 #define INT_QUAD_RES_31			(INT_QUAD_BASE + 31)
 
-#define INT_MAIN_NR			(INT_QUAD_BASE + 32 - INT_PRI_BASE)
+#define INT_GIC_NR			(INT_QUAD_BASE + 32)
+
+#define INT_MAIN_NR			(INT_GIC_NR - INT_PRI_BASE)
 
 #define INT_SYNCPT_THRESH_BASE		(INT_QUAD_BASE + 32)
 #define INT_SYNCPT_THRESH_NR		32
@@ -353,7 +355,9 @@
 #define INT_QUINT_RES_30		(INT_QUINT_BASE + 30)
 #define INT_QUINT_RES_31		(INT_QUINT_BASE + 31)
 
-#define INT_MAIN_NR			(INT_QUINT_BASE + 32 - INT_PRI_BASE)
+#define INT_GIC_NR			(INT_QUINT_BASE + 32)
+
+#define INT_MAIN_NR			(INT_GIC_NR - INT_PRI_BASE)
 
 #define INT_SYNCPT_THRESH_BASE		(INT_QUINT_BASE + 32)
 #define INT_SYNCPT_THRESH_NR		32
@@ -372,6 +376,6 @@
 
 #define NR_BOARD_IRQS			32
 
-#define NR_IRQS				(INT_BOARD_BASE + NR_BOARD_IRQS)
+#define NR_IRQS			(INT_BOARD_BASE + NR_BOARD_IRQS)
 
 #endif

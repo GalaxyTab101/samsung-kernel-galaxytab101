@@ -388,6 +388,14 @@ void gic_dist_exit(unsigned int gic_nr)
 	_gic_dist_exit(gic_nr);
 }
 
+void gic_dist_enable(unsigned int gic_nr)
+{
+	if (gic_nr >= MAX_GIC_NR)
+		BUG();
+
+	writel(1, gic_data[gic_nr].dist_base + GIC_DIST_CTRL);
+}
+
 void __cpuinit gic_cpu_init(unsigned int gic_nr, void __iomem *base)
 {
 	if (gic_nr >= MAX_GIC_NR)

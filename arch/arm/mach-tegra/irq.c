@@ -33,12 +33,13 @@
 #include <mach/suspend.h>
 
 #include "board.h"
+#include "power.h"
 
 #define PMC_CTRL		0x0
 #define PMC_CTRL_LATCH_WAKEUPS	(1 << 5)
 #define PMC_WAKE_MASK		0xc
 #define PMC_WAKE_LEVEL		0x10
-#define PMC_WAKE_STATUS		0x14
+#define PMC_WAKE_STATUS	0x14
 #define PMC_SW_WAKE_STATUS	0x18
 #define PMC_DPD_SAMPLE  	0x20
 
@@ -265,6 +266,63 @@ void tegra_irq_resume(void)
 {
 	tegra_legacy_irq_resume();
 	tegra_irq_handle_wake();
+}
+#endif
+
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
+
+static u32 gic_affinity[INT_GIC_NR/4];
+
+void tegra_irq_disable_affinity(void)
+{
+	void __iomem *gic_base = IO_ADDRESS(TEGRA_ARM_INT_DIST_BASE);
+	unsigned int i;
+
+	BUG_ON(is_lp_cluster());
+
+       /* The GIC distributor TARGET register is one byte per IRQ. */
+	for (i = 32; i < INT_GIC_NR; i += 4) {
+		/* Save the affinity. */
+		gic_affinity[i/4] = __raw_readl(gic_base + GIC_DIST_TARGET + i);
+
+		/* Force this interrupt to CPU0. */
+		__raw_writel(0x01010101, gic_base + GIC_DIST_TARGET + i);
+	}
+
+       wmb();
+}
+
+void tegra_irq_restore_affinity(void)
+{
+	void __iomem *gic_base = IO_ADDRESS(TEGRA_ARM_INT_DIST_BASE);
+	unsigned int i;
+
+	BUG_ON(is_lp_cluster());
+
+       /* The GIC distributor TARGET register is one byte per IRQ. */
+	for (i = 32; i < INT_GIC_NR; i += 4) {
+#ifdef CONFIG_BUG
+		u32 reg = __raw_readl(gic_base + GIC_DIST_TARGET + i);
+		if (reg & 0xFEFEFEFE)
+			panic("GIC affinity changed!");
+#endif
+		/* Restore this interrupt's affinity. */
+		__raw_writel(gic_affinity[i/4], gic_base + GIC_DIST_TARGET + i);
+	}
+
+       wmb();
+}
+
+void tegra_irq_affinity_to_cpu0(void)
+{
+	void __iomem *gic_base = IO_ADDRESS(TEGRA_ARM_INT_DIST_BASE);
+	unsigned int i;
+
+	BUG_ON(is_lp_cluster());
+
+	for (i = 32; i < INT_GIC_NR; i += 4)
+		__raw_writel(0x01010101, gic_base + GIC_DIST_TARGET + i);
+       wmb();
 }
 #endif
 

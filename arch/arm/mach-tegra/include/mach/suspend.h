@@ -70,6 +70,12 @@ void tegra_timer_resume(void);
 int tegra_irq_to_wake(int irq);
 int tegra_wake_to_irq(int wake);
 
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
+void tegra_irq_disable_affinity(void);
+void tegra_irq_affinity_to_cpu0(void);
+void tegra_irq_restore_affinity(void);
+#endif
+
 int tegra_set_lp0_wake(int irq, int enable);
 int tegra_set_lp0_wake_type(int irq, int flow_type);
 int tegra_set_lp1_wake(int irq, int enable);

@@ -101,6 +101,18 @@ void tegra_idle_stats_lp2_time(unsigned int cpu, s64 us)
 	idle_stats.cpu_wants_lp2_time[cpu_number(cpu)] += us;
 }
 
+bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
+	struct cpuidle_state *state)
+{
+	if (dev->cpu == 0) {
+		u32 reg = readl(CLK_RST_CONTROLLER_CPU_CMPLX_STATUS);
+		if ((reg & 0xE) != 0xE) {
+			return false;
+		}
+	}
+	return true;
+}
+
 void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 	struct cpuidle_state *state)
 {
@@ -124,14 +136,37 @@ void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 	enter = ktime_get();
 
 #ifdef CONFIG_SMP
-	{
-		int i;
+	if (!is_lp_cluster() && (num_online_cpus() > 1)) {
+		s64 wake_time;
+		unsigned int i;
+
+		/* Disable the distributor -- this is the only way to
+		   prevent the other CPUs from responding to interrupts
+		   and potentially fiddling with the distributor
+		   registers while we're fiddling with them. */
+		gic_dist_exit(0);
+
+		/* Did an interrupt come in for another CPU before we
+		   could disable the distributor? */
+		if (!tegra_lp2_is_allowed(dev, state)) {
+			/* Yes, re-enable the distributor and LP3. */
+			gic_dist_enable(0);
+			tegra_flow_wfi(dev);
+			return;
+		}
+
+		/* Save and disable the affinity setting for the other
+		   CPUs and route all interrupts to CPU0. */
+		tegra_irq_disable_affinity();
+
+		/* Re-enable the distributor. */
+		gic_dist_enable(0);
 
 		/* LP2 initial targeted wake time */
-		s64 wake_time = ktime_to_us(enter) + request;
+		wake_time = ktime_to_us(enter) + request;
 
-		smp_rmb();
 		/* CPU0 must wake up before any of the other CPUs. */
+		smp_rmb();
 		for (i = 1; i < CONFIG_NR_CPUS; i++)
 			wake_time = min_t(s64, wake_time,
 				tegra_cpu_wake_by_time[i]);
@@ -157,8 +192,17 @@ void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 	}
 
 #ifdef CONFIG_SMP
-	{
+	if (!is_lp_cluster() && (num_online_cpus() > 1)) {
 		int i;
+
+		/* Disable the distributor. */
+		gic_dist_exit(0);
+
+		/* Restore the other CPU's interrupt affinity. */
+		tegra_irq_restore_affinity();
+
+		/* Re-enable the distributor. */
+		gic_dist_enable(0);
 
 		/* Start the other CPUs if they were online. */
 		smp_wmb();

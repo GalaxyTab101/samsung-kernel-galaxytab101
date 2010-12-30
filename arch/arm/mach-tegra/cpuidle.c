@@ -106,17 +106,9 @@ static int tegra_idle_enter_lp2(struct cpuidle_device *dev,
 	ktime_t enter, exit;
 	s64 us;
 
-	if (!lp2_in_idle || lp2_disabled_by_suspend)
+	if (!lp2_in_idle || lp2_disabled_by_suspend ||
+	    !tegra_lp2_is_allowed(dev, state))
 		return tegra_idle_enter_lp3(dev, state);
-
-#if defined(CONFIG_SMP) && !defined(CONFIG_ARCH_TEGRA_2x_SOC)
-	if (dev->cpu == 0) {
-		u32 reg = readl(CLK_RST_CONTROLLER_CPU_CMPLX_STATUS);
-		if ((reg & 0xE) != 0xE) {
-			return tegra_idle_enter_lp3(dev, state);
-		}
-	}
-#endif
 
 	local_irq_disable();
 	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &dev->cpu);
