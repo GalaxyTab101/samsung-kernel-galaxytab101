@@ -50,6 +50,7 @@ config MACH_VENTANA
 
 config MACH_WHISTLER
        bool "Whistler board"
+       depends on ARCH_TEGRA_2x_SOC
        help
          Support for NVIDIA Whistler development platform
 
@@ -62,7 +63,6 @@ config MACH_ARUBA
 
 config TEGRA_FPGA_PLATFORM
 	bool
-
 
 choice
         prompt "Low-level debug console UART"

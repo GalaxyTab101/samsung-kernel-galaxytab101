@@ -23,11 +23,10 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <asm/io.h>
 #include <linux/delay.h>
 #include <linux/rtc.h>
 #include <linux/platform_device.h>
-
-#include <asm/io.h>
 
 /* how many attempts to wait in tegra_rtc_wait_while_busy(). */
 #define RTC_TEGRA_RETRIES 15
@@ -481,8 +480,10 @@ static struct platform_driver tegra_rtc_driver = {
 		.name	= "tegra_rtc",
 		.owner	= THIS_MODULE,
 	},
+#ifdef CONFIG_PM
 	.suspend	= tegra_rtc_suspend,
 	.resume		= tegra_rtc_resume,
+#endif
 };
 
 static int __init tegra_rtc_init(void)
