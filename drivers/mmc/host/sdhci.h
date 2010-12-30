@@ -340,6 +340,7 @@ struct sdhci_ops {
 #endif
 
 	void	(*set_clock)(struct sdhci_host *host, unsigned int clock);
+	void	(*configure_capabilities)(struct sdhci_host *host);
 
 	int		(*enable_dma)(struct sdhci_host *host);
 	int		(*get_ro)(struct sdhci_host *host);

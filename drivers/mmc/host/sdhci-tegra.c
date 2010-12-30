@@ -34,6 +34,21 @@
 
 #define SDHCI_VENDOR_CLOCK_CNTRL       0x100
 
+#if defined (CONFIG_ARCH_TEGRA_3x_SOC)
+#define SDHCI_VENDOR_CLOCK_CNTRL_SDR50_TUNING_OVERRIDE	0x20
+#define SDHCI_VENDOR_CLOCK_CNTRL_SDMMC_CLK_ENABLE	0x1
+#define SDHCI_VENDOR_CLOCK_CNTRL_INPUT_IO_CLOCK_INTERNAL	0x2
+#define SDHCI_VENDOR_CLOCK_CNTRL_SPI_MODE_CLKEN_OVERRIDE	0x4
+#define SDHCI_VENDOR_CLOCK_CNTRL_PADPIPE_CLKEN_OVERRIDE 0x8
+#define SDHCI_VENDOR_CLOCK_CNTRL_TAP_VAL_SHIFT	0x10
+
+#define SDMMC_VENDOR_MISC_CNTRL	0x120
+#define SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_SW_RESET_CLKEN_OVERRIDE	0x2
+#define SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_ENABLE_SDR104	0x8
+#define SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_ENABLE_SDR50	0x10
+#define SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_ENABLE_SD3_0_SUPPORT	0x20
+#endif
+
 struct tegra_sdhci_host {
 	struct sdhci_host *sdhci;
 	struct clk *clk;
@@ -63,6 +78,31 @@ static int tegra_sdhci_enable_dma(struct sdhci_host *host)
 	return 0;
 }
 
+static void tegra_sdhci_configure_capabilities(struct sdhci_host *sdhci)
+{
+#if defined (CONFIG_ARCH_TEGRA_3x_SOC)
+	u32 ctrl;
+
+	/*
+	 * Configure clock override bits and SDR50 tuning requirement in
+	 * the vendor clock control register.
+	 */
+	ctrl = sdhci_readl(sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
+	ctrl &= ~(SDHCI_VENDOR_CLOCK_CNTRL_PADPIPE_CLKEN_OVERRIDE);
+	ctrl &= ~(SDHCI_VENDOR_CLOCK_CNTRL_SPI_MODE_CLKEN_OVERRIDE);
+	ctrl |= SDHCI_VENDOR_CLOCK_CNTRL_SDR50_TUNING_OVERRIDE;
+	sdhci_writel(sdhci, ctrl, SDHCI_VENDOR_CLOCK_CNTRL);
+
+	/* Enable support for SD 3.0 */
+	ctrl = sdhci_readl(sdhci, SDMMC_VENDOR_MISC_CNTRL);
+	ctrl &= ~(SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_SW_RESET_CLKEN_OVERRIDE);
+	ctrl |= SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_ENABLE_SDR104;
+	ctrl |= SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_ENABLE_SDR50;
+	ctrl |= SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_ENABLE_SD3_0_SUPPORT;
+	sdhci_writel(sdhci, ctrl, SDMMC_VENDOR_MISC_CNTRL);
+#endif
+}
+
 static void tegra_sdhci_enable_clock(struct tegra_sdhci_host *host, int enable)
 {
 	if (enable && !host->clk_enabled) {
@@ -88,6 +128,7 @@ static void tegra_sdhci_set_clock(struct sdhci_host *sdhci, unsigned int clock)
 static struct sdhci_ops tegra_sdhci_ops = {
 	.enable_dma = tegra_sdhci_enable_dma,
 	.set_clock = tegra_sdhci_set_clock,
+	.configure_capabilities = tegra_sdhci_configure_capabilities,
 };
 
 static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
