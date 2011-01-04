@@ -371,7 +371,7 @@ static int __init tegra_rtc_probe(struct platform_device *pdev)
 		goto err_dev_unreg;
 	}
 
-	dev_notice(&pdev->dev, "Tegra Internal Real Time Clock\n");
+	dev_notice(&pdev->dev, "Tegra internal Real Time Clock\n");
 
 #ifdef CONFIG_TEGRA_FPGA_PLATFORM
 	{
@@ -462,9 +462,6 @@ static int tegra_rtc_resume(struct platform_device *pdev)
 		disable_irq_wake(tegra_rtc_irq);
 	return 0;
 }
-#else
-#define tegra_rtc_suspend NULL
-#define tegra_rtc_resume  NULL
 #endif
 
 static void tegra_rtc_shutdown(struct platform_device *pdev)
