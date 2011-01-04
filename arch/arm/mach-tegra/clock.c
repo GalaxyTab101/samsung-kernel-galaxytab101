@@ -588,6 +588,24 @@ void tegra_sdmmc_tap_delay(struct clk *c, int delay) {
 	clk_unlock_restore(c, flags);
 }
 
+int tegra_periph_clk_cfg_ex(struct clk *c, u32 setting)
+{
+	int ret = 0;
+	unsigned long flags;
+
+	clk_lock_save(c, flags);
+
+	if (!c->ops || !c->ops->clk_cfg_ex) {
+		ret = -ENOSYS;
+		goto out;
+	}
+	c->ops->clk_cfg_ex(c, setting);
+
+out:
+	clk_unlock_restore(c, flags);
+	return ret;
+}
+
 #ifdef CONFIG_DEBUG_FS
 
 /*
