@@ -30,18 +30,18 @@ enum tegra_suspend_mode {
 };
 
 struct tegra_suspend_platform_data {
-	unsigned long cpu_timer;   /* CPU power good time in us,  LP2/LP1 */
+	unsigned long cpu_timer;	/* CPU power good time in us, LP2/LP1 */
 	unsigned long cpu_off_timer;	/* CPU power off time us, LP2/LP1 */
-	unsigned long core_timer;  /* core power good time in ticks,  LP0 */
+	unsigned long core_timer;	/* core power good time in ticks, LP0 */
 	unsigned long core_off_timer;	/* core power off time ticks, LP0 */
-	unsigned long wake_enb;    /* mask of enabled wake pads */
-	unsigned long wake_high;   /* high-level-triggered wake pads */
-	unsigned long wake_low;    /* low-level-triggered wake pads */
-	unsigned long wake_any;    /* any-edge-triggered wake pads */
-	bool corereq_high;         /* Core power request active-high */
-	bool sysclkreq_high;       /* System clock request is active-high */
-	bool separate_req;         /* Core & CPU power request are separate */
-	enum tegra_suspend_mode suspend_mode;
+	unsigned long long wake_enb;	/* mask of enabled wake pads */
+	unsigned long long wake_high;	/* high-level-triggered wake pads */
+	unsigned long long wake_low;	/* low-level-triggered wake pads */
+	unsigned long long wake_any;	/* any-edge-triggered wake pads */
+	bool corereq_high;		/* Core power request active-high */
+	bool sysclkreq_high;		/* System clock request is active-high */
+	bool separate_req;		/* Core & CPU power request are separate */
+	enum tegra_suspend_mode	suspend_mode;
 };
 
 unsigned long tegra_cpu_power_good_time(void);
@@ -79,7 +79,7 @@ void tegra_irq_restore_affinity(void);
 int tegra_set_lp0_wake(int irq, int enable);
 int tegra_set_lp0_wake_type(int irq, int flow_type);
 int tegra_set_lp1_wake(int irq, int enable);
-void tegra_set_lp0_wake_pads(u32 wake_enb, u32 wake_level, u32 wake_any);
+void tegra_set_lp0_wake_pads(u64 wake_enb, u64 wake_level, u64 wake_any);
 
 void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat);
 

@@ -23,6 +23,10 @@
 #ifndef __MACH_TEGRA_WAKEUPS_T2_H
 #define __MACH_TEGRA_WAKEUPS_T2_H
 
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
+#error "Tegra 2 wakeup sources valid only for CONFIG_ARCH_TEGRA_2x_SOC"
+#endif
+
 #define TEGRA_WAKE_GPIO_PO5	(1 << 0)
 #define TEGRA_WAKE_GPIO_PV3	(1 << 1)
 #define TEGRA_WAKE_GPIO_PL1	(1 << 2)
