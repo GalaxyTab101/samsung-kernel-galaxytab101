@@ -538,6 +538,17 @@ ENTRY(__cortex_a9_l2x0_restart)
 	mov32	r9, (TEGRA_ARM_PL310_BASE-IO_CPU_PHYS+IO_CPU_VIRT)
 	add	r10, r8, #CTX_L2_CTRL
 	ldmia	r10, {r3-r7}
+#ifdef  CONFIG_ARCH_TEGRA_3x_SOC
+#ifndef CONFIG_TEGRA_FPGA_PLATFORM
+	mov32	r5, (TEGRA_FLOW_CTRL_BASE-IO_PPSB_PHYS+IO_PPSB_VIRT)
+	ldr	r5, [r5, #0x2C]		@ FLOW_CTRL_CLUSTER_CONTROL
+	ands	r5, r5, #1		@ 0 == G cluster, 1 == LP cluster
+	movweq	r5, #0x331		@ G tag
+	movweq	r6, #0x441		@ G data
+	movwne	r5, #0x221		@ LP tag
+	movwne	r6, #0x221		@ LP data
+#endif
+#endif
 #ifndef CONFIG_TRUSTED_FOUNDATIONS
 	str	r5, [r9, #L2X0_TAG_LATENCY_CTRL]
 	str	r6, [r9, #L2X0_DATA_LATENCY_CTRL]
@@ -546,7 +557,6 @@ ENTRY(__cortex_a9_l2x0_restart)
 	mov     r4, #0x2                @ L2X0_DYNAMIC_CLK_GATING_EN
 	str     r4, [r9, #L2X0_PWR_CTRL]
 	cmp	r0, #0
-
 	beq	__reenable_l2x0
 
 	mov	r0, #0xff

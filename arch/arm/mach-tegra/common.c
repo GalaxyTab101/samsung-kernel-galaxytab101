@@ -37,6 +37,7 @@
 #include "board.h"
 #include "clock.h"
 #include "fuse.h"
+#include "power.h"
 
 #define MC_SECURITY_CFG2	0x7c
 
@@ -120,37 +121,27 @@ void __init tegra_init_cache(void)
 #ifdef CONFIG_TEGRA_FPGA_PLATFORM
 	writel(0x770, p + L2X0_TAG_LATENCY_CTRL);
 	writel(0x770, p + L2X0_DATA_LATENCY_CTRL);
-	{
-		void __iomem *misc = IO_ADDRESS(TEGRA_APB_MISC_BASE);
-		u32 val = readl(misc + APB_MISC_HIDREV);
-		u32 major = (val>>4) & 0xf;
-		u32 netlist = readl(misc + 0x860);
-
-		if ((major == 0) && ((netlist & 0xFFFF) >= 12)) {
-			/* Enable PL310 double line fill feature. */
-			writel(((1<<30) | 7), p + L2X0_PREFETCH_OFFSET);
-		} else {
-			writel(7, p + L2X0_PREFETCH_OFFSET);
-		}
-	}
 #else
-	/* FIXME: Need characterized timing parameters for real silicon */
-	writel(0x331, p + L2X0_TAG_LATENCY_CTRL);
-	writel(0x441, p + L2X0_DATA_LATENCY_CTRL);
-	writel(7, p + L2X0_PREFETCH_OFFSET);
-	writel(2, p + L2X0_PWR_CTRL);
+	/* PL310 RAM latency is CPU dependent. NOTE: Changes here
+	   must also be reflected in __cortex_a9_l2x0_restart */
+
+	if (is_lp_cluster()) {
+		writel(0x221, p + L2X0_TAG_LATENCY_CTRL);
+		writel(0x221, p + L2X0_DATA_LATENCY_CTRL);
+	} else {
+		writel(0x331, p + L2X0_TAG_LATENCY_CTRL);
+		writel(0x441, p + L2X0_DATA_LATENCY_CTRL);
+	}
 #endif
 
 	/* Enable PL310 double line fill feature. */
 	writel(((1<<30) | 7), p + L2X0_PREFETCH_OFFSET);
-#endif
 #endif
 	aux_ctrl = readl(p + L2X0_CACHE_TYPE);
 	aux_ctrl = (aux_ctrl & 0x700) << (17-8);
 	aux_ctrl |= 0x6C000001;
 	l2x0_init(p, aux_ctrl, 0x8200c3fe);
 #endif
-
 }
 
 static void __init tegra_init_power(void)
