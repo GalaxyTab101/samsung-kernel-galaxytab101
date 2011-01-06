@@ -27,7 +27,7 @@ obj-$(CONFIG_USB_SUPPORT)               += usb_phy.o
 obj-$(CONFIG_FIQ)                       += fiq.o
 obj-$(CONFIG_TEGRA_FIQ_DEBUGGER)        += tegra_fiq_debugger.o
 obj-$(CONFIG_TEGRA_PWM)                 += pwm.o
-obj-$(CONFIG_TEGRA_ARB_SEMAPHORE)	+= arb_sema.o
+obj-$(CONFIG_TEGRA_ARB_SEMAPHORE)       += arb_sema.o
 
 obj-y                                   += clock.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_clocks.o
@@ -40,7 +40,7 @@ obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += suspend-t2.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += suspend-t3.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= tegra2_save.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += tegra3_save.o
-obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= tegra2_emc.o
+obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_emc.o
 obj-$(CONFIG_CPU_V7)			+= cortex-a9.o
 
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= pinmux-t2-tables.o
@@ -60,6 +60,7 @@ endif
 obj-$(CONFIG_TEGRA_IOVMM)               += iovmm.o
 obj-$(CONFIG_TEGRA_IOVMM_GART)          += iovmm-gart.o
 obj-$(CONFIG_TEGRA_IOVMM_SMMU)          += iovmm-smmu.o
+obj-$(CONFIG_DEBUG_ICEDCC)              += sysfs-dcc.o
 obj-$(CONFIG_TEGRA_MC_PROFILE)          += tegra2_mc.o
 
 obj-y                                   += nv/
