@@ -187,7 +187,7 @@ static void tegra_wake_cpu1(void)
 	writel(reg, CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR);
 
 	/* unhalt the cpu */
-	writel(0, IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + 0x14);
+	flowctrl_writel(0, FLOW_CTRL_HALT_CPUx_EVENTS(1));
 
 
 	timeout = jiffies + msecs_to_jiffies(1000);

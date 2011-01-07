@@ -81,13 +81,18 @@
 
 #ifndef __ASSEMBLY__
 
-#define FLOW_CTRL_HALT_CPUx_EVENTS(cpu)	((cpu)?(((cpu)-1)*0x8 + 0x14) : 0x0)
-#define FLOW_CTRL_CPUx_CSR(cpu)		((cpu)?(((cpu)-1)*0x8 + 0x18) : 0x8)
+#define FLOW_CTRL_HALT_CPUx_EVENTS(cpu)	(IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + \
+	((cpu)?(((cpu)-1)*0x8 + 0x14) : 0x0))
+#define FLOW_CTRL_CPUx_CSR(cpu)		(IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + \
+	((cpu)?(((cpu)-1)*0x8 + 0x18) : 0x8))
 
-static inline void flowctrl_writel(unsigned long val, unsigned int offs)
+static inline void flowctrl_writel(unsigned long val, void __iomem *addr)
 {
-	__raw_writel(val, IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + offs);
-	(void)__raw_readl(IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + offs);
+	writel(val, addr);
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
+	wmb();
+#endif
+	(void)__raw_readl(addr);
 }
 
 extern void *tegra_context_area;

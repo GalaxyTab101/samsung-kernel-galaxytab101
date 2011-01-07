@@ -41,6 +41,7 @@ obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_fuse.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_speedo.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += suspend-t2.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += suspend-t3.o
+obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += sysfs-cluster.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)		+= tegra2_save.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += tegra3_save.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_emc.o

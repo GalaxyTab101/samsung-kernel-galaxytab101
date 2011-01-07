@@ -103,7 +103,6 @@ volatile struct suspend_context tegra_sctx;
 
 #if defined(CONFIG_PM) || defined(CONFIG_CPU_IDLE) || !defined(CONFIG_ARCH_TEGRA_2x_SOC)
 static void __iomem *clk_rst = IO_ADDRESS(TEGRA_CLK_RESET_BASE);
-static void __iomem *flow_ctrl = IO_ADDRESS(TEGRA_FLOW_CTRL_BASE);
 static void __iomem *evp_reset = IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE)+0x100;
 static void __iomem *tmrus = IO_ADDRESS(TEGRA_TMRUS_BASE);
 static void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
@@ -337,12 +336,11 @@ static noinline void restore_cpu_complex(void)
 	writel(tegra_sctx.clk_csite_src, clk_rst + CLK_RESET_SOURCE_CSITE);
 
 	/* do not power-gate the CPU when flow controlled */
-	reg = readl(flow_ctrl + FLOW_CTRL_CPUx_CSR(0));
+	reg = readl(FLOW_CTRL_CPUx_CSR(0));
 	reg |= (1<<15)|(1<<14);	/* write to clear: INTR_FLAG|EVENT_FLAG */
 	/* Clear the WFE/WFI bitmaps and power-gate enable. */
 	reg &= ~(FLOW_CTRL_BITMAP_MASK | 1);
-	writel(reg, flow_ctrl + FLOW_CTRL_CPUx_CSR(0));
-	wmb();
+	flowctrl_writel(reg, FLOW_CTRL_CPUx_CSR(0));
 
 #ifdef CONFIG_HAVE_ARM_TWD
 	writel(tegra_sctx.twd_ctrl, twd_base + 0x8);
@@ -381,20 +379,18 @@ static noinline void suspend_cpu_complex(void)
 	local_timer_stop();
 #endif
 
-	reg = readl(flow_ctrl + FLOW_CTRL_CPUx_CSR(0));
+	reg = readl(FLOW_CTRL_CPUx_CSR(0));
 	reg |= (1<<15)|(1<<14);	/* write to clear: INTR_FLAG|EVENT_FLAG */
 	reg &= ~FLOW_CTRL_BITMAP_MASK;	/* WFE/WFI bit maps*/
 	/* Set the flow controller bitmap to specify just CPU0. */
 	reg |= FLOW_CTRL_BITMAP_CPU0 | 1; /* CPU0 bitmap | power-gate enable */
-	writel(reg, flow_ctrl + FLOW_CTRL_CPUx_CSR(0));
-	wmb();
+	flowctrl_writel(reg, FLOW_CTRL_CPUx_CSR(0));
 
 	for (i=1; i<num_present_cpus(); i++) {
-		reg = readl(flow_ctrl + FLOW_CTRL_CPUx_CSR(i));
+		reg = readl(FLOW_CTRL_CPUx_CSR(i));
 		/* write to clear: EVENT_FLAG | INTR_FLAG*/
 		reg |= (1<<15) | (1<<14);
-		writel(reg, flow_ctrl + FLOW_CTRL_CPUx_CSR(i));
-		wmb();
+		flowctrl_writel(reg, FLOW_CTRL_CPUx_CSR(i));
 	}
 
 	gic_cpu_exit(0);
