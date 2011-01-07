@@ -20,6 +20,7 @@
 #ifndef __MACH_CLK_H
 #define __MACH_CLK_H
 
+struct clk;
 struct dvfs;
 
 enum tegra_clk_ex_param {
