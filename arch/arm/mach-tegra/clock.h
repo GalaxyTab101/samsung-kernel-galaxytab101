@@ -191,6 +191,8 @@ void tegra_clk_init_from_table(struct tegra_clk_init_table *table);
 void clk_set_cansleep(struct clk *c);
 unsigned long clk_get_rate_locked(struct clk *c);
 void tegra2_sdmmc_tap_delay(struct clk *c, int delay);
+int tegra_emc_set_rate(unsigned long rate);
+long tegra_emc_round_rate(unsigned long rate);
 
 #ifdef CONFIG_CPU_FREQ
 struct cpufreq_frequency_table;
