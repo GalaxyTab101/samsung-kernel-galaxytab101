@@ -1207,7 +1207,9 @@ static bool _tegra_dc_controller_enable(struct tegra_dc *dc)
 	tegra_periph_reset_deassert(dc->clk);
 	msleep(10);
 
+#ifndef CONFIG_TEGRA_FPGA_PLATFORM
 	enable_irq(dc->irq);
+#endif
 
 	tegra_dc_init(dc);
 
