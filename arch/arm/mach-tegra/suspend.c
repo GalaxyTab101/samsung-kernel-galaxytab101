@@ -101,12 +101,15 @@ struct suspend_context {
 
 volatile struct suspend_context tegra_sctx;
 
-static void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
-#ifdef CONFIG_PM
+#if defined(CONFIG_PM) || defined(CONFIG_CPU_IDLE) || !defined(CONFIG_ARCH_TEGRA_2x_SOC)
 static void __iomem *clk_rst = IO_ADDRESS(TEGRA_CLK_RESET_BASE);
 static void __iomem *flow_ctrl = IO_ADDRESS(TEGRA_FLOW_CTRL_BASE);
 static void __iomem *evp_reset = IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE)+0x100;
 static void __iomem *tmrus = IO_ADDRESS(TEGRA_TMRUS_BASE);
+static void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
+#endif
+#ifdef CONFIG_PM
+static unsigned long wb0_restore = 0;
 #endif
 
 #define PMC_CTRL		0x0
@@ -165,7 +168,6 @@ void *tegra_context_area = NULL;
 
 static struct clk *tegra_pclk = NULL;
 static const struct tegra_suspend_platform_data *pdata = NULL;
-static unsigned long wb0_restore = 0;
 static enum tegra_suspend_mode current_suspend_mode;
 
 static unsigned int tegra_time_in_suspend[32];
@@ -199,6 +201,7 @@ enum tegra_suspend_mode tegra_get_suspend_mode(void)
 	return pdata->suspend_mode;
 }
 
+#if defined(CONFIG_PM) || defined(CONFIG_CPU_IDLE) || !defined(CONFIG_ARCH_TEGRA_2x_SOC)
 static void set_power_timers(unsigned long us_on, unsigned long us_off,
 			     long rate)
 {
@@ -223,6 +226,7 @@ static void set_power_timers(unsigned long us_on, unsigned long us_off,
 	}
 	last_pclk = pclk;
 }
+#endif
 
 static int create_suspend_pgtable(void)
 {
@@ -285,7 +289,7 @@ static int create_suspend_pgtable(void)
 
 
 
-#ifdef CONFIG_PM
+#if defined(CONFIG_PM) || defined(CONFIG_CPU_IDLE) || !defined(CONFIG_ARCH_TEGRA_2x_SOC)
 /*
  * suspend_cpu_complex
  *
@@ -455,7 +459,9 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 
 	return remain;
 }
+#endif
 
+#ifdef CONFIG_PM
 /* ensures that sufficient time is passed for a register write to
  * serialize into the 32KHz domain */
 static void pmc_32kwritel(u32 val, unsigned long offs)
@@ -776,6 +782,7 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 	(void)reg;
 	(void)mode;
 
+#ifdef CONFIG_PM
 	if (plat->suspend_mode == TEGRA_SUSPEND_LP0) {
 		if (tegra_lp0_vec_size)
 			wb0_restore = tegra_lp0_vec_start;
@@ -785,10 +792,20 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 			plat->suspend_mode = TEGRA_SUSPEND_LP1;
 		}
 	}
+#else
+	if ((plat->suspend_mode == TEGRA_SUSPEND_LP0) ||
+	    (plat->suspend_mode == TEGRA_SUSPEND_LP1)) {
+		pr_warning("Suspend mode LP0 or LP2 requested, CONFIG_PM not set\n");
+		pr_warning("Limiting to LP2\n");
+		plat->suspend_mode = TEGRA_SUSPEND_LP2;
+	}
+#endif
 
+#ifdef CONFIG_CPU_IDLE
 	if (plat->suspend_mode == TEGRA_SUSPEND_NONE) {
 		tegra_lp2_in_idle(false);
 	}
+#endif
 
 	tegra_context_area = kzalloc(CONTEXT_SIZE_BYTES * NR_CPUS, GFP_KERNEL);
 

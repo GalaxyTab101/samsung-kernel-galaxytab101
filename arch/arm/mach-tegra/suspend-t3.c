@@ -335,6 +335,7 @@ int tegra_cluster_control(unsigned int us, unsigned int flags)
 	        us));
 
 	local_irq_disable();
+#ifdef CONFIG_PM
 	if (flags & TEGRA_POWER_SDRAM_SELFREFRESH) {
 		if (us)
 			tegra_lp2_set_trigger(us);
@@ -344,6 +345,7 @@ int tegra_cluster_control(unsigned int us, unsigned int flags)
 		if (us)
 			tegra_lp2_set_trigger(0);
 	} else
+#endif
 		tegra_suspend_lp2(us, flags);
 	local_irq_enable();
 

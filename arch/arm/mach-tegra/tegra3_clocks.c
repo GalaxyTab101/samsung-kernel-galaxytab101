@@ -2642,14 +2642,14 @@ void __init tegra_soc_init_clocks(void)
 		tegra3_init_one_clock(&tegra_clk_audio_2x_list[i]);
 }
 
-#ifdef CONFIG_PM
-static u32 clk_rst_suspend[RST_DEVICES_NUM + CLK_OUT_ENB_NUM +
-			   PERIPH_CLK_SOURCE_NUM + 15];
-
 unsigned long tegra_get_lpcpu_max_rate(void)
 {
 	return tegra_clk_virtual_cpu.u.cpu.lp_max_rate;
 }
+
+#ifdef CONFIG_PM
+static u32 clk_rst_suspend[RST_DEVICES_NUM + CLK_OUT_ENB_NUM +
+			   PERIPH_CLK_SOURCE_NUM + 15];
 
 void tegra_clk_suspend(void)
 {
