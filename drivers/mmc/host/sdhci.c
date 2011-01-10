@@ -179,6 +179,7 @@ static void sdhci_reset(struct sdhci_host *host, u8 mask)
 	if (mask & SDHCI_RESET_ALL)
 		host->ops->configure_capabilities(host);
 
+	host->uhs_mode = 0;
 }
 
 static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios);
@@ -673,8 +674,13 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_data *data)
 	count = sdhci_calc_timeout(host, data);
 	sdhci_writeb(host, count, SDHCI_TIMEOUT_CONTROL);
 
-	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA))
-		host->flags |= SDHCI_REQ_USE_DMA;
+	/* Frequency tuning uses only PIO mode */
+	if (host->mmc->tuning_status == MMC_SD_TUNING_IN_PROGRESS) {
+		host->flags &= ~SDHCI_REQ_USE_DMA;
+	} else {
+		if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA))
+			host->flags |= SDHCI_REQ_USE_DMA;
+	}
 
 	/*
 	 * FIXME: This doesn't account for merging when mapping the
@@ -1217,6 +1223,14 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			ctrl |= SDHCI_UHS_MODE_SEL_DDR50;
 			host->uhs_mode = SDHCI_UHS_MODE_SEL_DDR50;
 			break;
+		case MMC_BUS_SPEED_MODE_SDR50:
+			ctrl |= SDHCI_UHS_MODE_SEL_SDR50;
+			host->uhs_mode = SDHCI_UHS_MODE_SEL_SDR50;
+			break;
+		case MMC_BUS_SPEED_MODE_SDR104:
+			ctrl |= SDHCI_UHS_MODE_SEL_SDR104;
+			host->uhs_mode = SDHCI_UHS_MODE_SEL_SDR104;
+			break;
 		default:
 			goto out;
 		}
@@ -1240,6 +1254,54 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			clk |= 1 << SDHCI_DIVIDER_SHIFT;
 		}
 		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+	}
+
+	if ((ios->signalling_voltage == MMC_1_8_VOLT_SIGNALLING) &&
+		(ios->signalling_voltage != host->signalling_voltage)) {
+		/* Switch OFF SD clock */
+		clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+		clk &= (~SDHCI_CLOCK_CARD_EN);
+		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+		ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL_2);
+		ctrl |= SDHCI_CTRL_2_VOLT_18_EN;
+		sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL_2);
+
+		/* Wait for 5msec for the output to be stable */
+		mdelay(5);
+
+		/* Switch ON sd clock */
+		clk |= SDHCI_CLOCK_CARD_EN;
+		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+		host->signalling_voltage = ios->signalling_voltage;
+	}
+
+	if (ios->tuning_arg) {
+		switch(ios->tuning_arg) {
+		case MMC_EXECUTE_TUNING:
+			ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL_2);
+			if (!(ctrl & SDHCI_CTRL_2_EXECUTE_TUNING)) {
+				ctrl |= SDHCI_CTRL_2_EXECUTE_TUNING;
+				sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL_2);
+			}
+			mmc->tuning_status = MMC_SD_TUNING_IN_PROGRESS;
+			break;
+		case MMC_QUERY_TUNING_STATUS:
+			ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL_2);
+			if (!(ctrl & SDHCI_CTRL_2_EXECUTE_TUNING))
+				mmc->tuning_status = MMC_SD_TUNING_COMPLETED;
+			break;
+		case MMC_SAMPLING_CLOCK_SELECT:
+			ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL_2);
+			if (ctrl & SDHCI_CTRL_2_SAMPLING_CLOCK_SELECT)
+				mmc->tuning_status = MMC_SD_SAMPLING_CLOCK_SELECT_SET;
+			break;
+		default:
+			printk(KERN_ERR "%s: Undefined tuning operation\n",
+				mmc_hostname(host->mmc));
+			break;
+		}
 	}
 
 out:
@@ -1591,8 +1653,12 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 	if (host->data->error)
 		sdhci_finish_data(host);
 	else {
-		if (intmask & (SDHCI_INT_DATA_AVAIL | SDHCI_INT_SPACE_AVAIL))
-			sdhci_transfer_pio(host);
+		if (intmask & (SDHCI_INT_DATA_AVAIL | SDHCI_INT_SPACE_AVAIL)) {
+			if (host->mmc->tuning_status == MMC_SD_TUNING_IN_PROGRESS)
+				tasklet_schedule(&host->finish_tasklet);
+			else
+				sdhci_transfer_pio(host);
+		}
 
 		/*
 		 * We currently don't do anything fancy with DMA
@@ -2026,7 +2092,12 @@ int sdhci_add_host(struct sdhci_host *host)
 	caps = sdhci_readb(host, SDHCI_HIGHER_CAPABILITIES);
 	if (caps & SDHCI_CAN_SUPPORT_DDR50)
 		mmc->caps |= MMC_CAP_DDR50;
-
+	if (caps & SDHCI_CAN_SUPPORT_SDR50)
+		mmc->caps |= MMC_CAP_SDR50;
+	if (caps & SDHCI_CAN_SUPPORT_SDR104)
+		mmc->caps |= MMC_CAP_SDR104;
+	if (caps & SDHCI_CAN_SDR50_TUNING)
+		mmc->caps |= MMC_CAP_SDR50_TUNING;
 
 	/*
 	 * Init tasklets.

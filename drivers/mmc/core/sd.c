@@ -250,6 +250,59 @@ out:
 	return err;
 }
 
+static int mmc_execute_tuning(struct mmc_card *card)
+{
+	int err;
+	u8 resp;
+
+	mmc_start_tuning(card->host);
+
+	err = mmc_send_tuning_pattern(card, &resp);
+	if (err)
+		goto out;
+
+	mmc_get_tuning_status(card->host, MMC_QUERY_TUNING_STATUS);
+	if (card->host->tuning_status != MMC_SD_TUNING_COMPLETED)
+		err = -EAGAIN;
+out:
+	card->host->tuning_status = 0;
+	return err;
+}
+
+static int mmc_frequency_tuning(struct mmc_card *card)
+{
+	int err;
+	unsigned int count = 0;
+	unsigned char tuning_done = 0;
+
+	while (!tuning_done) {
+		err = mmc_execute_tuning(card);
+		if (err) {
+			count++;
+			continue;
+		} else {
+			if (count >= 40) {
+				count = 0;
+				mmc_reset_tuning_circuit(card->host);
+				continue;
+			} else
+			tuning_done = 1;
+		}
+	}
+
+	/* If the sampling clock select is set, tuning is successful */
+	mmc_get_tuning_status(card->host, MMC_SAMPLING_CLOCK_SELECT);
+	if (card->host->tuning_status != MMC_SD_SAMPLING_CLOCK_SELECT_SET) {
+		printk(KERN_ERR "%s: frequency tuning failed.Reset tuning circuit\n",
+			mmc_hostname(card->host));
+
+		mmc_reset_tuning_circuit(card->host);
+		return -EIO;
+	}
+
+	return 0;
+}
+
 /*
  * Fetches and decodes switch information
  */
@@ -294,7 +347,11 @@ static int mmc_read_switch(struct mmc_card *card)
 		goto out;
 	}
 
-	if (status[13] & 0x02)
+	if (status[13] & 0x08) /* UHS104 mode */
+		card->sw_caps.hs_max_dtr = 208000000;
+	else if (status[13] & 0x04) /* UHS50 mode */
+		card->sw_caps.hs_max_dtr = 104000000;
+	else if (status[13] & 0x02) /* high speed mode */
 		card->sw_caps.hs_max_dtr = 50000000;
 
 out:
@@ -310,6 +367,7 @@ int mmc_sd_switch_hs(struct mmc_card *card)
 {
 	int err;
 	u8 *status;
+	u8 bus_speed;
 
 	if (card->scr.sda_vsn < SCR_SPEC_VER_1)
 		return 0;
@@ -332,11 +390,16 @@ int mmc_sd_switch_hs(struct mmc_card *card)
 		return -ENOMEM;
 	}
 
-	err = mmc_sd_switch(card, 1, 0, 1, status);
+	if (card->bus_speed)
+		bus_speed = card->bus_speed; /* Set the supported UHS mode */
+	else
+		bus_speed = 1; /* Set high speed mode */
+
+	err = mmc_sd_switch(card, 1, 0, bus_speed, status);
 	if (err)
 		goto out;
 
-	if ((status[16] & 0xF) != 1) {
+	if ((status[16] & 0xF) != bus_speed) {
 		printk(KERN_WARNING "%s: Problem switching card "
 			"into high-speed mode!\n",
 			mmc_hostname(card->host));
@@ -402,6 +465,7 @@ struct device_type sd_type = {
 int mmc_sd_get_cid(struct mmc_host *host, u32 ocr, u32 *cid)
 {
 	int err;
+	u32 rocr;
 
 	/*
 	 * Since we're changing the OCR value, we seem to
@@ -421,9 +485,29 @@ int mmc_sd_get_cid(struct mmc_host *host, u32 ocr, u32 *cid)
 	if (!err)
 		ocr |= 1 << 30;
 
-	err = mmc_send_app_op_cond(host, ocr, NULL);
+	/*
+	 * Check the voltage switching capability if the host supports SDR
+	 * or DDR modes.
+	 */
+	if (((host->caps & MMC_CAP_SDR50) || (host->caps & MMC_CAP_SDR104) ||
+		(host->caps & MMC_CAP_DDR50))&& (!mmc_host_is_spi(host)))
+			ocr |= (1 << 24);
+
+	err = mmc_send_app_op_cond(host, ocr, &rocr);
 	if (err)
 		return err;
+
+	/* Check if switch to 1.8V is accepted by the card */
+	if ((rocr >> 24) & 1) {
+		/* Issue voltage switch command */
+		err = mmc_send_voltage_switch(host);
+		if (err)
+			return err;
+
+		/* Switch to 1.8 V */
+		mmc_switch_signalling_voltage(host, MMC_1_8_VOLT_SIGNALLING);
+		host->is_voltage_switched = 1;
+	}
 
 	if (mmc_host_is_spi(host))
 		err = mmc_send_cid(host, cid);
@@ -560,6 +644,8 @@ void mmc_sd_go_highspeed(struct mmc_card *card)
 {
 	mmc_card_set_highspeed(card);
 	mmc_set_timing(card->host, MMC_TIMING_SD_HS);
+	if (card->bus_speed)
+		mmc_set_bus_speed(card->host, card->bus_speed);
 }
 
 /*
@@ -632,6 +718,23 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		goto free_card;
 
 	/*
+	 * If voltage switching is supported, attempt to switch to a supported
+	 * UHS mode. If voltage switching is not supported, attempt to switch
+	 * to high speed mode.
+	 */
+	if (host->is_voltage_switched) {
+		if ((host->caps & MMC_CAP_SDR104) &&
+			(card->sw_caps.hs_max_dtr == 208000000)) {
+				card->bus_speed = MMC_BUS_SPEED_MODE_SDR104;
+		} else if (host->caps & MMC_CAP_SDR50) {
+			card->bus_speed = MMC_BUS_SPEED_MODE_SDR50;
+		} else if (host->caps & MMC_CAP_DDR50) {
+			card->bus_speed = MMC_BUS_SPEED_MODE_DDR50;
+		} else
+			card->bus_speed = 0;
+	}
+
+	/*
 	 * Attempt to change to high-speed (if supported)
 	 */
 	err = mmc_sd_switch_hs(card);
@@ -644,6 +747,16 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	 * Set bus speed.
 	 */
 	mmc_set_clock(host, mmc_sd_get_max_clock(card));
+
+	/*
+	 * If SDR104 or SDR50 modes are set, do the frequency tuning.
+	 */
+	if ((card->bus_speed == MMC_BUS_SPEED_MODE_SDR104) ||
+		(card->bus_speed == MMC_BUS_SPEED_MODE_SDR50)){
+			err = mmc_frequency_tuning(card);
+			if (err)
+				goto free_card;
+	}
 
 	/*
 	 * Switch to wider bus (if supported).

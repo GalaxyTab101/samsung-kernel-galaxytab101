@@ -17,6 +17,8 @@
 /* This is basically the same command as for MMC with some quirks. */
 #define SD_SEND_RELATIVE_ADDR     3   /* bcr                     R6  */
 #define SD_SEND_IF_COND           8   /* bcr  [11:0] See below   R7  */
+#define SD_VOLTAGE_SWITCH        11   /* ac                      R1  */
+#define SD_SEND_TUNING_PATTERN   19   /* adtc                    R1  */
 
   /* class 10 */
 #define SD_SWITCH                 6   /* adtc [31:0] See below   R1  */

@@ -135,7 +135,13 @@
 #define SDHCI_ACMD12_ERR	0x3C
 
 #define SDHCI_HOST_CONTROL_2	0x3E
+#define SDHCI_UHS_MODE_SEL_SDR25	0x01
+#define SDHCI_UHS_MODE_SEL_SDR50	0x02
+#define SDHCI_UHS_MODE_SEL_SDR104	0x03
 #define SDHCI_UHS_MODE_SEL_DDR50	0x04
+#define SDHCI_CTRL_2_VOLT_18_EN	0x08
+#define SDHCI_CTRL_2_EXECUTE_TUNING	0x40
+#define SDHCI_CTRL_2_SAMPLING_CLOCK_SELECT	0x80
 
 #define SDHCI_CAPABILITIES	0x40
 #define  SDHCI_TIMEOUT_CLK_MASK	0x0000003F
@@ -155,7 +161,10 @@
 #define  SDHCI_CAN_64BIT	0x10000000
 
 #define SDHCI_HIGHER_CAPABILITIES	0x44
+#define SDHCI_CAN_SUPPORT_SDR50	0x00000001
+#define SDHCI_CAN_SUPPORT_SDR104	0x00000002
 #define SDHCI_CAN_SUPPORT_DDR50	0x00000004
+#define SDHCI_CAN_SDR50_TUNING	0x00002000
 
 #define SDHCI_MAX_CURRENT	0x48
 
@@ -301,6 +310,7 @@ struct sdhci_host {
 	unsigned int		clock;		/* Current clock (MHz) */
 	u8			pwr;		/* Current voltage */
 	u8			uhs_mode;	/* Current uhs mode */
+	u8			signalling_voltage; /* Signalling voltage */
 
 	struct mmc_request	*mrq;		/* Current request */
 	struct mmc_command	*cmd;		/* Current command */

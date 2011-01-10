@@ -38,6 +38,10 @@ void mmc_set_bus_width(struct mmc_host *host, unsigned int width);
 u32 mmc_select_voltage(struct mmc_host *host, u32 ocr);
 void mmc_set_timing(struct mmc_host *host, unsigned int timing);
 void mmc_set_bus_speed(struct mmc_host *host, unsigned char bus_speed_mode);
+void mmc_switch_signalling_voltage(struct mmc_host *host, unsigned int signalling_voltage);
+void mmc_start_tuning(struct mmc_host *host);
+void mmc_get_tuning_status(struct mmc_host *host, int tuning_arg);
+void mmc_reset_tuning_circuit(struct mmc_host *host);
 
 static inline void mmc_delay(unsigned int ms)
 {

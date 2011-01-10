@@ -394,3 +394,62 @@ int mmc_app_sd_status(struct mmc_card *card, void *ssr)
 
 	return 0;
 }
+
+int mmc_send_voltage_switch(struct mmc_host *host)
+{
+	int err = 0;
+	struct mmc_command cmd = {
+			.opcode = SD_VOLTAGE_SWITCH,
+			.arg = 0,
+			.flags = MMC_RSP_R1 | MMC_CMD_AC,
+		};
+
+	BUG_ON(!host);
+	err = mmc_wait_for_cmd(host, &cmd, MMC_CMD_RETRIES);
+
+	return err;
+}
+
+int mmc_send_tuning_pattern(struct mmc_card *card, u8 *resp)
+{
+	struct mmc_request mrq;
+	struct mmc_command cmd;
+	struct mmc_data data;
+	struct scatterlist sg;
+
+	BUG_ON(!card);
+	BUG_ON(!card->host);
+
+	/* NOTE: caller guarantees resp is heap-allocated */
+
+	memset(&mrq, 0, sizeof(struct mmc_request));
+	memset(&cmd, 0, sizeof(struct mmc_command));
+	memset(&data, 0, sizeof(struct mmc_data));
+
+	mrq.cmd = &cmd;
+	mrq.data = &data;
+
+	cmd.opcode = SD_SEND_TUNING_PATTERN;
+	cmd.arg = 0;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+
+	data.blksz = 64;
+	data.blocks = 1;
+	data.flags = MMC_DATA_READ;
+	data.sg = &sg;
+	data.sg_len = 1;
+
+	sg_init_one(&sg, resp, 64);
+
+	mmc_set_data_timeout(&data, card);
+
+	mmc_wait_for_req(card->host, &mrq);
+
+	if (cmd.error)
+		return cmd.error;
+	if (data.error)
+		return data.error;
+
+	return 0;
+}
+

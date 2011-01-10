@@ -673,6 +673,48 @@ void mmc_set_bus_width(struct mmc_host *host, unsigned int width)
 	mmc_set_ios(host);
 }
 
+/*
+ * Switch the signalling voltage.
+ */
+void mmc_switch_signalling_voltage(struct mmc_host * host, unsigned int signalling_voltage)
+{
+	host->ios.signalling_voltage = signalling_voltage;
+	mmc_set_ios(host);
+}
+
+/*
+ * Start the frequency tuning process.
+ */
+void mmc_start_tuning(struct mmc_host *host)
+{
+	host->ios.tuning_arg = MMC_EXECUTE_TUNING;
+	host->tuning_status = 0;
+	mmc_set_ios(host);
+	host->ios.tuning_arg = 0;
+}
+
+/*
+ * Get the frequency tuning status.
+ */
+void mmc_get_tuning_status(struct mmc_host *host, int tuning_arg)
+{
+	host->ios.tuning_arg = tuning_arg;
+	host->tuning_status = 0;
+	mmc_set_ios(host);
+	host->ios.tuning_arg = 0;
+}
+
+/*
+ * Reset the tuning circuit.
+ */
+void mmc_reset_tuning_circuit(struct mmc_host *host)
+{
+	host->ios.tuning_arg = MMC_RESET_TUNING_CIRCUIT;
+	host->tuning_status = 0;
+	mmc_set_ios(host);
+	host->ios.tuning_arg = 0;
+}
+
 /**
  * mmc_vdd_to_ocrbitnum - Convert a voltage to the OCR bit number
  * @vdd:	voltage (mV)
