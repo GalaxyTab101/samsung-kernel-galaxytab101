@@ -39,7 +39,7 @@ struct gic_chip_data {
 	unsigned int irq_offset;
 	void __iomem *dist_base;
 	void __iomem *cpu_base;
-#ifdef CONFIG_PM
+#if defined(CONFIG_PM) || defined(CONFIG_ARCH_TEGRA)
 	u32 saved_enable[DIV_ROUND_UP(1020, 32)];
 	u32 saved_conf[DIV_ROUND_UP(1020, 16)];
 	u32 saved_pri[DIV_ROUND_UP(1020, 4)];
@@ -285,7 +285,7 @@ static void _gic_dist_exit(unsigned int gic_nr)
 	writel(0, gic_data[gic_nr].dist_base + GIC_DIST_CTRL);
 }
 
-#ifdef CONFIG_PM
+#if defined(CONFIG_PM) || defined(CONFIG_ARCH_TEGRA)
 void gic_dist_save(unsigned int gic_nr)
 {
 	unsigned int max_irq = gic_data[gic_nr].max_irq;
