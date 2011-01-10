@@ -63,11 +63,17 @@ config MACH_ARUBA
 
 config MACH_CARDHU
        bool "Cardhu board"
+       depends on ARCH_TEGRA_3x_SOC
        help
          Support for NVIDIA Cardhu development platform
 
 config TEGRA_FPGA_PLATFORM
-	bool
+        bool "Support for NVIDIA Tegra FPGA platform"
+        default n
+        help
+         This enables the NVIDIA Tegra FPGA platform support.
+         Select this only if you are an NVIDIA developer working on
+         an FPGA platforms. All others must leave this unselected.
 
 choice
         prompt "Low-level debug console UART"
