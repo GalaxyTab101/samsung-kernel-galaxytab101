@@ -549,8 +549,6 @@ config SND_FM801_TEA575X
 	depends on SND_FM801_TEA575X_BOOL
 	default SND_FM801
 
-source "sound/pci/hda/Kconfig"
-
 config SND_HDSP
 	tristate "RME Hammerfall DSP Audio"
 	select SND_HWDEP

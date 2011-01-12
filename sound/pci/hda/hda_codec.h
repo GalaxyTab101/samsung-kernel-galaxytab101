@@ -25,6 +25,7 @@
 #include <sound/control.h>
 #include <sound/pcm.h>
 #include <sound/hwdep.h>
+#include <linux/platform_device.h>
 
 #if defined(CONFIG_PM) || defined(CONFIG_SND_HDA_POWER_SAVE)
 #define SND_HDA_NEEDS_RESUME	/* resume control code is required */
@@ -620,7 +621,10 @@ struct hda_bus_ops {
 /* template to pass to the bus constructor */
 struct hda_bus_template {
 	void *private_data;
-	struct pci_dev *pci;
+	union {
+		struct pci_dev *pci;
+		struct platform_device *pdev;
+	};
 	const char *modelname;
 	int *power_save;
 	struct hda_bus_ops ops;
@@ -637,7 +641,10 @@ struct hda_bus {
 
 	/* copied from template */
 	void *private_data;
-	struct pci_dev *pci;
+	union {
+		struct pci_dev *pci;
+		struct platform_device *pdev;
+	};
 	const char *modelname;
 	int *power_save;
 	struct hda_bus_ops ops;

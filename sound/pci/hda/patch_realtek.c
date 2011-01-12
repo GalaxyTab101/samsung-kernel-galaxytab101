@@ -1317,8 +1317,10 @@ static int alc_auto_parse_customize_define(struct hda_codec *codec)
 	spec->cdefine.enable_pcbeep = 1; /* assume always enabled */
 
 	ass = codec->subsystem_id & 0xffff;
-	if (ass != codec->bus->pci->subsystem_device && (ass & 1))
+#if !defined(CONFIG_SND_HDA_TEGRA)
+	if ((ass != codec->bus->pci->subsystem_device) && (ass & 1))
 		goto do_sku;
+#endif /* !defined(CONFIG_SND_HDA_TEGRA) */
 
 	nid = 0x1d;
 	if (codec->vendor_id == 0x10ec0260)
@@ -1512,6 +1514,7 @@ static void alc_pick_fixup(struct hda_codec *codec,
 			   const struct alc_fixup *fix,
 			   int pre_init)
 {
+#if !defined(CONFIG_SND_HDA_TEGRA)
 	const struct alc_pincfg *cfg;
 
 	quirk = snd_pci_quirk_lookup(codec->bus->pci, quirk);
@@ -1534,6 +1537,7 @@ static void alc_pick_fixup(struct hda_codec *codec,
 #endif
 		add_verb(codec->spec, fix->verbs);
 	}
+#endif /* !defined(CONFIG_SND_HDA_TEGRA) */
 }
 
 static int alc_read_coef_idx(struct hda_codec *codec,
@@ -14715,9 +14719,13 @@ static int patch_alc269(struct hda_codec *codec)
 	} else
 		alc_fix_pll_init(codec, 0x20, 0x04, 15);
 
+#if !defined(CONFIG_SND_HDA_TEGRA)
 	board_config = snd_hda_check_board_config(codec, ALC269_MODEL_LAST,
 						  alc269_models,
 						  alc269_cfg_tbl);
+#else
+	board_config = -1;
+#endif /* !defined(CONFIG_SND_HDA_TEGRA) */
 
 	if (board_config < 0) {
 		printk(KERN_INFO "hda_codec: %s: BIOS auto-probing.\n",
@@ -19532,11 +19540,14 @@ static int patch_alc680(struct hda_codec *codec)
  * patch entries
  */
 static struct hda_codec_preset snd_hda_preset_realtek[] = {
+#if !defined(CONFIG_SND_HDA_TEGRA)
 	{ .id = 0x10ec0260, .name = "ALC260", .patch = patch_alc260 },
 	{ .id = 0x10ec0262, .name = "ALC262", .patch = patch_alc262 },
 	{ .id = 0x10ec0267, .name = "ALC267", .patch = patch_alc268 },
 	{ .id = 0x10ec0268, .name = "ALC268", .patch = patch_alc268 },
+#endif /* !defined(CONFIG_SND_HDA_TEGRA) */
 	{ .id = 0x10ec0269, .name = "ALC269", .patch = patch_alc269 },
+#if !defined(CONFIG_SND_HDA_TEGRA)
 	{ .id = 0x10ec0270, .name = "ALC270", .patch = patch_alc269 },
 	{ .id = 0x10ec0272, .name = "ALC272", .patch = patch_alc662 },
 	{ .id = 0x10ec0275, .name = "ALC275", .patch = patch_alc269 },
@@ -19567,6 +19578,7 @@ static struct hda_codec_preset snd_hda_preset_realtek[] = {
 	{ .id = 0x10ec0888, .name = "ALC888", .patch = patch_alc888 },
 	{ .id = 0x10ec0889, .name = "ALC889", .patch = patch_alc882 },
 	{ .id = 0x10ec0892, .name = "ALC892", .patch = patch_alc662 },
+#endif /* !defined(CONFIG_SND_HDA_TEGRA) */
 	{} /* terminator */
 };
 

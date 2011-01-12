@@ -22,3 +22,19 @@ config TEGRA_GENERIC_CODEC
 
 config TEGRA_JACK
     tristate "Tegra wired accessory jack support"
+
+config SND_HDA_TEGRA
+	depends on (!ARCH_TEGRA_2x_SOC)
+	bool "Tegra HD Audio"
+	select SND_PCM
+	select SND_VMASTER
+	select SND_JACK if INPUT=y || INPUT=SND
+	help
+	  Say Y here to include support for Tegra "High Definition
+	  Audio" (Azalia) and its compatible devices.
+
+if (SND_HDA_TEGRA || SND_PCI)
+
+source "sound/pci/hda/Kconfig"
+
+endif

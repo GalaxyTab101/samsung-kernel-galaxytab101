@@ -2,6 +2,7 @@
 # Makefile for ALSA
 #
 
+obj-$(CONFIG_SND_HDA_TEGRA)	+= tegra/
 obj-$(CONFIG_SND_ARMAACI)	+= snd-aaci.o
 snd-aaci-objs			:= aaci.o
 

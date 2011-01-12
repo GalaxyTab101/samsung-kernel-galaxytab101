@@ -3675,6 +3675,7 @@ int __devinit snd_hda_build_pcms(struct hda_bus *bus)
 }
 EXPORT_SYMBOL_HDA(snd_hda_build_pcms);
 
+#if !defined(CONFIG_SND_HDA_TEGRA)
 /**
  * snd_hda_check_board_config - compare the current codec with the config table
  * @codec: the HDA codec
@@ -3730,6 +3731,7 @@ int snd_hda_check_board_config(struct hda_codec *codec,
 	return -1;
 }
 EXPORT_SYMBOL_HDA(snd_hda_check_board_config);
+#endif  /* !CONFIG_SND_HDA_TEGRA */
 
 /**
  * snd_hda_check_board_codec_sid_config - compare the current codec

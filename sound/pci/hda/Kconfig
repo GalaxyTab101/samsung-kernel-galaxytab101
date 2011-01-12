@@ -1,3 +1,4 @@
+if !SND_HDA_TEGRA
 menuconfig SND_HDA_INTEL
 	tristate "Intel HD Audio"
 	select SND_PCM
@@ -11,8 +12,9 @@ menuconfig SND_HDA_INTEL
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called snd-hda-intel.
+endif
 
-if SND_HDA_INTEL
+if (SND_HDA_INTEL || SND_HDA_TEGRA)
 
 config SND_HDA_HWDEP
 	bool "Build hwdep interface for HD-audio driver"
