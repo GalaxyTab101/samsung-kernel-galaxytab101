@@ -401,6 +401,16 @@ void tegra_usb_otg_host_unregister(struct platform_device *pdev)
 	platform_device_unregister(pdev);
 }
 
+
+#ifdef CONFIG_SATA_AHCI_TEGRA
+static void cardhu_sata_init(void)
+{
+	platform_device_register(&tegra_sata_device);
+}
+#else
+static void cardhu_sata_init(void) { }
+#endif
+
 static void __init tegra_cardhu_init(void)
 {
 	char serial[20];
@@ -439,6 +449,7 @@ static void __init tegra_cardhu_init(void)
 	cardhu_panel_init();
 	cardhu_sensors_init();
 	cardhu_bt_rfkill();
+	cardhu_sata_init();
 }
 
 static void __init tegra_cardhu_reserve(void)

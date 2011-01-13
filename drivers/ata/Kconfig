@@ -59,6 +59,14 @@ config SATA_PMP
 
 comment "Controllers with non-SFF native interface"
 
+config SATA_AHCI_TEGRA
+	tristate "TEGRA AHCI SATA support"
+	depends on ARCH_TEGRA_3x_SOC
+	help
+	  This option enables support for TEGRA AHCI Serial ATA.
+
+	  If unsure, say N.
+
 config SATA_AHCI
 	tristate "AHCI SATA support"
 	depends on PCI
