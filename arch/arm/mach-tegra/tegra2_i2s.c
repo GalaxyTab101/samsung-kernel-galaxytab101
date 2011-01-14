@@ -23,6 +23,7 @@
 #include "clock.h"
 #include <asm/io.h>
 #include <mach/iomap.h>
+#include <mach/audio.h>
 #include <mach/tegra2_i2s.h>
 
 
@@ -497,4 +498,22 @@ u32 i2s_get_fifo_full_empty_count(int ifc, int fifo)
 struct clk *i2s_get_clock_by_name(const char *name)
 {
     return tegra_get_clock_by_name(name);
+}
+
+int i2s_initialize(int ifc)
+{
+	i2s_enable_fifos(ifc, 0);
+	i2s_set_left_right_control_polarity(ifc, AUDIO_LRCK_LEFT_LOW); /* low */
+	i2s_set_master(ifc, AUDIO_MASTER_MODE); /* set as master */
+	i2s_set_fifo_mode(ifc, FIFO1, 1); /* FIFO1 is TX */
+	i2s_set_fifo_mode(ifc, FIFO2, 0); /* FIFO2 is RX */
+	i2s_set_bit_format(ifc, AUDIO_FRAME_FORMAT_I2S);
+	i2s_set_bit_size(ifc, AUDIO_BIT_SIZE_16);
+	i2s_set_fifo_format(ifc, I2S_FIFO_PACKED);
+	return 0;
+}
+
+int i2s_get_dma_requestor(int ifc)
+{
+	return ((ifc)? 1 : 2); /* 1 = I2S2, 2 = I2S1 */
 }

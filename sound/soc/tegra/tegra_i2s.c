@@ -110,6 +110,7 @@ static inline void stop_i2s_capture(struct snd_soc_dai *cpu_dai)
 	i2s_fifo_enable(cpu_dai->id, I2S_FIFO_RX, 0);
 	while (i2s_get_status(cpu_dai->id) & I2S_I2S_FIFO_RX_BUSY);
 }
+#endif
 
 
 static int tegra_i2s_hw_params(struct snd_pcm_substream *substream,
@@ -124,15 +125,15 @@ static int tegra_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
-		val = I2S_BIT_SIZE_16;
+		val = AUDIO_BIT_SIZE_16;
 		sample_size = 16;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
-		val = I2S_BIT_SIZE_24;
+		val = AUDIO_BIT_SIZE_24;
 		sample_size = 24;
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
-		val = I2S_BIT_SIZE_32;
+		val = AUDIO_BIT_SIZE_32;
 		sample_size = 32;
 		break;
 	default:
@@ -201,26 +202,24 @@ static int tegra_i2s_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	i2s_set_master(i2s_id, val1);
 	info->i2s_master = val1;
 
+	val2 = AUDIO_LRCK_LEFT_LOW;
+
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_DSP_A:
-		val1 = I2S_BIT_FORMAT_DSP;
-		val2 = 0;
+		val1 = AUDIO_FRAME_FORMAT_DSP;
 		break;
 	case SND_SOC_DAIFMT_DSP_B:
-		val1 = I2S_BIT_FORMAT_DSP;
-		val2 = 1;
+		val1 = AUDIO_FRAME_FORMAT_DSP;
+		val2 = AUDIO_LRCK_RIGHT_LOW;
 		break;
 	case SND_SOC_DAIFMT_I2S:
-		val1 = I2S_BIT_FORMAT_I2S;
-		val2 = 0;
+		val1 = AUDIO_FRAME_FORMAT_I2S;
 		break;
 	case SND_SOC_DAIFMT_RIGHT_J:
-		val1 = I2S_BIT_FORMAT_RJM;
-		val2 = 0;
+		val1 = AUDIO_FRAME_FORMAT_RJM;
 		break;
 	case SND_SOC_DAIFMT_LEFT_J:
-		val1 = I2S_BIT_FORMAT_LJM;
-		val2 = 0;
+		val1 = AUDIO_FRAME_FORMAT_LJM;
 		break;
 	default:
 		return -EINVAL;
@@ -530,7 +529,11 @@ static struct platform_driver tegra_i2s_driver = {
 	.probe = tegra_i2s_driver_probe,
 	.remove = __devexit_p(tegra_i2s_driver_remove),
 	.driver = {
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 		.name = "i2s",
+#else
+		.name = "audio",
+#endif
 		.owner = THIS_MODULE,
 	},
 };

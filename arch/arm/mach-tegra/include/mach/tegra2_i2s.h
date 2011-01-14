@@ -307,5 +307,7 @@ u32 i2s_get_fifo_scr(int ifc);
 u32 i2s_get_fifo_full_empty_count(int ifc, int fifo);
 phys_addr_t i2s_get_fifo_phy_base(int ifc, int fifo);
 struct clk *i2s_get_clock_by_name(const char *name);
+int i2s_initialize(int ifc);
+int i2s_get_dma_requestor(int ifc);
 
 #endif /* __ARCH_ARM_MACH_TEGRA_I2S_H */

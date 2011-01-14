@@ -36,7 +36,11 @@
 #include <linux/tegra_audio.h>
 #include <linux/regulator/consumer.h>
 #include <mach/iomap.h>
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 #include <mach/tegra2_i2s.h>
+#elif defined(CONFIG_ARCH_TEGRA_3x_SOC)
+#include <mach/tegra3_i2s.h>
+#endif
 #include <mach/spdif.h>
 #include <mach/irqs.h>
 #include <mach/pinmux.h>

@@ -16,10 +16,13 @@ obj-y                                   += fuse.o
 obj-y                                   += kfuse.o
 ifeq ($(CONFIG_TEGRA_ALSA),y)
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_i2s.o
+obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += tegra3_i2s.o
 else
 obj-y                                   += tegra_i2s_audio.o
 obj-y                                   += tegra_spdif_audio.o
 endif
+obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += audio_switch.o
+obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += dam.o
 obj-y                                   += spdif.o
 obj-y                                   += tegra_das.o
 obj-y                                   += mc.o
