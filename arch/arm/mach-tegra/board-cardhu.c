@@ -31,7 +31,6 @@
 #include <linux/delay.h>
 #include <linux/i2c-tegra.h>
 #include <linux/gpio.h>
-#include <linux/gpio_keys.h>
 #include <linux/input.h>
 #include <linux/platform_data/tegra_usb.h>
 #include <linux/usb/android_composite.h>
@@ -261,40 +260,6 @@ static void cardhu_i2c_init(void)
 	platform_device_register(&tegra_i2c_device1);
 }
 
-#define GPIO_KEY(_id, _gpio, _iswake)		\
-	{					\
-		.code = _id,			\
-		.gpio = TEGRA_GPIO_##_gpio,	\
-		.active_low = 1,		\
-		.desc = #_id,			\
-		.type = EV_KEY,			\
-		.wakeup = _iswake,		\
-		.debounce_interval = 10,	\
-	}
-
-/* !!!TODO!!! Change for cardhu */
-static struct gpio_keys_button cardhu_keys[] = {
-	[0] = GPIO_KEY(KEY_MENU, PQ0, 0),
-	[1] = GPIO_KEY(KEY_HOME, PQ1, 0),
-	[2] = GPIO_KEY(KEY_BACK, PQ2, 0),
-	[3] = GPIO_KEY(KEY_VOLUMEUP, PQ3, 0),
-	[4] = GPIO_KEY(KEY_VOLUMEDOWN, PQ4, 0),
-	[5] = GPIO_KEY(KEY_POWER, PV2, 1),
-};
-
-static struct gpio_keys_platform_data cardhu_keys_platform_data = {
-	.buttons	= cardhu_keys,
-	.nbuttons	= ARRAY_SIZE(cardhu_keys),
-};
-
-static struct platform_device cardhu_keys_device = {
-	.name	= "gpio-keys",
-	.id	= 0,
-	.dev	= {
-		.platform_data	= &cardhu_keys_platform_data,
-	},
-};
-
 static struct resource tegra_rtc_resources[] = {
 	[0] = {
 		.start = TEGRA_RTC_BASE,
@@ -334,7 +299,6 @@ static struct platform_device *cardhu_devices[] __initdata = {
 #if defined(CONFIG_TEGRA_IOVMM_SMMU)
 	&tegra_smmu_device,
 #endif
-	&cardhu_keys_device,
 	&tegra_wdt_device,
 	&tegra_avp_device,
 };
@@ -438,6 +402,10 @@ static void __init tegra_cardhu_init(void)
 	cardhu_touch_init();
 #if ENABLE_USB_HOST
 	cardhu_usb_init();
+#endif
+
+#ifdef CONFIG_KEYBOARD_TEGRA
+	cardhu_kbc_init();
 #endif
 	cardhu_panel_init();
 	cardhu_sensors_init();

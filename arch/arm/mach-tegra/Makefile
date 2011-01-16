@@ -110,3 +110,4 @@ obj-${CONFIG_MACH_CARDHU}                += board-cardhu-pinmux.o
 obj-${CONFIG_MACH_CARDHU}                += board-cardhu-power.o
 obj-${CONFIG_MACH_CARDHU}                += board-cardhu-sdhci.o
 obj-${CONFIG_MACH_CARDHU}                += board-cardhu-sensors.o
+obj-${CONFIG_MACH_CARDHU}                += board-cardhu-kbc.o
