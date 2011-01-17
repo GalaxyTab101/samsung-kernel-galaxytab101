@@ -54,6 +54,8 @@
 #include "gpio-names.h"
 #include "fuse.h"
 
+#define ENABLE_USB_HOST 0
+
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
 		.membase	= IO_ADDRESS(TEGRA_UARTA_BASE),
@@ -150,7 +152,7 @@ static __initdata struct tegra_clk_init_table cardhu_clk_init_table[] = {
 	{ "uartc",	"clk_m",	13000000,	true},
 	{ "uartd",	"clk_m",	13000000,	true},
 	{ "uarte",	"clk_m",	13000000,	true},
-	{ "pll_m",	NULL,		600000000,	true},
+	{ "pll_m",	NULL,		0,		true},
 	{ "blink",      "clk_32k",      32768,          false},
 	{ "pll_p_out4",	"pll_p",	24000000,	true },
 	{ "pwm",	"clk_32k",	32768,		false},
@@ -314,7 +316,9 @@ static struct platform_device tegra_rtc_device = {
 };
 
 static struct platform_device *cardhu_devices[] __initdata = {
+#if ENABLE_USB_HOST
 	&tegra_otg_device,
+#endif
 	&androidusb_device,
 	&debug_uart,
 	&tegra_uartb_device,
@@ -324,7 +328,9 @@ static struct platform_device *cardhu_devices[] __initdata = {
 	&pmu_device,
 	&tegra_rtc_device,
 	&tegra_udc_device,
+#if ENABLE_USB_HOST
 	&tegra_ehci2_device,
+#endif
 #if defined(CONFIG_TEGRA_IOVMM_SMMU)
 	&tegra_smmu_device,
 #endif
@@ -357,11 +363,13 @@ static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 	},
 };
 
+#if ENABLE_USB_HOST
 static void cardhu_usb_init(void)
 {
 	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
 	platform_device_register(&tegra_ehci3_device);
 }
+#endif
 
 struct platform_device *tegra_usb_otg_host_register(void)
 {
@@ -428,7 +436,9 @@ static void __init tegra_cardhu_init(void)
 	cardhu_i2c_init();
 	cardhu_regulator_init();
 	cardhu_touch_init();
+#if ENABLE_USB_HOST
 	cardhu_usb_init();
+#endif
 	cardhu_panel_init();
 	cardhu_sensors_init();
 	cardhu_bt_rfkill();
@@ -436,7 +446,7 @@ static void __init tegra_cardhu_init(void)
 
 static void __init tegra_cardhu_reserve(void)
 {
-	tegra_reserve(SZ_128M, SZ_8M, SZ_16M);
+	tegra_reserve(SZ_32M, SZ_4M, 0);
 }
 
 MACHINE_START(CARDHU, "cardhu")
