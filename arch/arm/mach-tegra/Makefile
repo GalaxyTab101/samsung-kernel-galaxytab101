@@ -69,6 +69,9 @@ obj-$(CONFIG_TEGRA_IOVMM)               += iovmm.o
 obj-$(CONFIG_TEGRA_IOVMM_GART)          += iovmm-gart.o
 obj-$(CONFIG_TEGRA_IOVMM_SMMU)          += iovmm-smmu.o
 obj-$(CONFIG_DEBUG_ICEDCC)              += sysfs-dcc.o
+
+obj-$(CONFIG_TOUCHSCREEN_ATMEL_MT_T9)   += board-touch-atmel_maxtouch.o
+obj-$(CONFIG_TOUCHSCREEN_PANJIT_I2C)    += board-touch-panjit_i2c.o
 obj-$(CONFIG_TEGRA_MC_PROFILE)          += tegra2_mc.o
 
 obj-y                                   += nv/
@@ -89,6 +92,7 @@ obj-${CONFIG_MACH_VENTANA}              += board-ventana-jack.o
 obj-${CONFIG_MACH_VENTANA}              += board-ventana-sensors.o
 obj-${CONFIG_MACH_VENTANA}              += board-ventana-kbc.o
 obj-${CONFIG_MACH_VENTANA}              += board-ventana-memory.o
+obj-${CONFIG_MACH_VENTANA}              += board-ventana-touch.o
 
 obj-${CONFIG_MACH_ARUBA}                += board-aruba.o
 obj-${CONFIG_MACH_ARUBA}                += board-aruba-panel.o

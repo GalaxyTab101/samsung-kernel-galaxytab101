@@ -37,14 +37,6 @@
 #include <linux/mfd/tps6586x.h>
 #include <linux/memblock.h>
 
-#ifdef CONFIG_TOUCHSCREEN_PANJIT_I2C
-#include <linux/i2c/panjit_ts.h>
-#endif
-
-#ifdef CONFIG_TOUCHSCREEN_ATMEL_MT_T9
-#include <linux/i2c/atmel_maxtouch.h>
-#endif
-
 #include <sound/wm8903.h>
 
 #include <mach/clk.h>
@@ -619,84 +611,6 @@ static struct platform_device *ventana_devices[] __initdata = {
 	&tegra_das_device,
 };
 
-
-#ifdef CONFIG_TOUCHSCREEN_PANJIT_I2C
-static struct panjit_i2c_ts_platform_data panjit_data = {
-	.gpio_reset = TEGRA_GPIO_PQ7,
-};
-
-static const struct i2c_board_info ventana_i2c_bus1_touch_info[] = {
-	{
-	 I2C_BOARD_INFO("panjit_touch", 0x3),
-	 .irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PV6),
-	 .platform_data = &panjit_data,
-	 },
-};
-
-static int __init ventana_touch_init_panjit(void)
-{
-	tegra_gpio_enable(TEGRA_GPIO_PV6);
-
-	tegra_gpio_enable(TEGRA_GPIO_PQ7);
-	i2c_register_board_info(0, ventana_i2c_bus1_touch_info, 1);
-
-	return 0;
-}
-#endif
-
-#ifdef CONFIG_TOUCHSCREEN_ATMEL_MT_T9
-/* Atmel MaxTouch touchscreen              Driver data */
-/*-----------------------------------------------------*/
-/*
- * Reads the CHANGELINE state; interrupt is valid if the changeline
- * is low.
- */
-static u8 read_chg(void)
-{
-	return gpio_get_value(TEGRA_GPIO_PV6);
-}
-
-static u8 valid_interrupt(void)
-{
-	return !read_chg();
-}
-
-static struct mxt_platform_data Atmel_mxt_info = {
-	/* Maximum number of simultaneous touches to report. */
-	.numtouch = 10,
-	// TODO: no need for any hw-specific things at init/exit?
-	.init_platform_hw = NULL,
-	.exit_platform_hw = NULL,
-	.max_x = 1366,
-	.max_y = 768,
-	.valid_interrupt = &valid_interrupt,
-	.read_chg = &read_chg,
-};
-
-static struct i2c_board_info __initdata i2c_info[] = {
-	{
-	 I2C_BOARD_INFO("maXTouch", MXT_I2C_ADDRESS),
-	 .irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PV6),
-	 .platform_data = &Atmel_mxt_info,
-	 },
-};
-
-static int __init ventana_touch_init_atmel(void)
-{
-	tegra_gpio_enable(TEGRA_GPIO_PV6);
-	tegra_gpio_enable(TEGRA_GPIO_PQ7);
-
-	gpio_set_value(TEGRA_GPIO_PQ7, 0);
-	msleep(1);
-	gpio_set_value(TEGRA_GPIO_PQ7, 1);
-	msleep(100);
-
-	i2c_register_board_info(0, i2c_info, 1);
-
-	return 0;
-}
-#endif
-
 static struct usb_phy_plat_data tegra_usb_phy_pdata[] = {
 	[0] = {
 			.instance = 0,
@@ -842,11 +756,6 @@ static void ventana_usb_init(void)
 
 static void __init tegra_ventana_init(void)
 {
-#if defined(CONFIG_TOUCHSCREEN_PANJIT_I2C) || \
-	defined(CONFIG_TOUCHSCREEN_ATMEL_MT_T9)
-	struct board_info BoardInfo;
-#endif
-
 	tegra_common_init();
 	tegra_clk_init_from_table(ventana_clk_init_table);
 	ventana_pinmux_init();
@@ -868,21 +777,7 @@ static void __init tegra_ventana_init(void)
 	ventana_sdhci_init();
 	ventana_charge_init();
 	ventana_regulator_init();
-
-#if defined(CONFIG_TOUCHSCREEN_PANJIT_I2C) || \
-	defined(CONFIG_TOUCHSCREEN_ATMEL_MT_T9)
-
-	tegra_get_board_info(&BoardInfo);
-
-	/* boards with sku > 0 have atmel touch panels */
-	if (BoardInfo.sku) {
-		pr_info("Initializing Atmel touch driver\n");
-		ventana_touch_init_atmel();
-	} else {
-		pr_info("Initializing Panjit touch driver\n");
-		ventana_touch_init_panjit();
-	}
-#endif
+	ventana_touch_init();
 
 #ifdef CONFIG_KEYBOARD_GPIO
 	ventana_keys_init();
