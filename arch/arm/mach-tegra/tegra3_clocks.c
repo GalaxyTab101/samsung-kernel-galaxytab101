@@ -1198,7 +1198,7 @@ static long tegra3_pll_div_clk_round_rate(struct clk *c, unsigned long rate)
 		divider = clk_div71_get_divider(parent_rate, rate);
 		if (divider < 0)
 			return divider;
-		return parent_rate * 2 / (divider + 2);
+		return DIV_ROUND_UP(parent_rate * 2, divider + 2);
 	}
 	return -EINVAL;
 }
@@ -1405,12 +1405,12 @@ static long tegra3_periph_clk_round_rate(struct clk *c,
 		if (divider < 0)
 			return divider;
 
-		return parent_rate * 2 / (divider + 2);
+		return DIV_ROUND_UP(parent_rate * 2, divider + 2);
 	} else if (c->flags & DIV_U16) {
 		divider = clk_div16_get_divider(parent_rate, rate);
 		if (divider < 0)
 			return divider;
-		return parent_rate / (divider + 1);
+		return DIV_ROUND_UP(parent_rate, divider + 1);
 	}
 	return -EINVAL;
 }
@@ -1721,6 +1721,11 @@ static int tegra_clk_shared_bus_set_rate(struct clk *c, unsigned long rate)
 	return 0;
 }
 
+static long tegra_clk_shared_bus_round_rate(struct clk *c, unsigned long rate)
+{
+	return clk_round_rate(c->parent, rate);
+}
+
 static int tegra_clk_shared_bus_enable(struct clk *c)
 {
 	c->u.shared_bus_user.enabled = true;
@@ -1739,6 +1744,7 @@ static struct clk_ops tegra_clk_shared_bus_ops = {
 	.enable = tegra_clk_shared_bus_enable,
 	.disable = tegra_clk_shared_bus_disable,
 	.set_rate = tegra_clk_shared_bus_set_rate,
+	.round_rate = tegra_clk_shared_bus_round_rate,
 };
 
 
