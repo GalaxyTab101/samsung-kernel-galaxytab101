@@ -23,6 +23,7 @@
 
 #include <linux/types.h>
 
+void __init tegra_mc_init(void);
 void __init tegra_common_init(void);
 void __init tegra_map_common_io(void);
 void __init tegra_init_irq(void);

@@ -192,6 +192,9 @@ void __init tegra_common_init(void)
 	tegra_init_cache();
 	tegra_dma_init();
 	tegra_init_apb_dma();
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
+	tegra_mc_init(); /* !!!FIXME!!! Change Tegra3 behavior to match Tegra2 */
+#endif
 }
 
 static int __init tegra_bootloader_fb_arg(char *options)
