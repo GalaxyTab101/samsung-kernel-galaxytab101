@@ -474,12 +474,7 @@ int i2s_set_flow_control(int ifc, int enable, int filtertype, int stepsize)
 
 int i2s_fifo_set_attention_level(int ifc, int fifo, unsigned level)
 {
-/* FIXME: fifo are part of apbif channel, so pass call to apbif
-*  or provide generic call to apbif to handle this
-*  Make it functional with base audio - code it  properly
-*/
-	apbif_fifo_set_attention_level(ifc, fifo, level);
-	return 0;
+	return apbif_fifo_set_attention_level(ifc, fifo, level);
 }
 
 void i2s_fifo_clear(int ifc, int fifo)
@@ -532,8 +527,7 @@ u32 i2s_get_status(int ifc)
 /* FIXME: fifo are part of apbif channel, so pass call to apbif
 *  or provide generic call to apbif to handle this
 */
-	apbif_get_fifo_mode(ifc, AUDIO_TX_MODE);
-	return 0;
+	return apbif_get_fifo_mode(ifc, AUDIO_TX_MODE);
 }
 
 u32 i2s_get_control(int ifc)
@@ -559,9 +553,7 @@ u32 i2s_get_fifo_scr(int ifc)
 
 phys_addr_t i2s_get_fifo_phy_base(int ifc, int fifo)
 {
-	/* FIXME: call the apbif to get the appropriate channel */
-	apbif_get_fifo_phy_base(ifc, fifo);
-	return 0;
+	return apbif_get_fifo_phy_base(ifc, fifo);
 }
 
 u32 i2s_get_fifo_full_empty_count(int ifc, int fifo)
@@ -574,9 +566,6 @@ u32 i2s_get_fifo_full_empty_count(int ifc, int fifo)
 
 int i2s_get_dma_requestor(int ifc)
 {
-/* FIXME: check with audio switch to get the
-   appropriate apbif channel.
-*/
 	return apbif_get_channel(ifc);
 }
 
@@ -608,7 +597,7 @@ int i2s_initialize(int ifc)
 	memset(tx_audio_cif, 0 , sizeof(struct audio_cif));
 	tx_audio_cif->audio_channels  = AUDIO_CHANNEL_2;
 	tx_audio_cif->client_channels = AUDIO_CHANNEL_2;
-	tx_audio_cif->audio_bits		 = AUDIO_BIT_SIZE_16;
+	tx_audio_cif->audio_bits	 = AUDIO_BIT_SIZE_16;
 	tx_audio_cif->client_bits	 = AUDIO_BIT_SIZE_16;
 	audio_switch_set_acif((unsigned int)i2s_base[ifc] +
 		 I2S_AUDIOCIF_I2STX_CTRL_0,	tx_audio_cif);

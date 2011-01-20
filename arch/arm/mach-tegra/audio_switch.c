@@ -20,7 +20,7 @@
 
 #include <linux/kernel.h>
 #include <linux/err.h>
-
+#include <linux/module.h>
 #include "clock.h"
 #include <asm/io.h>
 #include <mach/iomap.h>
@@ -244,19 +244,13 @@
 *  Internal functions
 */
 
-static phys_addr_t apbif_phy_base[NR_APBIF_CHANNELS] = {
-	TEGRA_APBIF0_BASE,
-	TEGRA_APBIF1_BASE,
-	TEGRA_APBIF2_BASE,
-	TEGRA_APBIF3_BASE
+struct apbif_channel_info {
+	void  __iomem	*virt_base;
+	phys_addr_t 	phy_base;
+	int				dma_index;
 };
 
-static void *apbif_base[NR_APBIF_CHANNELS] = {
-	IO_ADDRESS(TEGRA_APBIF0_BASE),
-	IO_ADDRESS(TEGRA_APBIF1_BASE),
-	IO_ADDRESS(TEGRA_APBIF2_BASE),
-	IO_ADDRESS(TEGRA_APBIF3_BASE)
-};
+static struct apbif_channel_info apbif_channels[NR_APBIF_CHANNELS];
 
 static	void *audio_hub_base = IO_ADDRESS(TEGRA_AHUB_BASE);
 
@@ -324,32 +318,32 @@ void audio_switch_set_acif(int addr, struct audio_cif *cifInfo)
 	val &= ~AUDIOCIF_CTRL_FIFO_THRESHOLD_MASK;
 	val |= (cifInfo->threshold << AUDIOCIF_CTRL_FIFO_THRESHOLD_SHIFT);
 	/* set audio channels */
-	val &= AUDIOCIF_CTRL_AUDIO_CHANNELS_MASK;
+	val &= ~AUDIOCIF_CTRL_AUDIO_CHANNELS_MASK;
 	val |= (cifInfo->audio_channels << AUDIOCIF_CTRL_AUDIO_CHANNELS_SHIFT);
 	/* client channels */
-	val &= AUDIOCIF_CTRL_CLIENT_CHANNELS_MASK;
+	val &= ~AUDIOCIF_CTRL_CLIENT_CHANNELS_MASK;
 	val |= (cifInfo->client_channels << AUDIOCIF_CTRL_CLIENT_CHANNELS_SHIFT);
 	/* audio bits */
-	val &= AUDIOCIF_CTRL_AUDIO_BITS_MASK;
+	val &= ~AUDIOCIF_CTRL_AUDIO_BITS_MASK;
 	val |= (cifInfo->audio_bits << AUDIOCIF_CTRL_AUDIO_BITS_SHIFT);
 	/* channel bits */
-	val &= AUDIOCIF_CTRL_CLIENT_BITS_MASK;
-	val |= (cifInfo->audio_bits << AUDIOCIF_CTRL_CLIENT_BITS_SHIFT);
+	val &= ~AUDIOCIF_CTRL_CLIENT_BITS_MASK;
+	val |= (cifInfo->client_bits << AUDIOCIF_CTRL_CLIENT_BITS_SHIFT);
 	/* expand */
-	val &= AUDIOCIF_CTRL_EXPAND_MASK;
-	val |= (cifInfo->client_bits << AUDIOCIF_CTRL_EXPAND_SHIFT);
+	val &= ~AUDIOCIF_CTRL_EXPAND_MASK;
+	val |= (cifInfo->expand << AUDIOCIF_CTRL_EXPAND_SHIFT);
 	/* stereo convert */
-	val &= AUDIOCIF_CTRL_STEREO_CONV_MASK;
+	val &= ~AUDIOCIF_CTRL_STEREO_CONV_MASK;
 	val |= (cifInfo->stereo_conv << AUDIOCIF_CTRL_STEREO_CONV_SHIFT);
 	/* replicate */
-	val &= AUDIOCIF_CTRL_REPLICATE_MASK;
+	val &= ~AUDIOCIF_CTRL_REPLICATE_MASK;
 	val |= (cifInfo->replicate << AUDIOCIF_CTRL_REPLICATE_SHIFT);
 	/* truncate */
-	val &= AUDIOCIF_CTRL_TRUNCATE_MASK;
+	val &= ~AUDIOCIF_CTRL_TRUNCATE_MASK;
 	val |= (cifInfo->truncate << AUDIOCIF_CTRL_TRUNCATE_SHIFT);
 	/* mono convert */
-	val &= AUDIOCIF_CTRL_MONO_CONV_MASK;
-	val |= (cifInfo->replicate << AUDIOCIF_CTRL_MONO_CONV_SHIFT);
+	val &= ~AUDIOCIF_CTRL_MONO_CONV_MASK;
+	val |= (cifInfo->mono_conv << AUDIOCIF_CTRL_MONO_CONV_SHIFT);
 
 	__raw_writel(val, addr);
 	pr_info("acif value written 0x%x: %08x\n", addr, val);
@@ -358,16 +352,18 @@ void audio_switch_set_acif(int addr, struct audio_cif *cifInfo)
 
 static inline void apbif_writel(int ifc, u32 val, u32 reg)
 {
+	struct apbif_channel_info *ch = &apbif_channels[ifc];
 	pr_info("apbif Write 0x%x : %08x\n",
-		(unsigned int)apbif_base[ifc] + reg, val);
-	__raw_writel(val, apbif_base[ifc] + reg);
+		(unsigned int)ch->virt_base + reg, val);
+	__raw_writel(val, ch->virt_base + reg);
 }
 
 static inline u32 apbif_readl(int ifc, u32 reg)
 {
-	u32 val = __raw_readl(apbif_base[ifc] + reg);
+	struct apbif_channel_info *ch = &apbif_channels[ifc];
+	u32 val = __raw_readl(ch->virt_base + reg);
 	pr_info("apbif Read 0x%x : %08x\n",
-		(unsigned int)apbif_base[ifc] + reg, val);
+		(unsigned int)ch->virt_base + reg, val);
 	return val;
 }
 
@@ -574,8 +570,10 @@ int apbif_get_fifo_mode(int ifc, int tx)
 */
 phys_addr_t apbif_get_fifo_phy_base(int ifc, int tx)
 {
+	struct apbif_channel_info *ch = &apbif_channels[ifc];
+
 	check_apbif_ifc(ifc, 0);
-	return (apbif_phy_base[ifc] +
+	return (ch->phy_base +
 	((tx == AUDIO_TX_MODE)?APBIF_CHANNEL0_TXFIFO_0:APBIF_CHANNEL0_RXFIFO_0));
 }
 
@@ -584,25 +582,50 @@ int  apbif_get_channel(int ifc)
 	/* FIXME: proper code to be added based on connection being done
 	   Currently channel 0 being used for verification
 	*/
-	return (APBIF_CHANNEL_0 + 1);
+	struct apbif_channel_info *ch = &apbif_channels[ifc];
+	return ch->dma_index;
 }
 
 int apbif_initialize(int ifc, struct audio_cif *cifInfo)
 {
+	int i = 0;
+	struct apbif_channel_info *ch;
 	/* packed mode as default */
 	pr_info("%s: \n",__func__);
+
+	memset(apbif_channels, 0, sizeof(apbif_channels));
+	for (i = 0; i < NR_APBIF_CHANNELS; i++)
+	{
+		ch = &apbif_channels[i];
+		ch->phy_base  = TEGRA_APBIF0_BASE +
+								(TEGRA_APBIF0_SIZE * i);
+		ch->virt_base = IO_ADDRESS(TEGRA_APBIF0_BASE) +
+								(TEGRA_APBIF0_SIZE * i);
+		ch->dma_index = i + 1;
+	}
+
 	apbif_set_pack_mode(ifc, AUDIO_TX_MODE, AUDIO_PACK_16);
 	apbif_set_pack_mode(ifc, AUDIO_RX_MODE, AUDIO_PACK_16);
 
+	ch =  &apbif_channels[ifc];
+
 	/*set apbif acif*/
-	audio_switch_set_acif((unsigned int)apbif_base[ifc] +
+	audio_switch_set_acif((unsigned int)ch->virt_base +
 		 APBIF_AUDIOCIF_TX0_CTRL_0,	cifInfo);
-	audio_switch_set_acif((unsigned int)apbif_base[ifc] +
+	audio_switch_set_acif((unsigned int)ch->virt_base +
 		 APBIF_AUDIOCIF_RX0_CTRL_0,	cifInfo);
 
 	/* default ahub connection */
-	audio_switch_set_rx_port(AUDIO_I2S0_RX0_0, AUDIO_APBIF_TX0);
-	audio_switch_set_rx_port(AUDIO_APBIF_RX0_0, AUDIO_I2S0_TX0);
+	if (ifc == 0)
+	{
+		audio_switch_set_rx_port(AUDIO_I2S0_RX0_0, AUDIO_APBIF_TX0);
+		audio_switch_set_rx_port(AUDIO_APBIF_RX0_0, AUDIO_I2S0_TX0);
+	}
+	else if (ifc == 1)
+	{
+		audio_switch_set_rx_port(AUDIO_I2S1_RX0_0, AUDIO_APBIF_TX1);
+		audio_switch_set_rx_port(AUDIO_APBIF_RX1_0, AUDIO_I2S1_TX0);
+	}
 
 	return 0;
 }
