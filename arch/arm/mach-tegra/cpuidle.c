@@ -208,18 +208,11 @@ static struct notifier_block tegra_cpuidle_pm_notifier = {
 static int __init tegra_cpuidle_init(void)
 {
 	unsigned int cpu;
-	void __iomem *mask_arm;
-	u32 reg;
 	int ret;
 
 	ret = tegra_cpudile_init_soc();
 	if (ret)
 		return ret;
-
-	mask_arm = IO_ADDRESS(TEGRA_CLK_RESET_BASE) + CLK_RESET_CLK_MASK_ARM;
-
-	reg = readl(mask_arm);
-	__raw_writel(reg | (1<<31), mask_arm);
 
 	ret = cpuidle_register_driver(&tegra_idle);
 
