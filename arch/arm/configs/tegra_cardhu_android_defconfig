@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.36.3
-# Fri Jan 21 18:06:49 2011
+# Mon Jan 24 17:24:48 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1421,6 +1421,7 @@ CONFIG_REGULATOR_VIRTUAL_CONSUMER=y
 # CONFIG_REGULATOR_ISL6271A is not set
 # CONFIG_REGULATOR_AD5398 is not set
 CONFIG_REGULATOR_TPS6591X=y
+CONFIG_REGULATOR_GPIO_SWITCH=y
 # CONFIG_MEDIA_SUPPORT is not set
 
 #
