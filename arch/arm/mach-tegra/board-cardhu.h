@@ -48,9 +48,21 @@ int cardhu_sdhci_init(void);
 int cardhu_pinmux_init(void);
 int cardhu_panel_init(void);
 int cardhu_sensors_init(void);
+int cardhu_touch_init(void);
 int cardhu_kbc_init(void);
 int cardhu_scroll_init(void);
 int cardhu_keys_init(void);
 int cardhu_gpio_switch_regulator_init(void);
+
+/* Touchscreen GPIO addresses   */
+#ifdef CONFIG_TOUCHSCREEN_PANJIT_I2C
+#define TOUCH_GPIO_IRQ  TEGRA_GPIO_PV6
+#define TOUCH_GPIO_RST  TEGRA_GPIO_PQ7
+#endif
+
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_MT_T9
+#define TOUCH_GPIO_IRQ  TEGRA_GPIO_PV6
+#define TOUCH_GPIO_RST  TEGRA_GPIO_PQ7
+#endif
 
 #endif

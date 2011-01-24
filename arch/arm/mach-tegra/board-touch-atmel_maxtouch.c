@@ -24,6 +24,10 @@
 #include <linux/gpio.h>
 #include <linux/i2c/atmel_maxtouch.h>
 
+#if defined (CONFIG_MACH_CARDHU)
+#include "board-cardhu.h"
+#endif
+
 #if defined (CONFIG_MACH_VENTANA)
 #include "board-ventana.h"
 #endif

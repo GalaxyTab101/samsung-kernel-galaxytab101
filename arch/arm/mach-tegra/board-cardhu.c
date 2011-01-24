@@ -202,7 +202,7 @@ static struct platform_device androidusb_device = {
 	},
 };
 
-static struct i2c_board_info __initdata aruba_i2c_bus1_board_info[] = {
+static struct i2c_board_info __initdata cardhu_i2c_bus1_board_info[] = {
 	{
 		I2C_BOARD_INFO("wm8903", 0x1a),
 	},
@@ -269,7 +269,7 @@ static void cardhu_i2c_init(void)
 	tegra_i2c_device3.dev.platform_data = &cardhu_i2c3_platform_data;
 	tegra_i2c_device4.dev.platform_data = &cardhu_i2c4_platform_data;
 	tegra_i2c_device5.dev.platform_data = &cardhu_i2c5_platform_data;
-	i2c_register_board_info(0, aruba_i2c_bus1_board_info, 1);
+	i2c_register_board_info(0, cardhu_i2c_bus1_board_info, 1);
 
 	platform_device_register(&tegra_i2c_device5);
 	platform_device_register(&tegra_i2c_device4);
@@ -321,11 +321,6 @@ static struct platform_device *cardhu_devices[] __initdata = {
 	&tegra_audio_device,
 	&tegra_avp_device,
 };
-
-static int __init cardhu_touch_init(void)
-{
-	return 0;
-}
 
 
 static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
