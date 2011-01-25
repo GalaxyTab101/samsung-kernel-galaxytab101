@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.36.3
-# Mon Jan 24 17:24:48 2011
+# Mon Jan 24 20:52:32 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -263,7 +263,7 @@ CONFIG_ARCH_TEGRA_3x_SOC=y
 #
 # CONFIG_MACH_ARUBA is not set
 CONFIG_MACH_CARDHU=y
-CONFIG_TEGRA_FPGA_PLATFORM=y
+# CONFIG_TEGRA_FPGA_PLATFORM is not set
 # CONFIG_TEGRA_DEBUG_UART_NONE is not set
 CONFIG_TEGRA_DEBUG_UARTA=y
 # CONFIG_TEGRA_DEBUG_UARTB is not set
