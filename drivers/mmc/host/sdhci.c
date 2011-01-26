@@ -75,7 +75,7 @@ static void sdhci_dumpregs(struct sdhci_host *host)
 		sdhci_readl(host, SDHCI_INT_ENABLE),
 		sdhci_readl(host, SDHCI_SIGNAL_ENABLE));
 	printk(KERN_DEBUG DRIVER_NAME ": AC12 err: 0x%08x | Slot int: 0x%08x\n",
-		sdhci_readw(host, SDHCI_ACMD12_ERR),
+		sdhci_readl(host, SDHCI_ACMD12_ERR),
 		sdhci_readw(host, SDHCI_SLOT_INT_STATUS));
 	printk(KERN_DEBUG DRIVER_NAME ": Caps:     0x%08x | Max curr: 0x%08x\n",
 		sdhci_readl(host, SDHCI_CAPABILITIES),
@@ -2090,8 +2090,8 @@ int sdhci_add_host(struct sdhci_host *host)
 	 * DDR mode support
 	 */
 	caps = sdhci_readb(host, SDHCI_HIGHER_CAPABILITIES);
-	if (caps & SDHCI_CAN_SUPPORT_DDR50)
-		mmc->caps |= MMC_CAP_DDR50;
+/*	if (caps & SDHCI_CAN_SUPPORT_DDR50)
+		mmc->caps |= MMC_CAP_DDR50;*/
 	if (caps & SDHCI_CAN_SUPPORT_SDR50)
 		mmc->caps |= MMC_CAP_SDR50;
 	if (caps & SDHCI_CAN_SUPPORT_SDR104)

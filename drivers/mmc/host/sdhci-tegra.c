@@ -55,6 +55,7 @@ struct tegra_sdhci_host {
 	int clk_enabled;
 	bool card_always_on;
 	u32 sdhci_ints;
+	unsigned int tap_delay;
 };
 
 static irqreturn_t carddetect_irq(int irq, void *data)
@@ -78,6 +79,22 @@ static int tegra_sdhci_enable_dma(struct sdhci_host *host)
 	return 0;
 }
 
+#if defined (CONFIG_ARCH_TEGRA_3x_SOC)
+static void tegra_sdhci_set_trimmer_values(struct sdhci_host *sdhci)
+{
+	u32 ctrl;
+	struct tegra_sdhci_host *host = sdhci_priv(sdhci);
+
+	BUG_ON(host->tap_delay > 0xFF);
+
+	ctrl = sdhci_readl(sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
+	ctrl &= ~(0xFF << SDHCI_VENDOR_CLOCK_CNTRL_TAP_VAL_SHIFT);
+	ctrl |= (host->tap_delay << SDHCI_VENDOR_CLOCK_CNTRL_TAP_VAL_SHIFT);
+	ctrl |= SDHCI_VENDOR_CLOCK_CNTRL_INPUT_IO_CLOCK_INTERNAL;
+		sdhci_writel(sdhci, ctrl, SDMMC_VENDOR_MISC_CNTRL);
+}
+#endif
+
 static void tegra_sdhci_configure_capabilities(struct sdhci_host *sdhci)
 {
 #if defined (CONFIG_ARCH_TEGRA_3x_SOC)
@@ -100,20 +117,29 @@ static void tegra_sdhci_configure_capabilities(struct sdhci_host *sdhci)
 	ctrl |= SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_ENABLE_SDR50;
 	ctrl |= SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_ENABLE_SD3_0_SUPPORT;
 	sdhci_writel(sdhci, ctrl, SDMMC_VENDOR_MISC_CNTRL);
+
+	tegra_sdhci_set_trimmer_values(sdhci);
 #endif
 }
 
 static void tegra_sdhci_enable_clock(struct tegra_sdhci_host *host, int enable)
 {
+	unsigned int val;
+
 	if (enable && !host->clk_enabled) {
 		clk_enable(host->clk);
-		sdhci_writeb(host->sdhci, 1, SDHCI_VENDOR_CLOCK_CNTRL);
+		val = sdhci_readb(host->sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
+		val |= 1;
+		sdhci_writeb(host->sdhci, val, SDHCI_VENDOR_CLOCK_CNTRL);
 		host->clk_enabled = 1;
 	} else if (!enable && host->clk_enabled) {
-		sdhci_writeb(host->sdhci, 0, SDHCI_VENDOR_CLOCK_CNTRL);
+		val = sdhci_readb(host->sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
+		val &= ~(0x1);
+		sdhci_writeb(host->sdhci, val, SDHCI_VENDOR_CLOCK_CNTRL);
 		clk_disable(host->clk);
 		host->clk_enabled = 0;
 	}
+	host->sdhci->max_clk = clk_get_rate(host->clk);
 }
 
 static void tegra_sdhci_set_clock(struct sdhci_host *sdhci, unsigned int clock)
@@ -140,6 +166,8 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	struct resource *res;
 	int irq;
 	void __iomem *ioaddr;
+	void __iomem *ioaddr_clk_rst;
+	unsigned int val = 0;
 
 	plat = pdev->dev.platform_data;
 	if (plat == NULL)
@@ -156,6 +184,12 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 		return -ENODEV;
 
 	ioaddr = ioremap(res->start, res->end - res->start);
+
+	/* Fix ME: Enable the LVL2 CLK OVR bit */
+	ioaddr_clk_rst = ioremap(0x60006300, 0x400);
+	val = readl(ioaddr_clk_rst + 0xa0);
+	val |= 0x40;
+	writel(val, ioaddr_clk_rst + 0xa0);
 
 	sdhci = sdhci_alloc_host(&pdev->dev, sizeof(struct tegra_sdhci_host));
 	if (IS_ERR(sdhci)) {
