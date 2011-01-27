@@ -61,8 +61,8 @@ int cardhu_gpio_switch_regulator_init(void);
 #endif
 
 #ifdef CONFIG_TOUCHSCREEN_ATMEL_MT_T9
-#define TOUCH_GPIO_IRQ  TEGRA_GPIO_PV6
-#define TOUCH_GPIO_RST  TEGRA_GPIO_PQ7
+#define TOUCH_GPIO_IRQ  TEGRA_GPIO_PH4
+#define TOUCH_GPIO_RST  TEGRA_GPIO_PH6
 #endif
 
 #endif

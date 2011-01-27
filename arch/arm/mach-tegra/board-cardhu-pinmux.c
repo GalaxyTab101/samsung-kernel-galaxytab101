@@ -330,6 +330,13 @@ static __initdata struct tegra_pingroup_config cardhu_pinmux[] = {
 	DEFAULT_PINMUX(VI_D11,          RSVD1,           NORMAL,    NORMAL,     INPUT),
 	/* SDMMC1 CD gpio */
 	DEFAULT_PINMUX(GMI_IORDY,       RSVD1,           NORMAL,    NORMAL,     INPUT),
+
+	/* Touch panel GPIO */
+	/* Touch IRQ */
+	DEFAULT_PINMUX(GMI_AD12,        NAND,            NORMAL,    NORMAL,     INPUT),
+
+	/* Touch RESET */
+	DEFAULT_PINMUX(GMI_AD14,        NAND,            NORMAL,    NORMAL,     INPUT),
 };
 
 void __init cardhu_pinmux_init(void)

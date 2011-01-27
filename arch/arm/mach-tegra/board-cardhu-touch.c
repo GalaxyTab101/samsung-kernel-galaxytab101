@@ -50,6 +50,10 @@ int generic_touch_init(struct tegra_touchscreen_init *tsdata)
 /*	pr_info("### TOUCHSCREEN:  Inside generic_touch_init()\n");	*/
 	tegra_gpio_enable(tsdata->irq_gpio);
 	tegra_gpio_enable(tsdata->rst_gpio);
+	gpio_direction_output(tsdata->rst_gpio, 1);
+	gpio_direction_input(tsdata->irq_gpio);
+/*
+	FIXME!! Avoiding manual reset of touch panel
 	if (tsdata->sv_gpio1.valid)
 		gpio_set_value(tsdata->sv_gpio1.gpio, tsdata->sv_gpio1.value);
 	if (tsdata->sv_gpio1.delay)
@@ -58,6 +62,7 @@ int generic_touch_init(struct tegra_touchscreen_init *tsdata)
 		gpio_set_value(tsdata->sv_gpio2.gpio, tsdata->sv_gpio2.value);
 	if (tsdata->sv_gpio2.delay)
 		msleep(tsdata->sv_gpio2.delay);
+*/
 	i2c_register_board_info(tsdata->ts_boardinfo.busnum,
 		tsdata->ts_boardinfo.info,
 		tsdata->ts_boardinfo.n);
@@ -66,38 +71,16 @@ int generic_touch_init(struct tegra_touchscreen_init *tsdata)
 
 int __init cardhu_touch_init(void)
 {
-	int retval = 0;
-	struct board_info BoardInfo;
-
-	tegra_get_board_info(&BoardInfo);
-
-	switch(BoardInfo.sku & SKU_MASK) {
-#if defined (CONFIG_TOUCHSCREEN_ATMEL_MT_T9)
-		case ATMEL_TOUCHSCREEN_SKU :
-		case ATMEL_TOUCHSCREEN_T25 :
-			retval = generic_touch_init(&atmel_mxt_init_data);
-			break;
+	int err = 0;
+#ifdef CONFIG_TOUCHSCREEN_PANJIT_I2C
+	err = generic_touch_init(&panjit_init_data);
+	if (err)
+		return err;
 #endif
-#if defined (CONFIG_TOUCHSCREEN_PANJIT_I2C)
-		case PANJIT_TOUCHSCREEN_SKU :
-			retval = generic_touch_init(&panjit_init_data);
-			break;
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_MT_T9
+	err = generic_touch_init(&atmel_mxt_init_data);
+	if (err)
+		return err;
 #endif
-
-		case UNKNOWN_SKU :
-			pr_info("*** ERROR ***\n");
-			pr_info("    Invalid BoardInfo EEPROM.  ");
-			pr_info("    BoardInfo.sku is programmed with 0xFFFF.\n");
-			pr_info("    No touch screen support.\n");
-			break;
-
-		default :
-			pr_info("*** ERROR ***\n");
-			pr_info("    Invalid BoardInfo EEPROM.  ");
-			pr_info("    BoardInfo.sku contains unknown SKU: %04X\n", BoardInfo.sku);
-			pr_info("    No touch screen support.\n");
-			break;
-	}
-
-	return retval;
+	return err;
 }
