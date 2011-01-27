@@ -188,7 +188,7 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	/* Fix ME: Enable the LVL2 CLK OVR bit */
 	ioaddr_clk_rst = ioremap(0x60006300, 0x400);
 	val = readl(ioaddr_clk_rst + 0xa0);
-	val |= 0x40;
+	val |= 0x60;
 	writel(val, ioaddr_clk_rst + 0xa0);
 
 	sdhci = sdhci_alloc_host(&pdev->dev, sizeof(struct tegra_sdhci_host));
