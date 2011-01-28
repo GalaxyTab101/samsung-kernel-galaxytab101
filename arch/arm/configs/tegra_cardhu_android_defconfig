@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.36.3
-# Thu Jan 27 21:24:50 2011
+# Fri Jan 28 11:19:17 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -2236,9 +2236,7 @@ CONFIG_ARM_UNWIND=y
 # CONFIG_DEBUG_USER is not set
 # CONFIG_DEBUG_ERRORS is not set
 # CONFIG_DEBUG_STACK_USAGE is not set
-CONFIG_DEBUG_LL=y
-# CONFIG_EARLY_PRINTK is not set
-CONFIG_DEBUG_ICEDCC=y
+# CONFIG_DEBUG_LL is not set
 # CONFIG_OC_ETM is not set
 
 #
