@@ -24,6 +24,8 @@
 #include <mach/hardware.h>
 #include <mach/iomap.h>
 
+#define NEVER_RESET 1
+
 extern void (*tegra_reset)(char mode, const char *cmd);
 
 static inline void arch_idle(void)
@@ -32,29 +34,29 @@ static inline void arch_idle(void)
 
 static inline void tegra_assert_system_reset(void)
 {
-#ifndef CONFIG_TEGRA_FPGA_PLATFORM
+#if defined(CONFIG_TEGRA_FPGA_PLATFORM) || NEVER_RESET
+	printk("tegra_assert_system_reset() call attempted on FPGA target platform.....");
+	do { } while (1);
+#else
 	void __iomem *reset = IO_ADDRESS(TEGRA_PMC_BASE + 0x00);
 	u32 reg;
 
 	reg = readl_relaxed(reset);
 	reg |= 0x10;
 	writel_relaxed(reg, reset);
-#else
-	printk("tegra_assert_system_reset() call attempted on FPGA target platform.....");
-	do { } while (1);
 #endif
 }
 
 static inline void arch_reset(char mode, const char *cmd)
 {
-#ifndef CONFIG_TEGRA_FPGA_PLATFORM
+#if defined(CONFIG_TEGRA_FPGA_PLATFORM) || NEVER_RESET
+	printk("arch_reset(%c, %s) call attempted on FPGA target platform.....",
+	       mode, cmd);
+#else
 	if (tegra_reset)
 		tegra_reset(mode, cmd);
 	else
 		tegra_assert_system_reset();
-#else
-	printk("arch_reset(%c, %s) call attempted on FPGA target platform.....",
-	       mode, cmd);
 #endif
 
 	do { } while (1);
