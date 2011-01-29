@@ -170,7 +170,9 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	void __iomem *ioaddr_clk_rst;
 	void __iomem *ioaddr_pinmux;
 	unsigned int val = 0;
-	struct regulator *vsd;
+
+	static struct regulator *reg_sd_slot = NULL;
+	static struct regulator *reg_vddio_sdmmc1 = NULL;
 
 	plat = pdev->dev.platform_data;
 	if (plat == NULL)
@@ -215,12 +217,39 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 		goto err_clkput;
 
 	if (pdev->id == 0) {
-		vsd = regulator_get(NULL, "vddio_sdmmc1");
-		if (IS_ERR(vsd))
-			printk("failed to sdmmc1 regulator\n");
-		else {
-			regulator_enable(vsd);
-			regulator_set_voltage(vsd, 3300000, 3300000);
+		/* Enabling power rails */
+		/* Enable VDDIO_SD_SLOT 3.3V*/
+		dev_info(&pdev->dev, "Getting regulator for rail vddio_sd_slot\n");
+		if (reg_sd_slot == NULL) {
+			reg_sd_slot = regulator_get(NULL, "vddio_sd_slot");
+			if (WARN_ON(IS_ERR_OR_NULL(reg_sd_slot)))
+				dev_err(&pdev->dev, "couldn't get regulator "
+					"vddio_sd_slot: %ld\n",
+					 PTR_ERR(reg_sd_slot));
+			else
+				regulator_enable(reg_sd_slot);
+		}
+
+		/* Enable rail for vddio_sdmmc1 */
+		dev_info(&pdev->dev, "Getting regulator for rail"
+				 " vddio_sdmmc1\n");
+		if (reg_vddio_sdmmc1 == NULL) {
+			reg_vddio_sdmmc1 = regulator_get(NULL, "vddio_sdmmc1");
+			if (WARN_ON(IS_ERR_OR_NULL(reg_vddio_sdmmc1)))
+				dev_err(&pdev->dev, "couldn't get regulator "
+					"vddio_sdmmc1: %ld\n",
+					PTR_ERR(reg_vddio_sdmmc1));
+			else {
+				rc = regulator_set_voltage(reg_vddio_sdmmc1,
+						3280000, 3320000);
+				if (rc != 0) {
+					dev_err(&pdev->dev, "regulator_set_"
+						"voltage() for rail reg_"
+						"vddio_sdmmc1 failed:i %d\n",
+						rc);
+				} else
+					regulator_enable(reg_vddio_sdmmc1);
+			}
 		}
 	}
 
