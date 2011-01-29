@@ -25,6 +25,7 @@
 #include <linux/delay.h>
 #include <linux/bitops.h>
 #include <linux/mmc/card.h>
+#include <linux/regulator/consumer.h>
 
 #include <mach/sdhci.h>
 
@@ -167,7 +168,9 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	int irq;
 	void __iomem *ioaddr;
 	void __iomem *ioaddr_clk_rst;
+	void __iomem *ioaddr_pinmux;
 	unsigned int val = 0;
+	struct regulator *vsd;
 
 	plat = pdev->dev.platform_data;
 	if (plat == NULL)
@@ -188,7 +191,7 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	/* Fix ME: Enable the LVL2 CLK OVR bit */
 	ioaddr_clk_rst = ioremap(0x60006300, 0x400);
 	val = readl(ioaddr_clk_rst + 0xa0);
-	val |= 0x60;
+	val |= 0x68;
 	writel(val, ioaddr_clk_rst + 0xa0);
 
 	sdhci = sdhci_alloc_host(&pdev->dev, sizeof(struct tegra_sdhci_host));
@@ -210,6 +213,16 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	rc = clk_enable(host->clk);
 	if (rc != 0)
 		goto err_clkput;
+
+	if (pdev->id == 0) {
+		vsd = regulator_get(NULL, "vddio_sdmmc1");
+		if (IS_ERR(vsd))
+			printk("failed to sdmmc1 regulator\n");
+		else {
+			regulator_enable(vsd);
+			regulator_set_voltage(vsd, 3300000, 3300000);
+		}
+	}
 
 	host->clk_enabled = 1;
 	sdhci->hw_name = "tegra";
