@@ -240,6 +240,14 @@
 #define APBIF_CH_STATUS_FIFO_MASK	\
 		(0xffff<<APBIF_CH_STATUS_FIFO_SHIFT)
 
+#define  ENABLE_AHUB_DEBUG_PRINT	0
+
+#if  ENABLE_AHUB_DEBUG_PRINT
+#define AHUB_DEBUG_PRINT(fmt, arg...)  printk(fmt, ## arg)
+#else
+#define AHUB_DEBUG_PRINT(fmt, arg...) do {} while (0)
+#endif
+
 /*
 *  Internal functions
 */
@@ -257,14 +265,14 @@ static	void *audio_hub_base = IO_ADDRESS(TEGRA_AHUB_BASE);
 static inline void audio_switch_writel(u32 reg, u32 val)
 {
 	writel(val, audio_hub_base + reg);
-	pr_info("ahub write offset 0x%x: %08x\n",
+	AHUB_DEBUG_PRINT("ahub write offset 0x%x: %08x\n",
 		(unsigned int) audio_hub_base + reg, val);
 }
 
 static inline u32 audio_switch_readl(u32 reg)
 {
 	u32 val = readl(audio_hub_base + reg);
-	pr_info("ahub read offset 0x%x: %08x\n",
+	AHUB_DEBUG_PRINT("ahub read offset 0x%x: %08x\n",
 		(unsigned int)audio_hub_base + reg, val);
 	return val;
 }
@@ -309,11 +317,8 @@ void audio_switch_set_acif(int addr, struct audio_cif *cifInfo)
 {
 	u32 val;
 
-	pr_info("%s: \n",__func__);
-
 	val = __raw_readl(addr);
-
-	pr_info("acif value read 0x%x: %08x\n", addr, val);
+	AHUB_DEBUG_PRINT("acif value read 0x%x: %08x\n", addr, val);
 	/* set threshold */
 	val &= ~AUDIOCIF_CTRL_FIFO_THRESHOLD_MASK;
 	val |= (cifInfo->threshold << AUDIOCIF_CTRL_FIFO_THRESHOLD_SHIFT);
@@ -346,15 +351,18 @@ void audio_switch_set_acif(int addr, struct audio_cif *cifInfo)
 	val |= (cifInfo->mono_conv << AUDIOCIF_CTRL_MONO_CONV_SHIFT);
 
 	__raw_writel(val, addr);
-	pr_info("acif value written 0x%x: %08x\n", addr, val);
+
+	AHUB_DEBUG_PRINT("acif value written 0x%x: %08x\n", addr, val);
 }
 
 
 static inline void apbif_writel(int ifc, u32 val, u32 reg)
 {
 	struct apbif_channel_info *ch = &apbif_channels[ifc];
-	pr_info("apbif Write 0x%x : %08x\n",
+
+	AHUB_DEBUG_PRINT("apbif Write 0x%x : %08x\n",
 		(unsigned int)ch->virt_base + reg, val);
+
 	__raw_writel(val, ch->virt_base + reg);
 }
 
@@ -362,7 +370,7 @@ static inline u32 apbif_readl(int ifc, u32 reg)
 {
 	struct apbif_channel_info *ch = &apbif_channels[ifc];
 	u32 val = __raw_readl(ch->virt_base + reg);
-	pr_info("apbif Read 0x%x : %08x\n",
+	AHUB_DEBUG_PRINT("apbif Read 0x%x : %08x\n",
 		(unsigned int)ch->virt_base + reg, val);
 	return val;
 }
@@ -591,7 +599,6 @@ int apbif_initialize(int ifc, struct audio_cif *cifInfo)
 	int i = 0;
 	struct apbif_channel_info *ch;
 	/* packed mode as default */
-	pr_info("%s: \n",__func__);
 
 	memset(apbif_channels, 0, sizeof(apbif_channels));
 	for (i = 0; i < NR_APBIF_CHANNELS; i++)

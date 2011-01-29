@@ -31,13 +31,12 @@
 	return __VA_ARGS__;						\
 }
 
-/*static phys_addr_t i2s_phy_base[NR_I2S_IFC] = {
-	TEGRA_I2S0_BASE,
-	TEGRA_I2S1_BASE,
-	TEGRA_I2S2_BASE,
-	TEGRA_I2S3_BASE,
-	TEGRA_I2S4_BASE,
-};*/
+#define ENABLE_I2S_DEBUG_PRINT	0
+#if  ENABLE_I2S_DEBUG_PRINT
+#define I2S_DEBUG_PRINT(fmt, arg...)  printk(fmt, ## arg)
+#else
+#define I2S_DEBUG_PRINT(fmt, arg...) do {} while (0)
+#endif
 
 static void *i2s_base[NR_I2S_IFC] = {
 	IO_ADDRESS(TEGRA_I2S0_BASE),
@@ -49,7 +48,7 @@ static void *i2s_base[NR_I2S_IFC] = {
 
 static inline void i2s_writel(int ifc, u32 val, u32 reg)
 {
-	pr_info("i2s Write 0x%x : %08x\n",
+	I2S_DEBUG_PRINT("i2s Write 0x%x : %08x\n",
 		(unsigned int)i2s_base[ifc] + reg, val);
 	__raw_writel(val, i2s_base[ifc] + reg);
 }
@@ -57,7 +56,7 @@ static inline void i2s_writel(int ifc, u32 val, u32 reg)
 static inline u32 i2s_readl(int ifc, u32 reg)
 {
 	u32 val = __raw_readl(i2s_base[ifc] + reg);
-	pr_info("i2s Read 0x%x : %08x\n",
+	I2S_DEBUG_PRINT("i2s Read 0x%x : %08x\n",
 		(unsigned int) i2s_base[ifc] + reg, val);
 	return val;
 }

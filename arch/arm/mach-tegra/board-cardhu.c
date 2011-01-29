@@ -270,7 +270,9 @@ static void cardhu_i2c_init(void)
 	tegra_i2c_device3.dev.platform_data = &cardhu_i2c3_platform_data;
 	tegra_i2c_device4.dev.platform_data = &cardhu_i2c4_platform_data;
 	tegra_i2c_device5.dev.platform_data = &cardhu_i2c5_platform_data;
-	i2c_register_board_info(0, cardhu_i2c_bus1_board_info, 1);
+
+	// setting audio codec on i2c_4
+	i2c_register_board_info(4, cardhu_i2c_bus1_board_info, 1);
 
 	platform_device_register(&tegra_i2c_device5);
 	platform_device_register(&tegra_i2c_device4);
