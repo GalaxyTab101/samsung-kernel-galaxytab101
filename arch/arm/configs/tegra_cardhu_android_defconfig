@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.36.3
-# Sun Jan 30 04:06:22 2011
+# Mon Jan 31 14:52:41 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -266,6 +266,7 @@ CONFIG_ARCH_TEGRA_3x_SOC=y
 # CONFIG_MACH_ARUBA is not set
 CONFIG_MACH_CARDHU=y
 # CONFIG_TEGRA_FPGA_PLATFORM is not set
+# CONFIG_TEGRA_VERBIER_E1187 is not set
 # CONFIG_TEGRA_DEBUG_UART_NONE is not set
 CONFIG_TEGRA_DEBUG_UARTA=y
 # CONFIG_TEGRA_DEBUG_UARTB is not set
@@ -1623,7 +1624,6 @@ CONFIG_USB_DEVICEFS=y
 CONFIG_USB_DEVICE_CLASS=y
 # CONFIG_USB_DYNAMIC_MINORS is not set
 # CONFIG_USB_SUSPEND is not set
-# CONFIG_USB_OTG is not set
 # CONFIG_USB_OTG_WHITELIST is not set
 # CONFIG_USB_OTG_BLACKLIST_HUB is not set
 # CONFIG_USB_MON is not set
