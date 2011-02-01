@@ -171,6 +171,32 @@ static enum tegra_suspend_mode current_suspend_mode;
 
 static unsigned int tegra_time_in_suspend[32];
 
+#if INSTRUMENT_CLUSTER_SWITCH
+enum tegra_cluster_switch_time_id
+{
+	tegra_cluster_switch_time_id_start = 0,
+	tegra_cluster_switch_time_id_prolog,
+	tegra_cluster_switch_time_id_switch,
+	tegra_cluster_switch_time_id_epilog,
+	tegra_cluster_switch_time_id_max
+};
+
+static unsigned long tegra_cluster_switch_times[tegra_cluster_switch_time_id_max];
+#define tegra_cluster_switch_time(flags, id) \
+	do { \
+		barrier(); \
+		if (flags & TEGRA_POWER_CLUSTER_MASK) { \
+			void __iomem *timer_us = IO_ADDRESS(TEGRA_TMRUS_BASE); \
+			if (id < tegra_cluster_switch_time_id_max) \
+				tegra_cluster_switch_times[id] = readl(timer_us); \
+				wmb(); \
+		} \
+		barrier(); \
+	} while (0)
+#else
+#define tegra_cluster_switch_time(flags, id) do {} while (0)
+#endif
+
 static inline unsigned int time_to_bin(unsigned int time)
 {
 	return fls(time);
@@ -413,6 +439,8 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 		mode &= ~TEGRA_POWER_PWRREQ_OE;
 	mode &= ~TEGRA_POWER_EFFECT_LP0;
 
+	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_start);
+
 	orig = readl(evp_reset);
 	writel(virt_to_phys(tegra_lp2_startup), evp_reset);
 
@@ -427,6 +455,7 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 
 	suspend_cpu_complex();
 	stop_critical_timings();
+	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_prolog);
 	flush_cache_all();
 	/* structure is written by reset code, so the L2 lines
 	 * must be invalidated */
@@ -441,6 +470,7 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 	__cortex_a9_save(mode);
 	/* return from __cortex_a9_restore */
 	barrier();
+	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_switch);
 	restore_cpu_complex();
 	start_critical_timings();
 
@@ -452,6 +482,27 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 		tegra_cluster_switch_epilog(mode);
 
 	writel(orig, evp_reset);
+	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_epilog);
+
+#if INSTRUMENT_CLUSTER_SWITCH
+	if (flags & TEGRA_POWER_CLUSTER_MASK) {
+		printk("cluster switch prolog took %lu us\n",
+		       tegra_cluster_switch_times[tegra_cluster_switch_time_id_prolog] -
+		       tegra_cluster_switch_times[tegra_cluster_switch_time_id_start]);
+
+		printk("cluster switch context save/restore took %lu us, cumulative time %lu us\n",
+		       tegra_cluster_switch_times[tegra_cluster_switch_time_id_switch] -
+		       tegra_cluster_switch_times[tegra_cluster_switch_time_id_prolog],
+		       tegra_cluster_switch_times[tegra_cluster_switch_time_id_switch] -
+		       tegra_cluster_switch_times[tegra_cluster_switch_time_id_start]);
+
+		printk("cluster switch epilog took %lu us, cumulative time %lu us\n",
+		       tegra_cluster_switch_times[tegra_cluster_switch_time_id_epilog] -
+		       tegra_cluster_switch_times[tegra_cluster_switch_time_id_switch],
+		       tegra_cluster_switch_times[tegra_cluster_switch_time_id_epilog] -
+		       tegra_cluster_switch_times[tegra_cluster_switch_time_id_start]);
+	}
+#endif
 
 	return remain;
 }

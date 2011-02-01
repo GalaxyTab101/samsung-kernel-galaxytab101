@@ -116,6 +116,7 @@ void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
+#define INSTRUMENT_CLUSTER_SWITCH 0 /* Must be zero for ARCH_TEGRA_2x_SOC */
 static inline int tegra_cluster_control(unsigned int us, unsigned int flags)
 { return -EPERM; }
 #define tegra_cluster_switch_prolog(flags) do {} while (0)
@@ -129,6 +130,7 @@ static inline bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 	struct cpuidle_state *state)
 { return true; }
 #else
+#define INSTRUMENT_CLUSTER_SWITCH 1 /* Should be zero for shipping code */
 int tegra_cluster_control(unsigned int us, unsigned int flags);
 void tegra_cluster_switch_prolog(unsigned int flags);
 void tegra_cluster_switch_epilog(unsigned int flags);
