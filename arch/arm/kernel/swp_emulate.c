@@ -36,12 +36,13 @@
 	"	mov		%2, %1\n"			\
 	"0:	ldrex"B"	%1, [%3]\n"			\
 	"1:	strex"B"	%0, %2, [%3]\n"			\
-	"	cmp		%0, #0\n"			\
-	"	movne		%0, %4\n"			\
+	"	dmb\n"						\
+	"	teq             %0, #0\n"			\
+	"	bne		0b\n"				\
 	"2:\n"							\
 	"	.section	 .fixup,\"ax\"\n"		\
 	"	.align		2\n"				\
-	"3:	mov		%0, %5\n"			\
+	"3:	mov		%0, %4\n"			\
 	"	b		2b\n"				\
 	"	.previous\n"					\
 	"	.section	 __ex_table,\"a\"\n"		\
@@ -50,7 +51,7 @@
 	"	.long		1b, 3b\n"			\
 	"	.previous"					\
 	: "=&r" (res), "+r" (data), "=&r" (temp)		\
-	: "r" (addr), "i" (-EAGAIN), "i" (-EFAULT)		\
+	: "r" (addr), "i" (-EFAULT)				\
 	: "cc", "memory")
 
 #define __user_swp_asm(data, addr, res, temp) \
@@ -127,6 +128,7 @@ static int emulate_swpX(unsigned int address, unsigned int *data,
 			unsigned int type)
 {
 	unsigned int res = 0;
+	unsigned long temp;
 
 	if ((type != TYPE_SWPB) && (address & 0x3)) {
 		/* SWP to unaligned address not permitted */
@@ -134,36 +136,20 @@ static int emulate_swpX(unsigned int address, unsigned int *data,
 		return -EFAULT;
 	}
 
-	while (1) {
-		unsigned long temp;
+	/*
+	 * Barrier required between accessing protected resource and
+	 * releasing a lock for it. Legacy code might not have done
+	 * this, and we cannot determine that this is not the case
+	 * being emulated, so insert always.
+	 */
+	smp_mb();
 
-		/*
-		 * Barrier required between accessing protected resource and
-		 * releasing a lock for it. Legacy code might not have done
-		 * this, and we cannot determine that this is not the case
-		 * being emulated, so insert always.
-		 */
-		smp_mb();
-
-		if (type == TYPE_SWPB)
-			__user_swpb_asm(*data, address, res, temp);
-		else
-			__user_swp_asm(*data, address, res, temp);
-
-		if (likely(res != -EAGAIN) || signal_pending(current))
-			break;
-
-		cond_resched();
-	}
+	if (type == TYPE_SWPB)
+		__user_swpb_asm(*data, address, res, temp);
+	else
+		__user_swp_asm(*data, address, res, temp);
 
 	if (res == 0) {
-		/*
-		 * Barrier also required between aquiring a lock for a
-		 * protected resource and accessing the resource. Inserted for
-		 * same reason as above.
-		 */
-		smp_mb();
-
 		if (type == TYPE_SWPB)
 			swpbcounter++;
 		else
