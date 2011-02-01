@@ -28,6 +28,7 @@
 #include <mach/spdif.h>
 #include <mach/audio.h>
 #include <mach/dma.h>
+#include <mach/audio_switch.h>
 
 #define ENABLE_SPDIF_DEBUG_PRINT	0
 #if  ENABLE_SPDIF_DEBUG_PRINT
@@ -51,8 +52,14 @@ static inline u32 spdif_readl(unsigned long base, u32 reg)
 
 void spdif_fifo_enable(unsigned long base, int mode, int on)
 {
-	u32 val = spdif_readl(base, SPDIF_CTRL_0);
+	u32 val;
 
+#if !defined(CONFIG_ARCH_TEGRA_2x_SOC)
+	int ifc = 3;
+	apbif_channel_enable(ifc, mode, on);
+#endif
+
+	val = spdif_readl(base, SPDIF_CTRL_0);
 	if (mode == AUDIO_TX_MODE)
 	{
 		val &= ~(SPDIF_CTRL_0_TU_EN | SPDIF_CTRL_0_TC_EN | SPDIF_CTRL_0_TX_EN);
@@ -132,6 +139,8 @@ u32 spdif_get_control(unsigned long base)
 {
 	return spdif_readl(base, SPDIF_CTRL_0);
 }
+
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 
 void spdif_fifo_write(unsigned long base, int mode, u32 data)
 {
@@ -226,6 +235,11 @@ u32 spdif_get_fifo_full_empty_count(unsigned long base, int mode)
 	return 0;
 }
 
+int spdif_get_dma_requestor(int ifc)
+{
+	return TEGRA_DMA_REQ_SEL_SPD_I;
+}
+
 int spdif_initialize(unsigned long base, int mode)
 {
 	/* disable interrupts from SPDIF */
@@ -284,3 +298,111 @@ void spdif_set_all_regs(unsigned long base, struct spdif_regs_cache* regs)
 	spdif_writel(base, regs->spdif_usr_sta_rx_a_0, SPDIF_USR_STA_RX_A_0);
 	spdif_writel(base, regs->spdif_usr_dat_tx_a_0, SPDIF_USR_DAT_TX_A_0);
 }
+#else
+
+int spdif_set_fifo_packed(unsigned long base, unsigned on)
+{
+	/* This register is obsolete after T20 */
+	return 0;
+}
+
+void spdif_fifo_write(unsigned long base, int mode, u32 data)
+{
+	/*FIXME: add apbif call here */
+}
+
+int spdif_fifo_set_attention_level(unsigned long base, int mode,
+			unsigned level)
+{
+	/*FIXME: currently used apbif channel 4 for spdif*/
+	int ifc = 3;
+	/* expected the level as four slots now */
+	level = SPDIF_FIFO_ATN_LVL_FOUR_SLOTS;
+	return apbif_fifo_set_attention_level(ifc, mode, level);
+}
+
+void spdif_fifo_clear(unsigned long base, int mode)
+{
+	/*FIXME: add apbif call here */
+}
+
+u32 spdif_get_status(unsigned long base)
+{
+	/*FIXME: currently used apbif channel 4 for spdif*/
+	int ifc = 3;
+	return apbif_get_fifo_mode(ifc, AUDIO_TX_MODE);;
+}
+
+void spdif_ack_status(unsigned long base)
+{
+	/*FIXME: add apbif call here */
+}
+
+u32 spdif_get_fifo_scr(unsigned long base)
+{
+	/*FIXME: add apbif call here */
+	return 0;
+}
+
+phys_addr_t spdif_get_fifo_phy_base(phys_addr_t phy_base, int mode)
+{
+	/*FIXME: currently used apbif channel 4 for spdif*/
+	int ifc = 3;
+	return apbif_get_fifo_phy_base(ifc, mode);
+}
+
+u32 spdif_get_fifo_full_empty_count(unsigned long base)
+{
+	/*FIXME: add apbif call here */
+	return 0;
+}
+
+int spdif_get_dma_requestor(int ifc)
+{
+	/*FIXME: currently used apbif channel 4 for spdif*/
+	ifc = 3;
+	return apbif_get_channel(ifc);
+}
+
+static  struct audio_cif  spdif_audiocif;
+int spdif_initialize(unsigned long base, int mode)
+{
+	struct audio_cif  *tx_audio_cif = &spdif_audiocif;
+	int ifc = 3;
+
+	apbif_enable_clock();
+
+	/* disable interrupts from SPDIF */
+	spdif_writel(base, 0x0, SPDIF_CTRL_0);
+	spdif_fifo_clear(base, mode);
+
+	/* FIXME: move all the apbif call to a generic function
+	    inside audio_switch code - temporarily added here to
+	    get minimum audio function working
+	*/
+
+	/* set spdif audiocif */
+	/* setting base value for acif */
+	memset(tx_audio_cif, 0 , sizeof(struct audio_cif));
+	tx_audio_cif->audio_channels  = AUDIO_CHANNEL_2;
+	tx_audio_cif->client_channels = AUDIO_CHANNEL_2;
+	tx_audio_cif->audio_bits	  = AUDIO_BIT_SIZE_16;
+	tx_audio_cif->client_bits	  = AUDIO_BIT_SIZE_16;
+	audio_switch_set_acif(base +
+		 SPDIF_AUDIOCIF_TXDATA_CTRL_0,	tx_audio_cif);
+	audio_switch_set_acif(base +
+		 SPDIF_AUDIOCIF_RXDATA_CTRL_0,	tx_audio_cif);
+
+	apbif_initialize(ifc, tx_audio_cif);
+
+	spdif_fifo_enable(base, mode, 0);
+
+	spdif_set_bit_mode(base, SPDIF_BIT_MODE_MODE16BIT);
+	spdif_set_fifo_packed(base, 1);
+
+	spdif_set_sample_rate(base, 44100);
+
+	return 0;
+}
+
+#endif

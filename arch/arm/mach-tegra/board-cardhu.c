@@ -41,6 +41,7 @@
 #include <mach/iomap.h>
 #include <mach/io.h>
 #include <mach/i2s.h>
+#include <mach/spdif.h>
 #include <mach/audio.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -263,6 +264,13 @@ static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 	},
 };
 
+static struct tegra_audio_platform_data tegra_spdif_pdata = {
+	.dma_on = true,  /* use dma by default */
+	.i2s_clk_rate = 5644800,
+	.mode = SPDIF_BIT_MODE_MODE16BIT,
+	.fifo_fmt = 0,
+};
+
 static void cardhu_i2c_init(void)
 {
 	tegra_i2c_device1.dev.platform_data = &cardhu_i2c1_platform_data;
@@ -319,6 +327,7 @@ static struct platform_device *cardhu_devices[] __initdata = {
 #endif
 	&tegra_wdt_device,
 	&tegra_audio_device,
+	&tegra_spdif_device,
 	&tegra_avp_device,
 };
 
@@ -423,6 +432,7 @@ static void __init tegra_cardhu_init(void)
 	snprintf(serial, sizeof(serial), "%llx", tegra_chip_uid());
 	andusb_plat.serial_number = kstrdup(serial, GFP_KERNEL);
 	tegra_audio_device.dev.platform_data = &tegra_audio_pdata[0];
+	tegra_spdif_device.dev.platform_data = &tegra_spdif_pdata;
 	tegra_ehci2_device.dev.platform_data
 		= &cardhu_ehci2_ulpi_platform_data;
 	platform_add_devices(cardhu_devices, ARRAY_SIZE(cardhu_devices));

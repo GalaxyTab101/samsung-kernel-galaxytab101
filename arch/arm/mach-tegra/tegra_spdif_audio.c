@@ -449,6 +449,7 @@ static void stop_dma_playback(struct audio_stream *aos)
 }
 
 
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 static irqreturn_t spdif_interrupt(int irq, void *data)
 {
 	struct audio_driver_state *ads = data;
@@ -463,6 +464,7 @@ static irqreturn_t spdif_interrupt(int irq, void *data)
 			spdif_get_status(ads->spdif_base));
 	return IRQ_HANDLED;
 }
+#endif
 
 static ssize_t tegra_spdif_write(struct file *file,
 		const char __user *buf, size_t size, loff_t *off)
@@ -894,12 +896,14 @@ static int tegra_spdif_probe(struct platform_device *pdev)
 	}
 	state->dma_req_sel = res->start;
 
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!res) {
 		dev_err(&pdev->dev, "no irq resource!\n");
 		return -ENODEV;
 	}
 	state->irq = res->start;
+#endif
 
 	rc = spdif_configure(pdev);
 	if (rc < 0)
@@ -930,6 +934,7 @@ static int tegra_spdif_probe(struct platform_device *pdev)
 	wake_lock_init(&state->out.wake_lock, WAKE_LOCK_SUSPEND,
 			state->out.wake_lock_name);
 
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 	if (request_irq(state->irq, spdif_interrupt,
 			IRQF_DISABLED, state->pdev->name, state) < 0) {
 		dev_err(&pdev->dev,
@@ -937,6 +942,7 @@ static int tegra_spdif_probe(struct platform_device *pdev)
 			__func__, state->irq);
 		return -EIO;
 	}
+#endif
 
 	rc = setup_misc_device(&state->misc_out,
 			&tegra_spdif_out_fops,

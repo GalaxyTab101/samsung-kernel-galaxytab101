@@ -31,6 +31,9 @@
 /* Offsets from TEGRA_SPDIF_BASE */
 
 #define SPDIF_CTRL_0			0x0
+
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+
 #define SPDIF_STATUS_0			0x4
 #define SPDIF_STROBE_CTRL_0		0x8
 #define SPDIF_DATA_FIFO_CSR_0		0x0C
@@ -55,47 +58,12 @@
  * Register SPDIF_CTRL_0
  */
 
-/*
- * 1=start capturing from left channel,0=start
- * capturing from right channel.
- */
-#define SPDIF_CTRL_0_CAP_LC			(1<<30)
-
-/* SPDIF receiver(RX):	1=enable, 0=disable. */
-#define SPDIF_CTRL_0_RX_EN			(1<<29)
-
-/* SPDIF Transmitter(TX):	1=enable, 0=disable. */
-#define SPDIF_CTRL_0_TX_EN			(1<<28)
-
-/* Transmit Channel status:	1=enable, 0=disable. */
-#define SPDIF_CTRL_0_TC_EN			(1<<27)
-
-/* Transmit user Data:		1=enable, 0=disable. */
-#define SPDIF_CTRL_0_TU_EN			(1<<26)
-
 /* Interrupt on transmit error:	 1=enable, 0=disable. */
 #define SPDIF_CTRL_0_IE_TXE			(1<<25)
 
 /* Interrupt on receive error:	 1=enable, 0=disable. */
 #define SPDIF_CTRL_0_IE_RXE			(1<<24)
 
-/* Interrupt on invalid preamble:       1=enable, 0=disable. */
-#define SPDIF_CTRL_0_IE_P			(1<<23)
-
-/* Interrupt on "B" preamble:	   1=enable, 0=disable. */
-#define SPDIF_CTRL_0_IE_B			(1<<22)
-
-/*
- * Interrupt when block of channel status received:
- * 1=enable, 0=disable.
- */
-#define SPDIF_CTRL_0_IE_C			(1<<21)
-
-/*
- * Interrupt when a valid information unit (IU) recieve:
- * 1=enable, 0=disable.
- */
-#define SPDIF_CTRL_0_IE_U			(1<<20)
 
 /*
  * Interrupt when RX user FIFO attn. level is reached:
@@ -121,9 +89,6 @@
  */
 #define SPDIF_CTRL_0_QE_TX			(1<<16)
 
-/* Loopback test mode:   1=enable internal loopback, 0=Normal mode. */
-#define SPDIF_CTRL_0_LBK_EN			(1<<15)
-
 /*
  * Pack data mode:
  * 1=Packeted left/right channel data into a single word,
@@ -131,30 +96,6 @@
  * interface data bit size)
  */
 #define SPDIF_CTRL_0_PACK		 (1<<14)
-
-/*
- * 00=16bit data
- * 01=20bit data
- * 10=24bit data
- * 11=raw data
- */
-#define SPDIF_BIT_MODE_MODE16BIT	(0)
-#define SPDIF_BIT_MODE_MODE20BIT	(1)
-#define SPDIF_BIT_MODE_MODE24BIT	(2)
-#define SPDIF_BIT_MODE_MODERAW		(3)
-#define SPDIF_CTRL_0_BIT_MODE_SHIFT	(12)
-
-#define SPDIF_CTRL_0_BIT_MODE_MASK		\
-		((0x3) << SPDIF_CTRL_0_BIT_MODE_SHIFT)
-#define SPDIF_CTRL_0_BIT_MODE_MODE16BIT		\
-	(SPDIF_BIT_MODE_MODE16BIT << SPDIF_CTRL_0_BIT_MODE_SHIFT)
-#define SPDIF_CTRL_0_BIT_MODE_MODE20BIT		\
-	(SPDIF_BIT_MODE_MODE20BIT << SPDIF_CTRL_0_BIT_MODE_SHIFT)
-#define SPDIF_CTRL_0_BIT_MODE_MODE24BIT		\
-	(SPDIF_BIT_MODE_MODE24BIT << SPDIF_CTRL_0_BIT_MODE_SHIFT)
-#define SPDIF_CTRL_0_BIT_MODE_MODERAW		\
-		(SPDIF_BIT_MODE_MODERAW << SPDIF_CTRL_0_BIT_MODE_SHIFT)
-
 
 /*
  *  SPDIF Status Register
@@ -388,6 +329,132 @@
 #define SPDIF_DATA_FIFO_CSR_0_TD_EMPTY_COUNT_MASK		\
 		((0x1f) << SPDIF_DATA_FIFO_CSR_0_TD_EMPTY_COUNT_SHIFT)
 
+#else
+
+#define SPDIF_STROBE_CTRL_0				0x4
+#define SPDIF_AUDIOCIF_TXDATA_CTRL_0	0x08
+#define SPDIF_AUDIOCIF_RXDATA_CTRL_0	0x0C
+#define SPDIF_AUDIOCIF_TXUSER_CTRL_0	0x10
+#define SPDIF_AUDIOCIF_RXUSER_CTRL_0	0x14
+#define SPDIF_CH_STA_RX_A_0				0x18
+#define SPDIF_CH_STA_RX_B_0				0x1C
+#define SPDIF_CH_STA_RX_C_0				0x20
+#define SPDIF_CH_STA_RX_D_0				0x24
+#define SPDIF_CH_STA_RX_E_0				0x28
+#define SPDIF_CH_STA_RX_F_0				0x2C
+#define SPDIF_CH_STA_TX_A_0				0x30
+#define SPDIF_CH_STA_TX_B_0				0x34
+#define SPDIF_CH_STA_TX_C_0				0x38
+#define SPDIF_CH_STA_TX_D_0				0x3C
+#define SPDIF_CH_STA_TX_E_0				0x40
+#define SPDIF_CH_STA_TX_F_0				0x44
+#define SPDIF_FLOWCTL_CTRL_0			0x70
+#define SPDIF_TX_STEP_0					0x74
+#define SPDIF_FLOW_STATUS_0				0x78
+#define SPDIF_FLOW_TOTAL_0				0x7c
+#define SPDIF_FLOW_OVER_0				0x80
+#define SPDIF_FLOW_UNDER_0				0x84
+#define SPDIF_LCOEF_1_4_0_0				0x88
+#define SPDIF_LCOEF_1_4_1_0				0x8c
+#define SPDIF_LCOEF_1_4_2_0				0x90
+#define SPDIF_LCOEF_1_4_3_0				0x94
+#define SPDIF_LCOEF_1_4_4_0				0x98
+#define SPDIF_LCOEF_1_4_5_0				0x9c
+#define SPDIF_LCOEF_2_4_0_0				0xa0
+#define SPDIF_LCOEF_2_4_1_0				0xa4
+#define SPDIF_LCOEF_2_4_2_0				0xa8
+
+/*
+ * Register SPDIF_CTRL_0
+ */
+
+ /* Flow control */
+#define SPDIF_CTRL_0_FLOWCTL_EN		(1<<31)
+
+/* Second level clock gating*/
+#define SPDIF_CTRL_0_CG_EN			(1<<11)
+
+/* Soft reset*/
+#define SPDIF_CTRL_0_SOFT_RESET		(1<<7)
+
+#define SPDIF_FIFO_ATN_LVL_ONE_SLOT			1
+#define SPDIF_FIFO_ATN_LVL_FOUR_SLOTS		4
+#define SPDIF_FIFO_ATN_LVL_EIGHT_SLOTS		8
+#define SPDIF_FIFO_ATN_LVL_TWELVE_SLOTS		12
+
+/*
+ * Based ob apbif channel status
+ * 1=busy, 0=not busy.
+ */
+#define SPDIF_STATUS_0_TX_BSY			(1<<1)
+
+#endif
+/*
+ * Register SPDIF_CTRL_0
+ */
+
+/*
+ * 1=start capturing from left channel,0=start
+ * capturing from right channel.
+ */
+#define SPDIF_CTRL_0_CAP_LC			(1<<30)
+
+/* SPDIF receiver(RX):	1=enable, 0=disable. */
+#define SPDIF_CTRL_0_RX_EN			(1<<29)
+
+/* SPDIF Transmitter(TX):	1=enable, 0=disable. */
+#define SPDIF_CTRL_0_TX_EN			(1<<28)
+
+/* Transmit Channel status:	1=enable, 0=disable. */
+#define SPDIF_CTRL_0_TC_EN			(1<<27)
+
+/* Transmit user Data:		1=enable, 0=disable. */
+#define SPDIF_CTRL_0_TU_EN			(1<<26)
+
+/* Interrupt on invalid preamble:       1=enable, 0=disable. */
+#define SPDIF_CTRL_0_IE_P			(1<<23)
+
+/* Interrupt on "B" preamble:	   1=enable, 0=disable. */
+#define SPDIF_CTRL_0_IE_B			(1<<22)
+
+/*
+ * Interrupt when block of channel status received:
+ * 1=enable, 0=disable.
+ */
+#define SPDIF_CTRL_0_IE_C			(1<<21)
+
+/*
+ * Interrupt when a valid information unit (IU) recieve:
+ * 1=enable, 0=disable.
+ */
+#define SPDIF_CTRL_0_IE_U			(1<<20)
+
+
+/* Loopback test mode:   1=enable internal loopback, 0=Normal mode. */
+#define SPDIF_CTRL_0_LBK_EN			(1<<15)
+
+/*
+ * 00=16bit data
+ * 01=20bit data
+ * 10=24bit data
+ * 11=raw data
+ */
+#define SPDIF_BIT_MODE_MODE16BIT	(0)
+#define SPDIF_BIT_MODE_MODE20BIT	(1)
+#define SPDIF_BIT_MODE_MODE24BIT	(2)
+#define SPDIF_BIT_MODE_MODERAW		(3)
+#define SPDIF_CTRL_0_BIT_MODE_SHIFT	(12)
+
+#define SPDIF_CTRL_0_BIT_MODE_MASK		\
+		((0x3) << SPDIF_CTRL_0_BIT_MODE_SHIFT)
+#define SPDIF_CTRL_0_BIT_MODE_MODE16BIT		\
+	(SPDIF_BIT_MODE_MODE16BIT << SPDIF_CTRL_0_BIT_MODE_SHIFT)
+#define SPDIF_CTRL_0_BIT_MODE_MODE20BIT		\
+	(SPDIF_BIT_MODE_MODE20BIT << SPDIF_CTRL_0_BIT_MODE_SHIFT)
+#define SPDIF_CTRL_0_BIT_MODE_MODE24BIT		\
+	(SPDIF_BIT_MODE_MODE24BIT << SPDIF_CTRL_0_BIT_MODE_SHIFT)
+#define SPDIF_CTRL_0_BIT_MODE_MODERAW		\
+		(SPDIF_BIT_MODE_MODERAW << SPDIF_CTRL_0_BIT_MODE_SHIFT)
 
 struct spdif_regs_cache {
 	int spdif_ctrl_0;
@@ -429,5 +496,6 @@ u32 spdif_get_fifo_full_empty_count(unsigned long base, int mode);
 int spdif_initialize(unsigned long base, int mode);
 void spdif_get_all_regs(unsigned long base, struct spdif_regs_cache* regs);
 void spdif_set_all_regs(unsigned long base, struct spdif_regs_cache* regs);
+int spdif_get_dma_requestor(int ifc);
 
 #endif /* __ARCH_ARM_MACH_TEGRA_SPDIF_H */

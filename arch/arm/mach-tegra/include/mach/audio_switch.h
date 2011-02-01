@@ -65,21 +65,21 @@ struct audio_cif
 /*
  * API
  */
- /* FIXME: move the local functions from header
- */
+
 void apbif_dump_registers(int ifc);
 void audio_switch_dump_registers(int ifc);
-int apbif_get_fifo_mode(int ifc, int tx);
-int apbif_get_fifo_freecount(int ifc, int tx);
+int  apbif_get_fifo_mode(int ifc, int tx);
+int  apbif_get_fifo_freecount(int ifc, int tx);
 phys_addr_t apbif_get_fifo_phy_base(int ifc, int tx);
-int apbif_fifo_set_attention_level(int ifc, int tx, unsigned level);
+int  apbif_fifo_set_attention_level(int ifc, int tx, unsigned level);
 void apbif_set_pack_mode(int ifc, int tx, int pack_mode);
 void apbif_channel_set_loopback(int ifc, int on);
 void apbif_channel_enable(int ifc, int tx, int enable);
 int  apbif_get_channel(int ifc);
-int apbif_initialize(int ifc, struct audio_cif *cifInfo);
+int  apbif_initialize(int ifc, struct audio_cif *cifInfo);
+int  apbif_enable_clock(void);
 void audio_switch_set_acif(int addr, struct audio_cif *cifInfo);
-int audio_switch_get_rx_port(int rxport);
+int  audio_switch_get_rx_port(int rxport);
 void audio_switch_set_rx_port(int rxport, int txport);
 
 #endif /* __ARCH_ARM_MACH_AUDIO_SWITCH_H */

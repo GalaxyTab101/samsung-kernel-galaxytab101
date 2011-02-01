@@ -21,6 +21,7 @@
 #include <linux/kernel.h>
 #include <linux/err.h>
 #include <linux/module.h>
+#include <linux/clk.h>
 #include "clock.h"
 #include <asm/io.h>
 #include <mach/iomap.h>
@@ -633,6 +634,54 @@ int apbif_initialize(int ifc, struct audio_cif *cifInfo)
 		audio_switch_set_rx_port(AUDIO_I2S1_RX0_0, AUDIO_APBIF_TX1);
 		audio_switch_set_rx_port(AUDIO_APBIF_RX1_0, AUDIO_I2S1_TX0);
 	}
+	/* FIXME: setting apdif channel 4 for spdif - this will be cleaned up */
+	else if (ifc == 3)
+	{
+		audio_switch_set_rx_port(AUDIO_SPDIF_RX0_0, AUDIO_APBIF_TX3);
+		audio_switch_set_rx_port(AUDIO_APBIF_RX3_0, AUDIO_SPDIF_TX0);
+	}
 
 	return 0;
+}
+
+int apbif_enable_clock()
+{
+	struct clk *apbif_clk = 0, *audiohub_clk = 0;
+	int err = 0;
+
+	/* Setup apbif clocks */
+	apbif_clk = tegra_get_clock_by_name("apbif");
+	if (IS_ERR_OR_NULL(apbif_clk)) {
+		err = PTR_ERR(apbif_clk);
+		goto fail_audio_clock;
+	}
+
+	if (clk_enable(apbif_clk)) {
+		err = PTR_ERR(apbif_clk);
+		goto fail_audio_clock;
+	}
+
+	/* audio hub */
+	audiohub_clk = tegra_get_clock_by_name("d_audio");
+	if (IS_ERR_OR_NULL(audiohub_clk)) {
+		err = PTR_ERR(audiohub_clk);
+		goto fail_audio_clock;
+	}
+
+	if (clk_enable(audiohub_clk)) {
+		err = PTR_ERR(audiohub_clk);
+		goto fail_audio_clock;
+	}
+
+	return err;
+
+fail_audio_clock:
+
+	if (audiohub_clk)
+		clk_disable(audiohub_clk);
+
+	if (apbif_clk)
+		clk_disable(apbif_clk);
+
+	return err;
 }
