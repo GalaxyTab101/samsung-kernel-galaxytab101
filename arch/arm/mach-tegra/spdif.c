@@ -26,6 +26,7 @@
 #include <linux/err.h>
 #include <mach/iomap.h>
 #include <mach/spdif.h>
+#include <mach/dma.h>
 #include <mach/audio.h>
 #include <mach/dma.h>
 #include <mach/audio_switch.h>
@@ -52,13 +53,15 @@ static inline u32 spdif_readl(unsigned long base, u32 reg)
 
 void spdif_fifo_enable(unsigned long base, int mode, int on)
 {
-	u32 val;
+	u32 val = 0;
 
+	/*FIXME: change the fixed channel index later  */
 #if !defined(CONFIG_ARCH_TEGRA_2x_SOC)
+
 	int ifc = 3;
 	apbif_channel_enable(ifc, mode, on);
-#endif
 
+#endif
 	val = spdif_readl(base, SPDIF_CTRL_0);
 	if (mode == AUDIO_TX_MODE)
 	{
@@ -220,6 +223,8 @@ phys_addr_t spdif_get_fifo_phy_base(phys_addr_t phy_base, int mode)
 		return phy_base + SPDIF_DATA_OUT_0;
 	else
 		return phy_base + SPDIF_DATA_IN_0;
+
+	return 0;
 }
 
 u32 spdif_get_fifo_full_empty_count(unsigned long base, int mode)
@@ -351,7 +356,7 @@ phys_addr_t spdif_get_fifo_phy_base(phys_addr_t phy_base, int mode)
 	return apbif_get_fifo_phy_base(ifc, mode);
 }
 
-u32 spdif_get_fifo_full_empty_count(unsigned long base)
+u32 spdif_get_fifo_full_empty_count(unsigned long base, int mode)
 {
 	/*FIXME: add apbif call here */
 	return 0;
