@@ -2090,8 +2090,8 @@ int sdhci_add_host(struct sdhci_host *host)
 	 * DDR mode support
 	 */
 	caps = sdhci_readb(host, SDHCI_HIGHER_CAPABILITIES);
-/*	if (caps & SDHCI_CAN_SUPPORT_DDR50)
-		mmc->caps |= MMC_CAP_DDR50;*/
+	if (caps & SDHCI_CAN_SUPPORT_DDR50)
+		mmc->caps |= MMC_CAP_DDR50;
 	if (caps & SDHCI_CAN_SUPPORT_SDR50)
 		mmc->caps |= MMC_CAP_SDR50;
 	if (caps & SDHCI_CAN_SUPPORT_SDR104)
