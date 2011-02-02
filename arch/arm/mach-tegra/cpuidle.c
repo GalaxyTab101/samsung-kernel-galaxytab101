@@ -68,7 +68,7 @@ void tegra_lp2_in_idle(bool enable)
 void tegra_flow_wfi(struct cpuidle_device *dev)
 {
 	u32 halt = FLOW_CTRL_WAIT_FOR_INTERRUPT | FLOW_CTRL_JTAG_RESUME;
-	u32 csr = FLOW_CTRL_CSR_INTR_FLAG | FLOW_CTRL_CST_EVENT_FLAG;
+	u32 csr = FLOW_CTRL_CSR_INTR_FLAG | FLOW_CTRL_CSR_EVENT_FLAG;
 
 	stop_critical_timings();
 	dsb();

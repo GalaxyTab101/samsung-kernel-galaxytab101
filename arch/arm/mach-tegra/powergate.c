@@ -6,6 +6,8 @@
  * Author:
  *	Colin Cross <ccross@google.com>
  *
+ *  Copyright (C) 2010-2011 NVIDIA Corporation
+ *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -94,7 +96,7 @@ bool tegra_powergate_is_powered(int id)
 	u32 status;
 
 	if (id < 0 || id >= TEGRA_NUM_POWERGATE)
-		return -EINVAL;
+		return false;
 
 	status = pmc_read(PWRGATE_STATUS) & (1 << id);
 	return !!status;

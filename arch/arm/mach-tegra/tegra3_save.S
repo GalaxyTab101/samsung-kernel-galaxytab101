@@ -3,7 +3,7 @@
  *
  * CPU state save & restore routines for CPU hotplug
  *
- * Copyright (c) 2010, NVIDIA Corporation.
+ * Copyright (c) 2010-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -71,11 +71,9 @@
 #define CLK_RESET_PLLP_MISC		0xac
 #define CLK_RESET_PLLX_MISC		0xe4
 
-#define FLOW_CTRL_HALT_CPU_EVENTS	0x0
 
 #include "power-macros.S"
 
-#define DEBUG_SLAVE_HALT_FAIL	1	/* enable slave halt failure debug code */
 #define DEBUG_FORCE_RTC_WAKEUP_SEC 0	/* nonzero: force wake up via RTC */
 
 #if USE_PLL_LOCK_BITS
@@ -108,7 +106,7 @@
 
 /*
  *
- *	__tear_down_master( r8 = context_pa, sp = power state )
+ *	__tear_down_master( r8 = context_pa, sp = power mode flags )
  *
  *	  Set the clock burst policy to the selected wakeup source
  *	  Enable CPU power-request mode in the PMC
@@ -167,25 +165,22 @@ __l2_clean_done:
 	mcr	p15, 0, r3, c2, c0, 0	@ TTB 0
 	isb
 
-	/* Obtain LP1 information.
-	 * R10 = LP1 branch target */
-	mov32	r2, __tegra_lp1_reset
-	mov32	r3, __tear_down_master_sdram
-	sub	r2, r3, r2
-	mov32	r3, (TEGRA_IRAM_CODE_AREA)
-	add	r10, r2, r3
+	/* Obtain LPx information.
+	 * R9  = LP2 branch target
+	 * R10 = LP0/LP1 branch target */
+	mov32	r2, __tegra_lp1_reset		@ VA of LP0/LP1 reset code
+	mov32	r3, __tear_down_master_sdram	@ VA of LP0/LP1 entry code
+	sub	r2, r3, r2			@ length of LP0/LP1 reset code
+	mov32	r3, (TEGRA_IRAM_CODE_AREA)	@ PA of IRAM code area
+	add	r10, r2, r3			@ PA of LP0/LP1 entry code in IRAM
+	mov32	r9, __tear_down_master_pll_cpu	@ VA of LP2 entry code
+	mov32	r3, __shut_off_mmu		@ VA of MMU shutdown code
 
-	mov32	r3, __shut_off_mmu
-
-	/* R9 = LP2 branch target */
-	mov32	r9, __tear_down_master_pll_cpu
-
-	/* Convert the branch targets
-	 * to physical addresses */
-	sub	r3, r3, #(PAGE_OFFSET - PHYS_OFFSET)
-	sub	r9, r9, #(PAGE_OFFSET - PHYS_OFFSET)
-	tst	sp, #TEGRA_POWER_SDRAM_SELFREFRESH
-	movne	r9, r10
+	/* Convert the branch targets to physical addresses */
+	sub	r3, r3, #(PAGE_OFFSET - PHYS_OFFSET)	@ PA of MMU shutdown code
+	sub	r9, r9, #(PAGE_OFFSET - PHYS_OFFSET)	@ PA of LP2 entry code
+	tst	sp, #TEGRA_POWER_SDRAM_SELFREFRESH	@ LP0 or LP1?
+	movne	r9, r10					@ yes, use LP0/LP1 entry code
 	bx	r3
 ENDPROC(__tear_down_master)
 	.type	__tear_down_master_data, %object
@@ -345,6 +340,7 @@ __lp1_pad_area:
  */
 	.align L1_CACHE_SHIFT
 __tear_down_master_pll_cpu:
+
 	ldr	r0, [r4, #PMC_CTRL]
 	bfi	r0, sp, #PMC_CTRL_BFI_SHIFT, #PMC_CTRL_BFI_WIDTH
 	str	r0, [r4, #PMC_CTRL]
@@ -416,27 +412,49 @@ rtc_idle3:
 #endif
 
 __do_halt:
-	mov	r0, #(4<<29)			/* STOP_UNTIL_IRQ */
-	orr	r0, r0, #(1<<10) | (1<<8)	/* IRQ_0, FIQ_0	*/
+	mov	r0, #FLOW_CTRL_WAIT_FOR_INTERRUPT
+	orr	r0, r0, #FLOW_CTRL_HALT_CPU_IRQ | FLOW_CTRL_HALT_CPU_FIQ
 	ldr	r1, [r7]
 	str	r1, [r4, #PMC_SCRATCH38]
-	dsb
+	/* Clear CPU0's "event" and "interrupt" flags and power gate
+	   it when halting but not before it is in the "WFI" state. */
+	ldr	r1, [r6, #FLOW_CTLR_CPU_CSR]
+	orr	r1, r1, #FLOW_CTRL_CSR_INTR_FLAG | FLOW_CTRL_CSR_EVENT_FLAG
+	orr	r1, r1, #FLOW_CTRL_CSR_ENABLE
+	str	r1, [r6, #FLOW_CTLR_CPU_CSR]
 	str	r0, [r6, #FLOW_CTRL_HALT_CPU_EVENTS]
-	dsb
-	ldr	r0, [r6, #FLOW_CTRL_HALT_CPU_EVENTS] /* memory barrier */
+	ldr	r2, [r6, #FLOW_CTRL_HALT_CPU_EVENTS] /* memory barrier */
+	mov	r3, #3
 
 __halted:
 	dsb
-	wfi	/* CPU should be power gated here */
 	isb
-	b	__halted
+	wfi				@ CPU should be power gated here
+	subs	r3, r3, #1
+	bge	__halted
+
+	/* Halt failed to take effect and all retries have been exausted.
+	   Clear the flow controller halt status. */
+	mov	r3, #0
+	str	r3, [r6, #FLOW_CTLR_CPU_CSR]
+	str	r3, [r6, #FLOW_CTRL_HALT_CPU_EVENTS]
+	ldr	r3, [r6, #FLOW_CTRL_HALT_CPU_EVENTS]
+
+	/* Restart the CPU as if it has been reset. */
+	mov32	r3, TEGRA_EXCEPTION_VECTORS_BASE
+	ldr	r3, [r3]
+	sub	r3, r3, #4		@ reset failure handler is instruction
+	bx	r3			@ before the normal reset handler
+
 ENDPROC(__tear_down_master_pll_cpu)
 
 /*
  *	__put_cpu_in_reset(cpu_nr)
  *
- *	 puts the specified CPU in wait-for-event mode on the flow controller
- *	 and puts the CPU in reset
+ *	 Puts the specified CPU in wait-for-event mode on the flow controller
+ *	 and puts the CPU in reset.
+ *
+ *	sp = power mode flags
  */
 ENTRY(__put_cpu_in_reset)
 	subs	r1, r0, #1
@@ -448,29 +466,62 @@ ENTRY(__put_cpu_in_reset)
 
 	/* Clear this CPU's "event" and "interrupt" flags and power gate
 	   it when halting but not before it is in the "WFI" state. */
-	mov32	r3, (1 << 15) | (1 << 14) | 1
+	mov32	r3, FLOW_CTRL_CSR_INTR_FLAG | FLOW_CTRL_CSR_EVENT_FLAG | FLOW_CTRL_CSR_ENABLE
 	mov	r4, #(1 << 8)
 	orr	r3, r3, r4, lsl r0
 	str	r3, [r7, r2]
 
-	/* Halt this CPU unconditionally */
-	mov	r3, #(2<<29)
+	/* Halt this CPU. */
+	tst	sp, #TEGRA_POWER_HOTPLUG_SHUTDOWN
+	moveq	r3, #FLOW_CTRL_WAIT_FOR_INTERRUPT	@ For LP2
+	movne	r3, #FLOW_CTRL_WAITEVENT		@ For hotplug
 	str	r3, [r7, r1]
+	ldr	r0, [r7, r1]
+	mov	r3, #3
+
+__put_cpu_in_reset_again:
 	dsb
-	wfi
+	isb
+	wfi				@ CPU should be power gated here
+	subs	r3, r3, #1
+	bge	__put_cpu_in_reset_again
 
-#if	DEBUG_SLAVE_HALT_FAIL
-	b	.
-#endif
+	/* Halt failed to take effect and all retries have been exausted.
+	   If trying to go to LP2 state, just jump to the reset handler and
+	   restart the CPU as if it has been woken up. If trying to offline
+	   this CPU, just assert our own reset. The requester will have to
+	   clean up the mess (disable clock, power gate, etc.). */
+	tst	sp, #TEGRA_POWER_HOTPLUG_SHUTDOWN
+	bne	__assert_reset
 
-        /* If the WFI doesn't take effect force the CPU into reset. */
+	/* Pretend the CPU was reset upon return from __shut_off_mmu. */
+	mov32	r9, (TEGRA_EXCEPTION_VECTORS_BASE-IO_PPSB_PHYS+IO_PPSB_VIRT)
+	ldr	r9, [r9]		@ reset failure handler is instruction
+	sub	r9, r9, #4		@ before the normal reset handler
+
+	/* Change page table pointer to tegra_pgd_phys so that SDRAM is
+	 * mapped virtual == physical. */
+	adr	r3, __tear_down_master_data
+	ldr	r3, [r3]		@ &tegra_pgd_phys
+	ldr	r3, [r3]
+	orr	r3, r3, #TTB_FLAGS
+	mov	r2, #0
+	mcr	p15, 0, r2, c13, c0, 1	@ reserved context
+	isb
+	mcr	p15, 0, r3, c2, c0, 0	@ TTB 0
+	isb
+	mov32	r1, __shut_off_mmu
+	bx	r1
+
+__assert_reset:
 	movw	r1, 0x1111
 	mov	r1, r1, lsl r0
 	mov32	r7, (TEGRA_CLK_RESET_BASE-IO_PPSB_PHYS+IO_PPSB_VIRT)
-	str	r1, [r7, #0x340]
+	str	r1, [r7, #0x340]	@ put CPU in reset
 	dsb
 	isb
-	b	.			@ should never get here
+	b	.
+
 ENDPROC(__put_cpu_in_reset)
 
 /* dummy symbol for end of IRAM */

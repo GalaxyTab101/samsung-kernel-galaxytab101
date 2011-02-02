@@ -385,7 +385,6 @@ ENDPROC(__tear_down_master_pll_cpu)
  *	 and puts the CPU in reset
  */
 ENTRY(__put_cpu_in_reset)
-__put_cpu_in_reset:
 	cmp	r0, #0
 	subne	r1, r0, #1
 	movne	r1, r1, lsl #3

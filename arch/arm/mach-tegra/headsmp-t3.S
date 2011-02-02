@@ -31,6 +31,7 @@
 #include <mach/iomap.h>
 #include <mach/io.h>
 
+#include "power.h"
 #include "power-macros.S"
 
 #define TTB_FLAGS 0x6A	@ IRGN_WBWA, OC_RGN_WBWA, S, NOS
@@ -97,9 +98,6 @@ ENDPROC(__restart_plls)
  */
 	.align L1_CACHE_SHIFT
 ENTRY(tegra_lp2_startup)
-#if	DEBUG_LP2_STARTUP
-	b	.
-#endif
 	setmode PSR_F_BIT | PSR_I_BIT | SVC_MODE, r9
 
 	mov32	r0, TEGRA_TMRUS_BASE
@@ -113,19 +111,21 @@ ENTRY(tegra_lp2_startup)
 	bl	__invalidate_cpu_state
 	bl	__enable_coresite_access
 
-#ifdef	DEBUG
-	cpu_id	r0
-	cmp	r0, #0
-	bne	.			@ should only come here for CPU0
+#if	DEBUG_LP2_STARTUP
+	b	.
 #endif
-
 	@ Clear the flow controller flags for this CPU.
-	mov32	r2, TEGRA_FLOW_CTRL_BASE+8	@ CPU0 CSR
-	ldr	r1, [r2]
+	cpu_id	r0
+	subs	r0, r0, #1
+	movmi	r2, #FLOW_CTLR_CPU_CSR		@ CPU0 CSR
+	movpl 	r2, r0, lsl #8
+	addpl	r2, r2, #FLOW_CTLR_CPU1_CSR	@ CPUn CSR, n == 1,2,3
+	mov32	r4, TEGRA_FLOW_CTRL_BASE
+	ldr	r1, [r4, +r2]
 	orr	r1, r1, #(1 << 15) | (1 << 14)	@ write to clear event & intr
 	movw	r0, #0x0FFD	@ enable, cluster_switch, immed, & bitmaps
 	bic	r1, r1, r0
-	str	r1, [r2]
+	str	r1, [r4, +r2]
 
 	mrc	p15, 0, r0, c1, c0, 1
 	orr	r0, r0, #(1 << 6) | (1 << 0)	@ re-enable coherency
@@ -171,7 +171,6 @@ ENTRY(tegra_hotplug_startup)
 	cpu_id	r0
 	subs	r1, r0, #1
 #ifdef	DEBUG
-	/* !!!CHECKME!!! THIS MAY NOW BE OBSOLETE */
 	bmi	.			@ should never come here for CPU0
 #endif
 	mov	r3, r1, lsl #3

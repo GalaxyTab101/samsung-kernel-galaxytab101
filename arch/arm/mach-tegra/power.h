@@ -3,7 +3,7 @@
  *
  * Declarations for power state transition code
  *
- * Copyright (c) 2010, NVIDIA Corporation.
+ * Copyright (c) 2010-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,19 +23,25 @@
 #ifndef __MACH_TEGRA_POWER_H
 #define __MACH_TEGRA_POWER_H
 
+/* Setting this disable per-CPU LP2 wake on interrupt. This must be set to 1
+   until bug 790458 is fixed after which the code associated with this can
+   be removed. */
+#define WAR_790458	1
+
 #include <asm/page.h>
 
-#define TEGRA_POWER_PWRREQ_POLARITY	0x1   /* core power request polarity */
-#define TEGRA_POWER_PWRREQ_OE		0x2   /* core power request enable */
-#define TEGRA_POWER_SYSCLK_POLARITY	0x4   /* sys clk polarity */
-#define TEGRA_POWER_SYSCLK_OE		0x8   /* system clock enable */
-#define TEGRA_POWER_PWRGATE_DIS		0x10  /* power gate disabled */
-#define TEGRA_POWER_EFFECT_LP0		0x40  /* enter LP0 when CPU pwr gated */
-#define TEGRA_POWER_CPU_PWRREQ_POLARITY 0x80  /* CPU power request polarity */
-#define TEGRA_POWER_CPU_PWRREQ_OE	0x100 /* CPU power request enable */
+#define TEGRA_POWER_PWRREQ_POLARITY	0x1	/* core power request polarity */
+#define TEGRA_POWER_PWRREQ_OE		0x2	/* core power request enable */
+#define TEGRA_POWER_SYSCLK_POLARITY	0x4	/* sys clk polarity */
+#define TEGRA_POWER_SYSCLK_OE		0x8	/* system clock enable */
+#define TEGRA_POWER_PWRGATE_DIS		0x10	/* power gate disabled */
+#define TEGRA_POWER_EFFECT_LP0		0x40	/* enter LP0 when CPU pwr gated */
+#define TEGRA_POWER_CPU_PWRREQ_POLARITY 0x80	/* CPU power request polarity */
+#define TEGRA_POWER_CPU_PWRREQ_OE	0x100	/* CPU power request enable */
 #define TEGRA_POWER_PMC_SHIFT		8
 #define TEGRA_POWER_PMC_MASK		0x1ff
-#define TEGRA_POWER_SDRAM_SELFREFRESH	0x400 /* SDRAM is in self-refresh */
+#define TEGRA_POWER_SDRAM_SELFREFRESH	0x400	/* SDRAM is in self-refresh */
+#define TEGRA_POWER_HOTPLUG_SHUTDOWN	0x800	/* Hotplug shutdown */
 
 #define TEGRA_POWER_CLUSTER_G		0x1000	/* G CPU */
 #define TEGRA_POWER_CLUSTER_LP		0x2000	/* LP CPU */
@@ -47,22 +53,25 @@
 #define CONTEXT_SIZE_BYTES_SHIFT	10
 #define CONTEXT_SIZE_BYTES		(1<<CONTEXT_SIZE_BYTES_SHIFT)
 
-/* CPU Context area (1KB per CPU) */
-#define CONTEXT_SIZE_BYTES_SHIFT	10
-#define CONTEXT_SIZE_BYTES		(1<<CONTEXT_SIZE_BYTES_SHIFT)
-
 /* layout of IRAM used for LP1 save & restore */
 #define TEGRA_IRAM_CODE_AREA		TEGRA_IRAM_BASE + SZ_4K
 #define TEGRA_IRAM_CODE_SIZE		SZ_4K
 
-#define FLOW_CTRL_WAITEVENT		(2<<29)
-#define FLOW_CTRL_WAIT_FOR_INTERRUPT	(4<<29)
-#define FLOW_CTRL_JTAG_RESUME		(1<<28)
-#define FLOW_CTRL_CSR_INTR_FLAG	(1<<15)
-#define FLOW_CTRL_CST_EVENT_FLAG	(1<<14)
+#define FLOW_CTRL_HALT_CPU_EVENTS	0x0
+#define   FLOW_CTRL_WAITEVENT		(2<<29)
+#define   FLOW_CTRL_WAIT_FOR_INTERRUPT	(4<<29)
+#define   FLOW_CTRL_JTAG_RESUME		(1<<28)
+#define   FLOW_CTRL_HALT_CPU_FIQ	(1<<10)
+#define   FLOW_CTRL_HALT_CPU_IRQ	(1<<8)
+#define FLOW_CTLR_CPU_CSR		0x8
+#define   FLOW_CTRL_CSR_INTR_FLAG	(1<<15)
+#define   FLOW_CTRL_CSR_EVENT_FLAG	(1<<14)
+#define   FLOW_CTRL_CSR_ENABLE		(1<<0)
+#define FLOW_CTLR_HALT_CPU1_EVENTS	0x14
+#define FLOW_CTLR_CPU1_CSR		0x18
 
-#define EVP_CPU_RESET_VECTOR \
-	(IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE) + 0x100)
+#define EVP_CPU_RSVD_VECTOR \
+	(IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE) + 0x114)
 #define CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET \
 	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x340)
 #define CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR \
@@ -76,6 +85,9 @@
 #define CLK_RST_CONTROLLER_CPU_CMPLX_STATUS \
 	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x470)
 #endif
+
+#define CPU_CLOCK(cpu)	(0x1<<(8+cpu))
+#define CPU_RESET(cpu)	(0x1111ul<<(cpu))
 
 #ifndef __ASSEMBLY__
 
@@ -95,6 +107,12 @@ static inline void flowctrl_writel(unsigned long val, void __iomem *addr)
 
 extern void *tegra_context_area;
 
+#if CONFIG_SMP
+extern bool tegra_all_cpus_booted __read_mostly;
+#else
+#define tegra_all_cpus_booted (true)
+#endif
+
 struct cpuidle_device;
 struct cpuidle_state;
 
@@ -105,6 +123,7 @@ unsigned long tegra_lp2_timer_remain(void);
 void __cortex_a9_save(unsigned int mode);
 void __cortex_a9_restore(void);
 void __shut_off_mmu(void);
+void tegra_secondary_startup(void);
 void tegra_lp2_startup(void);
 void tegra_hotplug_startup(void);
 void tegra_flow_wfi(struct cpuidle_device *dev);

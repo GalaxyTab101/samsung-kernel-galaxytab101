@@ -7,7 +7,7 @@
  *  Copyright (C) 2009 Palm
  *  All Rights Reserved
  *
- *  Copyright (C) 2010 NVIDIA Corporation
+ *  Copyright (C) 2010-2011 NVIDIA Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -38,8 +38,9 @@
 #include <mach/powergate.h>
 
 #include "power.h"
+#include "reset.h"
 
-extern void tegra_secondary_startup(void);
+bool tegra_all_cpus_booted = false;
 
 static DEFINE_SPINLOCK(boot_lock);
 static void __iomem *scu_base = IO_ADDRESS(TEGRA_ARM_PERIF_BASE);
@@ -49,22 +50,6 @@ static DEFINE_PER_CPU(struct completion, cpu_killed);
 extern void tegra_hotplug_startup(void);
 #endif
 
-static DECLARE_BITMAP(cpu_init_bits, CONFIG_NR_CPUS) __read_mostly;
-const struct cpumask *const cpu_init_mask = to_cpumask(cpu_init_bits);
-#define cpu_init_map (*(cpumask_t *)cpu_init_mask)
-
-#define EVP_CPU_RESET_VECTOR \
-	(IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE) + 0x100)
-#define CLK_RST_CONTROLLER_CLK_CPU_CMPLX \
-	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x4c)
-#define CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET \
-	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x340)
-#define CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR \
-	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x344)
-
-#define CPU_CLOCK(cpu)	(0x1<<(8+cpu))
-#define CPU_RESET(cpu)	(0x1111ul<<(cpu))
-
 static unsigned int available_cpus(void);
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 static inline int is_g_cluster_available(unsigned int cpu)
@@ -73,9 +58,6 @@ static inline bool is_cpu_powered(unsigned int cpu)
 { return true; }
 static inline int power_up_cpu(unsigned int cpu)
 { return 0; }
-
-/* For Tegra2 use the software-written value of the reset regsiter for status.*/
-#define CLK_RST_CONTROLLER_CPU_CMPLX_STATUS CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET
 
 #else
 static int is_g_cluster_available(unsigned int cpu);
@@ -103,9 +85,14 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 	 */
 	spin_lock(&boot_lock);
 #ifdef CONFIG_HOTPLUG_CPU
-	cpu_set(cpu, cpu_init_map);
 	INIT_COMPLETION(per_cpu(cpu_killed, cpu));
 #endif
+	cpu_set(cpu, tegra_cpu_init_map);
+
+	if (!tegra_all_cpus_booted)
+		if (cpus_equal(tegra_cpu_init_map, cpu_present_map))
+			tegra_all_cpus_booted = true;
+
 	spin_unlock(&boot_lock);
 }
 #ifdef CONFIG_TRUSTED_FOUNDATIONS
@@ -114,12 +101,9 @@ void callGenericSMC(u32 param0, u32 param1, u32 param2);
 
 int boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
-	unsigned long old_boot_vector;
-	unsigned long boot_vector;
 	unsigned long timeout;
 #ifndef CONFIG_TRUSTED_FOUNDATIONS
 	u32 reg;
-   static void __iomem *vector_base = (IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE) + 0x100);
 #endif
 	int status;
 
@@ -144,21 +128,18 @@ int boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 */
 	spin_lock(&boot_lock);
 
-	/* set the reset vector to point to the secondary_startup routine */
-#ifdef CONFIG_HOTPLUG_CPU
-	if (cpumask_test_cpu(cpu, cpu_init_mask))
-		boot_vector = virt_to_phys(tegra_hotplug_startup);
-	else
-#endif
-		boot_vector = virt_to_phys(tegra_secondary_startup);
-
-	smp_wmb();
+	/* WARNING:
+		The compiler just loves to reorder the following code.
+		This code is very sensitive to the register write sequence.
+		DO NOT remove the barrier() calls. */
 
 #if CONFIG_TRUSTED_FOUNDATIONS
+#error TrustedLogic change required
 	callGenericSMC(0xFFFFFFFC, 0xFFFFFFE5, boot_vector);
 #else
-	old_boot_vector = readl(vector_base);
-	writel(boot_vector, vector_base);
+	barrier();
+	writel(~0, EVP_CPU_RSVD_VECTOR);
+	barrier();
 
 	/* Force the CPU into reset. The CPU must remain in reset when the
 	   flow controller state is cleared (which will cause the flow
@@ -166,29 +147,34 @@ int boot_secondary(unsigned int cpu, struct task_struct *idle)
 	   via the flow controller). This will have no effect on first boot
 	   of the CPU since it should already be in reset. */
 	writel(CPU_RESET(cpu), CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET);
-	dmb();
+	barrier();
 
 	/* Unhalt the CPU. If the flow controller was used to power-gate the
 	   CPU this will cause the flow controller to stop driving reset.
 	   The CPU will remain in reset because the clock and reset block
 	   is now driving reset. */
+	wmb();
 	flowctrl_writel(0, FLOW_CTRL_HALT_CPUx_EVENTS(cpu));
+	flowctrl_writel(0, FLOW_CTRL_CPUx_CSR(cpu));
+	barrier();
 
 	/* enable cpu clock on cpu */
 	reg = readl(CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
 	writel(reg & ~CPU_CLOCK(cpu), CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
-	dmb();
+	barrier();
 
 	status = power_up_cpu(cpu);
 	if (status)
 		goto done;
 
-	dmb();
+	barrier();
 	writel(CPU_RESET(cpu), CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR);
+	wmb();
+	barrier();
 
 	timeout = jiffies + HZ;
 	while (time_before(jiffies, timeout)) {
-		if (readl(vector_base) != boot_vector) {
+		if (readl(EVP_CPU_RSVD_VECTOR) != ~0) {
 			status = 0;
 			goto done;
 		}
@@ -197,8 +183,6 @@ int boot_secondary(unsigned int cpu, struct task_struct *idle)
 	status = -ETIMEDOUT;
 
 done:
-	/* put the old boot vector back */
-	writel(old_boot_vector, vector_base);
 #endif
 
 	/*
@@ -206,7 +190,6 @@ done:
 	 * calibrations, then wait for it to finish
 	 */
 	spin_unlock(&boot_lock);
-
 	return status;
 }
 
@@ -220,6 +203,9 @@ void __init smp_init_cpus(void)
 
 	for (i = 0; i < ncores; i++)
 		cpu_set(i, cpu_possible_map);
+
+	/* Initialize the reset dispatcher. */
+	tegra_cpu_reset_handler_init();
 }
 
 void __init smp_prepare_cpus(unsigned int max_cpus)
@@ -313,11 +299,11 @@ void platform_cpu_die(unsigned int cpu)
 	complete(&per_cpu(cpu_killed, cpu));
 	flush_cache_all();
 	barrier();
-	__cortex_a9_save(0);
+	__cortex_a9_save(TEGRA_POWER_HOTPLUG_SHUTDOWN);
 
 	/* return happens from __cortex_a9_restore */
 	barrier();
-	writel(smp_processor_id(), EVP_CPU_RESET_VECTOR);
+	writel(smp_processor_id(), EVP_CPU_RSVD_VECTOR);
 }
 
 int platform_cpu_disable(unsigned int cpu)

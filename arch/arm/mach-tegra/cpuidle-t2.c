@@ -3,7 +3,7 @@
  *
  * CPU idle driver for Tegra2 CPUs
  *
- * Copyright (c) 2010, NVIDIA Corporation.
+ * Copyright (c) 2010-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,6 +47,7 @@
 #include <mach/suspend.h>
 
 #include "power.h"
+#include "reset.h"
 
 #define TEGRA_CPUIDLE_BOTH_IDLE	INT_QUAD_RES_24
 #define TEGRA_CPUIDLE_TEAR_DOWN	INT_QUAD_RES_25
@@ -139,7 +140,7 @@ static int tegra_tear_down_cpu1(void)
 	/* Signal to CPU1 to tear down */
 	tegra_legacy_force_irq_set(TEGRA_CPUIDLE_TEAR_DOWN);
 
-	/* At this point, CPU0 can no longer abort LP2, but CP1 can */
+	/* At this point, CPU0 can no longer abort LP2, but CPU1 can */
 	/* TODO: any way not to poll here? Use the LP2 timer to wfi? */
 	/* takes ~80 us */
 	while (!tegra_cpu_in_reset(1) &&
@@ -164,20 +165,16 @@ void callGenericSMC(u32 param0, u32 param1, u32 param2);
 
 static void tegra_wake_cpu1(void)
 {
-	unsigned long boot_vector;
-	unsigned long old_boot_vector;
 	unsigned long timeout;
 #ifndef CONFIG_TRUSTED_FOUNDATIONS
 	u32 reg;
-    static void __iomem *vector_base = (IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE) + 0x100);
 #endif
 
-	boot_vector = virt_to_phys(tegra_hotplug_startup);
 #if CONFIG_TRUSTED_FOUNDATIONS
+#error TrustedLogic Change Required
 	callGenericSMC(0xFFFFFFFC, 0xFFFFFFE5, boot_vector);
 #else
-	old_boot_vector = readl(vector_base);
-	writel(boot_vector, vector_base);
+	writel(~0, EVP_CPU_RSVD_VECTOR);
 
 	/* enable cpu clock on cpu */
 	reg = readl(CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
@@ -192,13 +189,10 @@ static void tegra_wake_cpu1(void)
 
 	timeout = jiffies + msecs_to_jiffies(1000);
 	while (time_before(jiffies, timeout)) {
-		if (readl(vector_base) != boot_vector)
+		if (readl(EVP_CPU_RSVD_VECTOR) != ~0)
 			break;
 		udelay(10);
 	}
-
-	/* put the old boot vector back */
-	writel(old_boot_vector, vector_base);
 #endif
 
 	/* CPU1 is now started */
@@ -359,14 +353,16 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	twd_ctrl = readl(twd_base + 0x8);
 	twd_load = readl(twd_base + 0);
 
+	cpu_set(dev->cpu, tegra_cpu_lp2_map);
 	flush_cache_all();
+	tegra_cpu_reset_handler_flush(false);
 	barrier();
 	__cortex_a9_save(0);
 	/* CPU1 is in reset, waiting for CPU0 to boot it, possibly after LP2 */
 
-
 	/* CPU0 booted CPU1 out of reset */
 	barrier();
+	cpu_clear(dev->cpu, tegra_cpu_lp2_map);
 	writel(twd_ctrl, twd_base + 0x8);
 	writel(twd_load, twd_base + 0);
 	gic_cpu_init(0, IO_ADDRESS(TEGRA_ARM_PERIF_BASE) + 0x100);
@@ -374,7 +370,7 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 
 	tegra_legacy_force_irq_clr(TEGRA_CPUIDLE_BOTH_IDLE);
 
-	writel(smp_processor_id(), EVP_CPU_RESET_VECTOR);
+	writel(smp_processor_id(), EVP_CPU_RSVD_VECTOR);
 	start_critical_timings();
 
 	/*

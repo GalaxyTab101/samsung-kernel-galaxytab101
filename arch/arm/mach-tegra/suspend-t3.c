@@ -3,7 +3,7 @@
  *
  * Tegra3 suspend
  *
- * Copyright (c) 2010, NVIDIA Corporation.
+ * Copyright (c) 2010-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -90,9 +90,6 @@
 
 #define CAR_CLK_CPULP_CMPLX_CLR \
 	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x46C)
-
-#define CPU_CLOCK(cpu)	(0x1<<(8+cpu))
-#define CPU_RESET(cpu)	(0x1111ul<<(cpu))
 
 #define FLOW_CTRL_CLUSTER_CONTROL \
 	(IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + 0x2c)

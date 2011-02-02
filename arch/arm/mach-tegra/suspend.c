@@ -3,7 +3,7 @@
  *
  * CPU complex suspend & resume functions for Tegra SoCs
  *
- * Copyright (c) 2009-2010, NVIDIA Corporation.
+ * Copyright (c) 2009-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/cpumask.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/sched.h>
@@ -31,6 +32,7 @@
 #include <linux/err.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
+#include <linux/ratelimit.h>
 #include <linux/suspend.h>
 #include <linux/slab.h>
 #include <linux/serial_reg.h>
@@ -56,6 +58,7 @@
 #include "board.h"
 #include "clock.h"
 #include "power.h"
+#include "reset.h"
 
 #ifdef CONFIG_TRUSTED_FOUNDATIONS
 void callGenericSMC(u32 param0, u32 param1, u32 param2)
@@ -103,13 +106,13 @@ volatile struct suspend_context tegra_sctx;
 
 #if defined(CONFIG_PM) || defined(CONFIG_CPU_IDLE) || !defined(CONFIG_ARCH_TEGRA_2x_SOC)
 static void __iomem *clk_rst = IO_ADDRESS(TEGRA_CLK_RESET_BASE);
-static void __iomem *evp_reset = IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE)+0x100;
 static void __iomem *tmrus = IO_ADDRESS(TEGRA_TMRUS_BASE);
 static void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
 #endif
 #ifdef CONFIG_PM
 static unsigned long wb0_restore = 0;
 #endif
+unsigned long tegra_wfi_fail_count[CONFIG_NR_CPUS];
 
 #define PMC_CTRL		0x0
 #define PMC_CTRL_LATCH_WAKEUPS	(1 << 5)
@@ -143,7 +146,6 @@ static unsigned long wb0_restore = 0;
 #define CLK_RESET_PLLP_MISC	0xac
 
 #define CLK_RESET_SOURCE_CSITE	0x1d4
-
 
 #define CLK_RESET_CCLK_BURST_POLICY_SHIFT 28
 #define CLK_RESET_CCLK_BURST_POLICY_PLLM   3
@@ -257,6 +259,9 @@ static int create_suspend_pgtable(void)
 {
 	int i;
 	pmd_t *pmd;
+	void __tegra_cpu_reset_handler_start(void);
+	void __put_cpu_in_reset(void);
+
 	/* arrays of virtual-to-physical mappings which must be
 	 * present to safely boot hotplugged / LP2-idled CPUs.
 	 * tegra_hotplug_startup (hotplug reset vector) is mapped
@@ -272,6 +277,8 @@ static int create_suspend_pgtable(void)
 #endif
 		(unsigned long)__cortex_a9_restore,
 		(unsigned long)virt_to_phys(__shut_off_mmu),
+		(unsigned long)virt_to_phys(__tegra_cpu_reset_handler_start),
+		(unsigned long)virt_to_phys(__put_cpu_in_reset),
 	};
 	unsigned long addr_p[] = {
 		PHYS_OFFSET,
@@ -282,6 +289,8 @@ static int create_suspend_pgtable(void)
 #endif
 		(unsigned long)virt_to_phys(__cortex_a9_restore),
 		(unsigned long)virt_to_phys(__shut_off_mmu),
+		(unsigned long)virt_to_phys(__tegra_cpu_reset_handler_start),
+		(unsigned long)virt_to_phys(__put_cpu_in_reset),
 	};
 	unsigned int flags = PMD_TYPE_SECT | PMD_SECT_AP_WRITE |
 		PMD_SECT_WBWA | PMD_SECT_S;
@@ -311,8 +320,6 @@ static int create_suspend_pgtable(void)
 
 	return 0;
 }
-
-
 
 #if defined(CONFIG_PM) || defined(CONFIG_CPU_IDLE) || !defined(CONFIG_ARCH_TEGRA_2x_SOC)
 /*
@@ -426,8 +433,9 @@ static noinline void suspend_cpu_complex(void)
 unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 {
 	unsigned int mode;
-	unsigned long orig, reg;
+	unsigned long reg;
 	unsigned int remain;
+	unsigned int cpu = hard_smp_processor_id();
 
 	reg = readl(pmc + PMC_CTRL);
 	mode = (reg >> TEGRA_POWER_PMC_SHIFT) & TEGRA_POWER_PMC_MASK;
@@ -439,10 +447,8 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 		mode &= ~TEGRA_POWER_PWRREQ_OE;
 	mode &= ~TEGRA_POWER_EFFECT_LP0;
 
+	/* pr_info_ratelimited("CPU %d entering LP2\n", cpu); */
 	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_start);
-
-	orig = readl(evp_reset);
-	writel(virt_to_phys(tegra_lp2_startup), evp_reset);
 
 	set_power_timers(pdata->cpu_timer, pdata->cpu_off_timer,
 			 clk_get_rate_all_locked(tegra_pclk));
@@ -456,10 +462,12 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 	suspend_cpu_complex();
 	stop_critical_timings();
 	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_prolog);
+	cpu_set(cpu, tegra_cpu_lp2_map);
 	flush_cache_all();
-	/* structure is written by reset code, so the L2 lines
+	/* structure is read by reset code, so the L2 lines
 	 * must be invalidated */
 	outer_flush_range(__pa(&tegra_sctx),__pa(&tegra_sctx+1));
+	tegra_cpu_reset_handler_flush(false);
 	barrier();
 
 #ifdef CONFIG_TRUSTED_FOUNDATIONS
@@ -471,9 +479,15 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 	/* return from __cortex_a9_restore */
 	barrier();
 	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_switch);
+	if (suspend_wfi_failed()) {
+		tegra_wfi_fail_count[cpu]++;
+		pr_err_ratelimited("WFI for LP2 failed for CPU %d: count %lu\n",
+				    cpu, tegra_wfi_fail_count[cpu]);
+	}
+
 	restore_cpu_complex();
 	start_critical_timings();
-
+	cpu_clear(cpu, tegra_cpu_lp2_map);
 	remain = tegra_lp2_timer_remain();
 	if (us)
 		tegra_lp2_set_trigger(0);
@@ -481,8 +495,8 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 	if (flags & TEGRA_POWER_CLUSTER_MASK)
 		tegra_cluster_switch_epilog(mode);
 
-	writel(orig, evp_reset);
 	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_epilog);
+	/* pr_info_ratelimited("CPU %d return from LP2\n", cpu); */
 
 #if INSTRUMENT_CLUSTER_SWITCH
 	if (flags & TEGRA_POWER_CLUSTER_MASK) {
@@ -519,9 +533,9 @@ static void __iomem *iram_code = IO_ADDRESS(TEGRA_IRAM_CODE_AREA);
 void tegra_suspend_dram(bool do_lp0)
 {
 	unsigned int mode = TEGRA_POWER_SDRAM_SELFREFRESH;
-	unsigned long orig, reg;
+	unsigned long reg;
+	unsigned int cpu;
 
-	orig = readl(evp_reset);
 	/* copy the reset vector and SDRAM shutdown code into IRAM */
 	memcpy(iram_save, iram_code, iram_save_size);
 	memcpy(iram_code, (void *)__tegra_lp1_reset, iram_save_size);
@@ -532,7 +546,7 @@ void tegra_suspend_dram(bool do_lp0)
 	mode |= ((reg >> TEGRA_POWER_PMC_SHIFT) & TEGRA_POWER_PMC_MASK);
 
 	if (!do_lp0) {
-		writel(TEGRA_IRAM_CODE_AREA, evp_reset);
+		cpu = hard_smp_processor_id();
 
 		mode |= TEGRA_POWER_CPU_PWRREQ_OE;
 		if (pdata->separate_req)
@@ -567,7 +581,10 @@ void tegra_suspend_dram(bool do_lp0)
 	}
 
 	suspend_cpu_complex();
+	if (!do_lp0)
+		cpu_set(cpu, tegra_cpu_lp1_map);
 	flush_cache_all();
+	tegra_cpu_reset_handler_flush(false);
 #ifdef CONFIG_CACHE_L2X0
 	l2x0_shutdown();
 #endif
@@ -577,9 +594,20 @@ void tegra_suspend_dram(bool do_lp0)
 	callGenericSMC(0xFFFFFFFC, 0xFFFFFFE3, virt_to_phys(buffer_rdv));
 #endif
 	__cortex_a9_save(mode);
+
+	if (!do_lp0) {
+		cpu_clear(cpu, tegra_cpu_lp1_map);
+		if (suspend_wfi_failed()) {
+			tegra_wfi_fail_count[cpu]++;
+			pr_err_ratelimited("WFI for LP1 failed for CPU %d: count %lu\n",
+					    cpu, tegra_wfi_fail_count[cpu]);
+		}
+	}
+	else
+		tegra_cpu_reset_handler_enable();
+
 	restore_cpu_complex();
 
-	writel(orig, evp_reset);
 #ifdef CONFIG_CACHE_L2X0
 	l2x0_restart();
 #endif

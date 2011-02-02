@@ -6,6 +6,8 @@
  * Author:
  *	Colin Cross <ccross@android.com>
  *
+ * Copyright (C) 2010-2011 NVIDIA Corporation.
+ *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -21,10 +23,12 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#include <linux/cpumask.h>
 #include <linux/delay.h>
 #include <linux/highmem.h>
 #include <linux/memblock.h>
 
+#include <asm/cacheflush.h>
 #include <asm/hardware/cache-l2x0.h>
 #include <asm/system.h>
 
@@ -38,6 +42,7 @@
 #include "clock.h"
 #include "fuse.h"
 #include "power.h"
+#include "reset.h"
 
 #define MC_SECURITY_CFG2	0x7c
 
@@ -182,9 +187,79 @@ static void tegra_pm_restart(char mode, const char *cmd)
 	arm_machine_restart(mode, cmd);
 }
 
+void tegra_cpu_reset_handler_enable(void)
+{
+	extern void __tegra_cpu_reset_handler(void);
+	void __iomem *evp_cpu_reset =
+		IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE + 0x100);
+	unsigned long cpu_reset_handler;
+
+	/* NOTE: This must be the one and only write to the CPU reset
+		 vector in the entire system. */
+	cpu_reset_handler = virt_to_phys(__tegra_cpu_reset_handler);
+	writel(cpu_reset_handler, evp_cpu_reset);
+	wmb();
+}
+
+void tegra_cpu_reset_handler_flush(bool l1cache)
+{
+	unsigned long first = (unsigned long)&cpu_online_mask;
+	unsigned long last  = (unsigned long)&cpu_present_mask;
+
+	if (first > last)
+		swap(first,last);
+	last += sizeof(struct cpumask);
+
+	/* Push all of this data out to the L3 memory system. */
+	if (l1cache) {
+		__cpuc_coherent_kern_range(first, last);
+		__cpuc_coherent_kern_range(
+			(unsigned long)&__tegra_cpu_reset_handler_data[0],
+			(unsigned long)&__tegra_cpu_reset_handler_data[TEGRA_RESET_DATA_SIZE]);
+	}
+
+	outer_clean_range(__pa(first), __pa(last));
+	outer_clean_range(__pa(&__tegra_cpu_reset_handler_data[0]),
+			  __pa(&__tegra_cpu_reset_handler_data[TEGRA_RESET_DATA_SIZE]));
+}
+
+void __init tegra_cpu_reset_handler_init(void)
+{
+#ifdef CONFIG_SMP
+	/* Mark the initial boot CPU as initialized. */
+	cpu_set(0, tegra_cpu_init_map);
+
+	__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_PRESENT_PTR] =
+		virt_to_phys((void*)cpu_present_mask);
+	__tegra_cpu_reset_handler_data[TEGRA_RESET_STARTUP_SECONDARY] =
+		virt_to_phys((void*)tegra_secondary_startup);
+#ifdef CONFIG_HOTPLUG
+	__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_ONLINE_PTR] =
+		virt_to_phys((void*)cpu_online_mask);
+	__tegra_cpu_reset_handler_data[TEGRA_RESET_STARTUP_HOTPLUG] =
+		virt_to_phys((void*)tegra_hotplug_startup);
+#endif
+#endif
+#ifdef CONFIG_PM
+	__tegra_cpu_reset_handler_data[TEGRA_RESET_STARTUP_LP1] =
+		TEGRA_IRAM_CODE_AREA;
+#endif
+	__tegra_cpu_reset_handler_data[TEGRA_RESET_STARTUP_LP2] =
+		virt_to_phys((void*)tegra_lp2_startup);
+
+	tegra_cpu_reset_handler_flush(true);
+	tegra_cpu_reset_handler_enable();
+}
+
 void __init tegra_common_init(void)
 {
 	arm_pm_restart = tegra_pm_restart;
+#ifndef CONFIG_SMP
+	/* For SMP system, initializing the reset dispatcher here is too
+	   late. For non-SMP systems, the function that initializes the
+	   reset dispatcher is not called, so do it here for non-SMP. */
+	tegra_cpu_reset_handler_init();
+#endif
 	tegra_init_fuse();
 	tegra_init_clock();
 	tegra_clk_init_from_table(common_clk_init_table);

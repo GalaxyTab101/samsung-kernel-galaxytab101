@@ -258,7 +258,7 @@ ENTRY(__cortex_a9_save)
 	add	r9, r8, #CTX_IRQ_SPSR
 	stmia	r9, {r12,sp,lr}
 
-	cps	0x1b			@ Undefined mode
+	cps	0x1b			@ UNDEF mode
 	mrs	r12, spsr
 	add	r9, r8, #CTX_UND_SPSR
 	stmia	r9, {r12,sp,lr}
@@ -269,7 +269,7 @@ ENTRY(__cortex_a9_save)
 	mrs	r7, spsr
 	stmia	r1, {r7-r12,sp,lr}
 
-	cps	0x13			@ back to SVC
+	cps	0x13			@ back to SVC mode
 	mov	r8, r0
 
 	/* Save CP14 debug controller context */
@@ -599,8 +599,9 @@ ENTRY(__shut_off_mmu)
 	movw	r2, #(1<<12) | (1<<11) | (1<<2) | (1<<0)
 	bic	r3, r3, r2
 	dsb
-	mcr	p15, 0, r3, c1, c0, 0
 	isb
+	/* The following two instructions must be in the same cache line. */
+	mcr	p15, 0, r3, c1, c0, 0
 	bx	r9
 ENDPROC(__shut_off_mmu)
 

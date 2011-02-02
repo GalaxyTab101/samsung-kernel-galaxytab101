@@ -3,7 +3,7 @@
  *
  * CPU idle driver for Tegra3 CPUs
  *
- * Copyright (c) 2010, NVIDIA Corporation.
+ * Copyright (c) 2010-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/io.h>
+#include <linux/ratelimit.h>
 #include <linux/sched.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
@@ -47,6 +48,7 @@
 #include <mach/suspend.h>
 
 #include "power.h"
+#include "reset.h"
 
 #ifdef CONFIG_SMP
 static s64 tegra_cpu_wake_by_time[4] = {LLONG_MAX, LLONG_MAX, LLONG_MAX, LLONG_MAX};
@@ -104,6 +106,17 @@ void tegra_idle_stats_lp2_time(unsigned int cpu, s64 us)
 bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 	struct cpuidle_state *state)
 {
+	if (!tegra_all_cpus_booted)
+		return false;
+
+#if WAR_790458
+	/* Per-CPU wake from LP2 is not supported because under the current
+	   allocation policy, there are not enough timers to allocate one
+	   per CPU for wakeup. */
+	if (num_online_cpus() > 1)
+		return false;
+#endif
+
 	if (dev->cpu == 0) {
 		u32 reg = readl(CLK_RST_CONTROLLER_CPU_CMPLX_STATUS);
 		if ((reg & 0xE) != 0xE) {
@@ -193,7 +206,6 @@ void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 
 #ifdef CONFIG_SMP
 	if (!is_lp_cluster() && (num_online_cpus() > 1)) {
-		int i;
 
 		/* Disable the distributor. */
 		gic_dist_exit(0);
@@ -203,18 +215,6 @@ void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 
 		/* Re-enable the distributor. */
 		gic_dist_enable(0);
-
-		/* Start the other CPUs if they were online. */
-		smp_wmb();
-		for (i = 1; i < CONFIG_NR_CPUS; i++) {
-			if (cpu_online(i)) {
-				int status = boot_secondary(i, NULL);
-				if (status) {
-					printk("Failed to wake CPU %d after LP2: %d\n",
-						i, status);
-				}
-			}
-		}
 	}
 #endif
 
@@ -273,6 +273,7 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	twd_ctrl = readl(twd_base + 0x8);
 	twd_load = readl(twd_base + 0);
 
+	cpu_set(dev->cpu, tegra_cpu_lp2_map);
 	flush_cache_all();
 	barrier();
 	__cortex_a9_save(0);
@@ -280,13 +281,19 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 
 	/* CPUn woke up */
 	barrier();
+	if (suspend_wfi_failed()) {
+		tegra_wfi_fail_count[dev->cpu]++;
+		pr_err_ratelimited("WFI for LP2 failed for CPU %d: count %lu\n",
+				    dev->cpu, tegra_wfi_fail_count[dev->cpu]);
+	}
+	cpu_clear(dev->cpu, tegra_cpu_lp2_map);
 	writel(twd_ctrl, twd_base + 0x8);
 	writel(twd_load, twd_base + 0);
 	gic_cpu_init(0, IO_ADDRESS(TEGRA_ARM_PERIF_BASE) + 0x100);
 	tegra_unmask_irq(IRQ_LOCALTIMER);
 
 	tegra_cpu_wake_by_time[dev->cpu] = LLONG_MAX;
-	writel(smp_processor_id(), EVP_CPU_RESET_VECTOR);
+	writel(smp_processor_id(), EVP_CPU_RSVD_VECTOR);
 	start_critical_timings();
 
 	/*
