@@ -172,6 +172,9 @@ static int set_spdif_clock(struct audio_driver_state *state,
 	unsigned int clock_freq = 0;
 	struct clk *spdif_clk;
 
+	struct clk *pll_a_out0_clk =
+			clk_get_sys(NULL, "pll_a_out0");
+
 	switch (sample_rate) {
 	case 32000:
 		clock_freq = 4096000; /* 4.0960 MHz */
@@ -205,6 +208,9 @@ static int set_spdif_clock(struct audio_driver_state *state,
 		return -EIO;
 	}
 
+	/* set spdif parent as plla */
+	clk_set_parent(spdif_clk, pll_a_out0_clk);
+
 	clk_set_rate(spdif_clk, clock_freq);
 	if (clk_enable(spdif_clk)) {
 		dev_err(&state->pdev->dev,
@@ -213,7 +219,36 @@ static int set_spdif_clock(struct audio_driver_state *state,
 	}
 	pr_info("%s: spdif_clk rate %ld\n", __func__, clk_get_rate(spdif_clk));
 
+
+	/*FIXME: Proper position for this code will be Display driver */
+	/* can do based on hdmi plugin */
+#if !defined(CONFIG_ARCH_TEGRA_2x_SOC)
+	{
+		struct clk *hda2codec_clk =0;
+
+		hda2codec_clk = clk_get_sys("hda2codec_2x", NULL);
+		if (IS_ERR_OR_NULL(hda2codec_clk)) {
+			dev_err(&state->pdev->dev, "couldn't get hda2codec_2x clock\n");
+			goto clock_fail;
+		}
+
+		if (clk_enable(hda2codec_clk)) {
+			dev_err(&state->pdev->dev,
+				"failed to enable hda2codec_2x clock\n");
+			goto clock_fail;
+		}
+
+		return 0;
+
+clock_fail:
+		if (spdif_clk)
+			clk_disable(spdif_clk);
+
+		return -EIO;
+	}
+#else
 	return 0;
+#endif
 }
 
 static int init_stream_buffer(struct audio_stream *, int);
