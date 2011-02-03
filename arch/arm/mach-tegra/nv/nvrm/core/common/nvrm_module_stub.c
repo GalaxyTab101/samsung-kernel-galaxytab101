@@ -211,9 +211,9 @@ void NvRmModuleReset(NvRmDeviceHandle hRmDevice, NvRmModuleID Module)
     }
 
     if (clk) {
-        tegra2_periph_reset_assert(clk);
+        tegra_periph_reset_assert(clk);
         udelay(10);
-        tegra2_periph_reset_deassert(clk);
+        tegra_periph_reset_deassert(clk);
         clk_put(clk);
     }
 }
