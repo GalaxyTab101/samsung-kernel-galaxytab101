@@ -17,7 +17,7 @@ obj-$(CONFIG_SND_HDA_TEGRA) := snd-hda-codec.o
 
 # codec drivers (note: CONFIG_SND_HDA_CODEC_XXX are booleans)
 ifdef CONFIG_SND_HDA_CODEC_NVHDMI
-#obj-$(CONFIG_SND_HDA_TEGRA) += snd-hda-codec-nvhdmi.o
+obj-$(CONFIG_SND_HDA_TEGRA) += snd-hda-codec-nvhdmi.o
 endif
 ifdef CONFIG_SND_HDA_CODEC_REALTEK
 obj-$(CONFIG_SND_HDA_TEGRA) += snd-hda-codec-realtek.o

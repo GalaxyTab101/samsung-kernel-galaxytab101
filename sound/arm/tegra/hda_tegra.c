@@ -52,8 +52,7 @@ static int single_cmd;
 static int enable_msi;
 
 /* Module clock info */
-static struct clk *clk_hda;
-static struct clk *clk_hda2codec;
+static struct clk *clk_hda,  *clk_hda2codec , *clk_hda2hdmicodec;
 
 #ifdef CONFIG_SND_HDA_PATCH_LOADER
 static char *patch[SNDRV_CARDS];
@@ -760,10 +759,14 @@ static int nv_tegra_hda_controller_init(struct platform_device *pdev)
 		snd_printk(KERN_ERR T30SFX "%s: can't get hda clock\n", __func__);
 		return -1;
 	}
-
+	clk_hda2hdmicodec = clk_get_sys("hda2hdmi", NULL);
+	if (IS_ERR(clk_hda2codec)) {
+		snd_printk(KERN_ERR T30SFX "%s: can't get hda clock\n", __func__);
+		return -1;
+	}
 	clk_enable(clk_hda);
 	clk_enable(clk_hda2codec);
-
+	clk_enable(clk_hda2hdmicodec);
 	/*Enable the PCI access */
 	temp = readl(hda_reg + IPFS_HDA_CONFIGURATION_0);
 	temp |= IPFS_EN_FPCI;
