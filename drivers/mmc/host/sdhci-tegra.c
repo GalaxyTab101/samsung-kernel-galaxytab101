@@ -106,7 +106,7 @@ static void tegra_sdhci_configure_capabilities(struct sdhci_host *sdhci)
 	 * the vendor clock control register.
 	 */
 	ctrl = sdhci_readl(sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
-	ctrl &= ~(SDHCI_VENDOR_CLOCK_CNTRL_PADPIPE_CLKEN_OVERRIDE);
+	ctrl |= SDHCI_VENDOR_CLOCK_CNTRL_PADPIPE_CLKEN_OVERRIDE;
 	ctrl &= ~(SDHCI_VENDOR_CLOCK_CNTRL_SPI_MODE_CLKEN_OVERRIDE);
 	ctrl |= SDHCI_VENDOR_CLOCK_CNTRL_SDR50_TUNING_OVERRIDE;
 	sdhci_writel(sdhci, ctrl, SDHCI_VENDOR_CLOCK_CNTRL);
@@ -167,10 +167,6 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	struct resource *res;
 	int irq;
 	void __iomem *ioaddr;
-	void __iomem *ioaddr_clk_rst;
-	void __iomem *ioaddr_pinmux;
-	unsigned int val = 0;
-
 	static struct regulator *reg_sd_slot = NULL;
 	static struct regulator *reg_vddio_sdmmc1 = NULL;
 
@@ -189,12 +185,6 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 		return -ENODEV;
 
 	ioaddr = ioremap(res->start, res->end - res->start);
-
-	/* Fix ME: Enable the LVL2 CLK OVR bit */
-	ioaddr_clk_rst = ioremap(0x60006300, 0x400);
-	val = readl(ioaddr_clk_rst + 0xa0);
-	val |= 0x68;
-	writel(val, ioaddr_clk_rst + 0xa0);
 
 	sdhci = sdhci_alloc_host(&pdev->dev, sizeof(struct tegra_sdhci_host));
 	if (IS_ERR(sdhci)) {
