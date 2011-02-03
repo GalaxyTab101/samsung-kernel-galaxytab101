@@ -4,11 +4,13 @@ snd-hda-tegra-objs := ../../pci/hda/lib_hda_intel.o hda_tegra.o
 
 snd-hda-codec-y := ../../pci/hda/hda_codec.o
 snd-hda-codec-$(CONFIG_SND_HDA_GENERIC) += ../../pci/hda/hda_generic.o
+snd-hda-codec-$(CONFIG_PROC_FS) += ../../pci/hda/hda_proc.o
+snd-hda-codec-$(CONFIG_SND_HDA_ELD) += ../../pci/hda/hda_eld.o
 snd-hda-codec-$(CONFIG_SND_HDA_HWDEP) += ../../pci/hda/hda_hwdep.o
 snd-hda-codec-$(CONFIG_SND_HDA_INPUT_BEEP) += ../../pci/hda/hda_beep.o
 snd-hda-codec-$(CONFIG_PROC_FS) += ../../pci/hda/hda_proc.o
 
-snd-hda-codec-nvhdmi-objs := 	patch_nvhdmi_tegra.o
+snd-hda-codec-nvhdmi-objs :=	../../pci/hda/patch_nvhdmi.o
 snd-hda-codec-realtek-objs := 	../../pci/hda/patch_realtek.o
 
 

@@ -125,6 +125,11 @@ static int nvhdmi_init(struct hda_codec *codec)
 	int i;
 	if ((spec->codec_type == HDA_CODEC_NVIDIA_MCP89)
 	|| (spec->codec_type == HDA_CODEC_NVIDIA_GT21X)) {
+#if defined(CONFIG_SND_HDA_TEGRA)
+		// AOC widget: SET_DIGITAL_CONV_CONTROL1
+		snd_hda_codec_write(codec, 4, 0,
+				    AC_VERB_SET_DIGI_CONVERT_1, 0x11);
+#endif
 		for (i = 0; spec->pin[i]; i++) {
 			hdmi_enable_output(codec, spec->pin[i]);
 			snd_hda_codec_write(codec, spec->pin[i], 0,
@@ -549,6 +554,7 @@ static struct hda_codec_preset snd_hda_preset_nvhdmi[] = {
 	{ .id = 0x10de001a, .name = "GPU 1a HDMI/DP", .patch = patch_nvhdmi_8ch_89 },
 	{ .id = 0x10de001b, .name = "GPU 1b HDMI/DP", .patch = patch_nvhdmi_8ch_89 },
 	{ .id = 0x10de001c, .name = "GPU 1c HDMI/DP", .patch = patch_nvhdmi_8ch_89 },
+	{ .id = 0x10de0020, .name = "Tegra HDMI",     .patch = patch_nvhdmi_8ch_89 },
 	{ .id = 0x10de0040, .name = "GPU 40 HDMI/DP", .patch = patch_nvhdmi_8ch_89 },
 	{ .id = 0x10de0041, .name = "GPU 41 HDMI/DP", .patch = patch_nvhdmi_8ch_89 },
 	{ .id = 0x10de0042, .name = "GPU 42 HDMI/DP", .patch = patch_nvhdmi_8ch_89 },
@@ -578,6 +584,7 @@ MODULE_ALIAS("snd-hda-codec-id:10de0019");
 MODULE_ALIAS("snd-hda-codec-id:10de001a");
 MODULE_ALIAS("snd-hda-codec-id:10de001b");
 MODULE_ALIAS("snd-hda-codec-id:10de001c");
+MODULE_ALIAS("snd-hda-codec-id:10de0020");
 MODULE_ALIAS("snd-hda-codec-id:10de0040");
 MODULE_ALIAS("snd-hda-codec-id:10de0041");
 MODULE_ALIAS("snd-hda-codec-id:10de0042");
