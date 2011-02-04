@@ -57,11 +57,6 @@ struct audio_cif
 	int mono_conv;
 };
 
-//struct tegra_audio_sw
-//{
-//	struct tegra_audio_module[];
-//}
-
 /*
  * API
  */
@@ -77,9 +72,10 @@ void apbif_channel_set_loopback(int ifc, int on);
 void apbif_channel_enable(int ifc, int tx, int enable);
 int  apbif_get_channel(int ifc);
 int  apbif_initialize(int ifc, struct audio_cif *cifInfo);
-int  apbif_enable_clock(void);
 void audio_switch_set_acif(int addr, struct audio_cif *cifInfo);
 int  audio_switch_get_rx_port(int rxport);
 void audio_switch_set_rx_port(int rxport, int txport);
+int  audio_switch_close(void);
+int  audio_switch_open(void);
 
 #endif /* __ARCH_ARM_MACH_AUDIO_SWITCH_H */

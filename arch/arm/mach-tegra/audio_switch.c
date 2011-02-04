@@ -21,6 +21,7 @@
 #include <linux/kernel.h>
 #include <linux/err.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/clk.h>
 #include "clock.h"
 #include <asm/io.h>
@@ -254,14 +255,26 @@
 */
 
 struct apbif_channel_info {
-	void  __iomem	*virt_base;
-	phys_addr_t 	phy_base;
+	void	__iomem	*virt_base;
+	phys_addr_t		phy_base;
 	int				dma_index;
+	int				inuse;
+	int				channel_requestor;
 };
+
+/* audio switch controller */
+struct tegra_audiocont_info {
+	struct clk *apbif_clk;
+	struct clk *audiohub_clk;
+	int  refcnt;
+};
+
+static struct tegra_audiocont_info *acinfo = NULL;
+static int enable_audioswitch = 0;
 
 static struct apbif_channel_info apbif_channels[NR_APBIF_CHANNELS];
 
-static	void *audio_hub_base = IO_ADDRESS(TEGRA_AHUB_BASE);
+static void *audio_hub_base = IO_ADDRESS(TEGRA_AHUB_BASE);
 
 static inline void audio_switch_writel(u32 reg, u32 val)
 {
@@ -595,27 +608,59 @@ int  apbif_get_channel(int ifc)
 	return ch->dma_index;
 }
 
+
+static void apbif_disable_clock(void)
+{
+	if (!acinfo) return;
+
+	if (acinfo->audiohub_clk)
+		clk_disable(acinfo->audiohub_clk);
+
+	if (acinfo->apbif_clk)
+		clk_disable(acinfo->apbif_clk);
+
+}
+
+static int apbif_enable_clock(void)
+{
+
+	int err = 0;
+
+	if (!acinfo)
+		return -EIO;
+
+	/*apbif clocks */
+	if (clk_enable(acinfo->apbif_clk)) {
+		err = PTR_ERR(acinfo->apbif_clk);
+		goto fail_audio_clock;
+	}
+
+	/* audio hub */
+	if (clk_enable(acinfo->audiohub_clk)) {
+		err = PTR_ERR(acinfo->audiohub_clk);
+		goto fail_audio_clock;
+	}
+
+	return err;
+
+fail_audio_clock:
+
+	apbif_disable_clock();
+	return err;
+}
+
+
 int apbif_initialize(int ifc, struct audio_cif *cifInfo)
 {
-	int i = 0;
 	struct apbif_channel_info *ch;
 	/* packed mode as default */
-
-	memset(apbif_channels, 0, sizeof(apbif_channels));
-	for (i = 0; i < NR_APBIF_CHANNELS; i++)
-	{
-		ch = &apbif_channels[i];
-		ch->phy_base  = TEGRA_APBIF0_BASE +
-								(TEGRA_APBIF0_SIZE * i);
-		ch->virt_base = IO_ADDRESS(TEGRA_APBIF0_BASE) +
-								(TEGRA_APBIF0_SIZE * i);
-		ch->dma_index = i + 1;
-	}
 
 	apbif_set_pack_mode(ifc, AUDIO_TX_MODE, AUDIO_PACK_16);
 	apbif_set_pack_mode(ifc, AUDIO_RX_MODE, AUDIO_PACK_16);
 
 	ch =  &apbif_channels[ifc];
+	ch->inuse = 1;
+	ch->channel_requestor = ifc;
 
 	/*set apbif acif*/
 	audio_switch_set_acif((unsigned int)ch->virt_base +
@@ -644,44 +689,88 @@ int apbif_initialize(int ifc, struct audio_cif *cifInfo)
 	return 0;
 }
 
-int apbif_enable_clock()
+int audio_switch_open(void)
 {
-	struct clk *apbif_clk = 0, *audiohub_clk = 0;
-	int err = 0;
+	int err = 0, i = 0;
 
-	/* Setup apbif clocks */
-	apbif_clk = tegra_get_clock_by_name("apbif");
-	if (IS_ERR_OR_NULL(apbif_clk)) {
-		err = PTR_ERR(apbif_clk);
-		goto fail_audio_clock;
+	AHUB_DEBUG_PRINT(" audio_switch_open  acinfo 0x%x enable %d ++ \n",
+						(unsigned int)acinfo, enable_audioswitch);
+
+	if (!acinfo && !enable_audioswitch)
+	{
+		struct apbif_channel_info *ch;
+
+		acinfo = kzalloc(sizeof(struct tegra_audiocont_info), GFP_KERNEL);
+		if (!acinfo)
+			return -ENOMEM;
+
+		memset(apbif_channels, 0, sizeof(apbif_channels));
+
+		for (i = 0; i < NR_APBIF_CHANNELS; i++)
+		{
+			ch = &apbif_channels[i];
+			ch->phy_base  = TEGRA_APBIF0_BASE +
+									(TEGRA_APBIF0_SIZE * i);
+			ch->virt_base = IO_ADDRESS(TEGRA_APBIF0_BASE) +
+									(TEGRA_APBIF0_SIZE * i);
+			ch->dma_index = i + 1;
+			ch->inuse     = 0;
+			ch->channel_requestor  = 0;
+		}
+
+		acinfo->apbif_clk = clk_get_sys("apbif", NULL);
+		if (IS_ERR_OR_NULL(acinfo->apbif_clk)) {
+			err = -ENOENT;
+			acinfo->apbif_clk = 0;
+			goto fail_audio_open;
+		}
+
+		acinfo->audiohub_clk = clk_get_sys("d_audio", NULL);
+		if (IS_ERR_OR_NULL(acinfo->audiohub_clk)) {
+			err = -ENOENT;
+			acinfo->audiohub_clk = 0;
+			goto fail_audio_open;
+		}
+
+		audio_hub_base = IO_ADDRESS(TEGRA_AHUB_BASE);
+
+		err = apbif_enable_clock();
+
+		if (err)
+			goto fail_audio_open;
+
+		enable_audioswitch = 1;
 	}
 
-	if (clk_enable(apbif_clk)) {
-		err = PTR_ERR(apbif_clk);
-		goto fail_audio_clock;
-	}
+	acinfo->refcnt += 1;
 
-	/* audio hub */
-	audiohub_clk = tegra_get_clock_by_name("d_audio");
-	if (IS_ERR_OR_NULL(audiohub_clk)) {
-		err = PTR_ERR(audiohub_clk);
-		goto fail_audio_clock;
-	}
+	AHUB_DEBUG_PRINT(" audio_switch_open -- acinfo 0x%x refcnt %d \n",
+					 (unsigned int)acinfo, acinfo->refcnt);
 
-	if (clk_enable(audiohub_clk)) {
-		err = PTR_ERR(audiohub_clk);
-		goto fail_audio_clock;
+	return 0;
+
+fail_audio_open:
+	if (acinfo)
+	{
+		apbif_disable_clock();
+		kfree(acinfo);
 	}
 
 	return err;
+}
 
-fail_audio_clock:
+int audio_switch_close(void)
+{
+	if (acinfo && enable_audioswitch)
+	{
+		acinfo->refcnt -= 1;
 
-	if (audiohub_clk)
-		clk_disable(audiohub_clk);
-
-	if (apbif_clk)
-		clk_disable(apbif_clk);
-
-	return err;
+		if (!acinfo->refcnt)
+		{
+			apbif_disable_clock();
+			kfree(acinfo);
+			enable_audioswitch = 0;
+		}
+	}
+	return 0;
 }

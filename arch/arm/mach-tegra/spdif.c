@@ -373,9 +373,11 @@ static  struct audio_cif  spdif_audiocif;
 int spdif_initialize(unsigned long base, int mode)
 {
 	struct audio_cif  *tx_audio_cif = &spdif_audiocif;
-	int ifc = 3;
+	int ifc = 3, err = 0;
 
-	apbif_enable_clock();
+	err = audio_switch_open();
+	if (err)
+		return err;
 
 	/* disable interrupts from SPDIF */
 	spdif_writel(base, 0x0, SPDIF_CTRL_0);

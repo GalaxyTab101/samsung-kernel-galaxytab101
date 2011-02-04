@@ -24,6 +24,7 @@ struct tegra_i2s_info {
 	struct platform_device *pdev;
 	struct tegra_audio_platform_data *pdata;
 	struct clk *i2s_clk;
+	struct clk *pmc_clk;
 	phys_addr_t i2s_phys;
 	void __iomem *i2s_base;
 
@@ -421,6 +422,8 @@ static int tegra_i2s_driver_probe(struct platform_device *pdev)
 	int err = 0;
 	struct resource *res, *mem;
 	struct tegra_i2s_info *info;
+	struct clk *pll_a_out0_clk =
+				clk_get_sys(NULL, "pll_a_out0");
 	int i = 0;
 
 	pr_info("%s\n", __func__);

@@ -501,9 +501,7 @@ void i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on)
 
 void i2s_enable_fifos(int ifc, int on)
 {
-/* FIXME: fifo are part of apbif channel, so pass call to apbif
-*  or provide generic call to apbif to handle this
-*/
+/* no support needed */
 }
 
 void i2s_fifo_write(int ifc, int fifo, u32 data)
@@ -576,7 +574,14 @@ struct clk *i2s_get_clock_by_name(const char *name)
 static	struct audio_cif  audiocif;
 int i2s_initialize(int ifc)
 {
+	int err = 0;
 	struct audio_cif  *tx_audio_cif = &audiocif;
+
+	/* open audio_switch first */
+	err = audio_switch_open();
+	if (err)
+		return err;
+
 	i2s_enable_fifos(ifc, 0);
 	i2s_set_left_right_control_polarity(ifc, AUDIO_LRCK_LEFT_LOW); /* low */
 	i2s_set_master(ifc, AUDIO_MASTER_MODE); /* set as master */

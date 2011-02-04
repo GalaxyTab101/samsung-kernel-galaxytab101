@@ -152,7 +152,7 @@ static __initdata struct tegra_clk_init_table cardhu_clk_init_table[] = {
 	{ "pll_a_out0",	NULL,		11289600,	true},
 	{ "i2s1",	"pll_a_out0",	11289600,	true},
 	{ "i2s2",	"pll_a_out0",	11289600,	true},
-	{ "audio",	"pll_a_out0",	11289600,	true},
+	{ "d_audio","pll_a_out0",	11289600,	false},
 	{ "audio_2x",	"audio",	22579200,	true},
 	{ NULL,		NULL,		0,		0},
 };
@@ -246,7 +246,7 @@ static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 	[0] = {
 		.dma_on		= true,  /* use dma by default */
 		.i2s_clk_rate	= 240000000,
-		.dap_clk	= "clk_dev1",
+		.dap_clk	= "extern1",
 		.audio_sync_clk = "audio_2x",
 		.mode		= I2S_BIT_FORMAT_I2S,
 		.fifo_fmt	= I2S_FIFO_16_LSB,
