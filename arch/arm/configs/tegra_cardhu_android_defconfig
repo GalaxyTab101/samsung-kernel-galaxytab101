@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.36.3
-# Fri Feb  4 14:44:01 2011
+# Sat Feb  5 17:00:11 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1301,7 +1301,8 @@ CONFIG_GPIO_SYSFS=y
 #
 # CONFIG_GPIO_MAX7300 is not set
 # CONFIG_GPIO_MAX732X is not set
-# CONFIG_GPIO_PCA953X is not set
+CONFIG_GPIO_PCA953X=y
+# CONFIG_GPIO_PCA953X_IRQ is not set
 # CONFIG_GPIO_PCF857X is not set
 # CONFIG_GPIO_SX150X is not set
 # CONFIG_GPIO_ADP5588 is not set
