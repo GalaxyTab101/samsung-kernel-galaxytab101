@@ -115,6 +115,20 @@ void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
 void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
+
+#if defined(CONFIG_TEGRA_AUTO_HOTPLUG) && defined(CONFIG_ARCH_TEGRA_3x_SOC)
+int tegra_auto_hotplug_init(void);
+void tegra_auto_hotplug_exit(void);
+void tegra_auto_hotplug_governor(unsigned int cpu_freq);
+#else
+static inline int tegra_auto_hotplug_init(void)
+{ return 0; }
+static inline void tegra_auto_hotplug_exit(void)
+{ }
+static inline void tegra_auto_hotplug_governor(unsigned int cpu_freq)
+{ }
+#endif
+
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
 #define INSTRUMENT_CLUSTER_SWITCH 0	/* Must be zero for ARCH_TEGRA_2x_SOC */
 #define DEBUG_CLUSTER_SWITCH 0		/* Must be zero for ARCH_TEGRA_2x_SOC */

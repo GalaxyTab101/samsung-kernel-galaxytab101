@@ -60,6 +60,9 @@ obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += headsmp-t2.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += headsmp-t3.o
 obj-$(CONFIG_TEGRA_SYSTEM_DMA)          += dma.o
 obj-$(CONFIG_CPU_FREQ)                  += cpu-tegra.o
+ifeq ($(CONFIG_TEGRA_AUTO_HOTPLUG),y)
+obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += cpu-tegra3.o
+endif
 ifeq ($(CONFIG_CPU_IDLE),y)
 obj-y                                   += cpuidle.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += cpuidle-t2.o
