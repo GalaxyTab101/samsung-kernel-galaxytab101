@@ -24,7 +24,9 @@ struct tegra_sdhci_platform_data {
 	const char *clk_id;
 	int force_hs;
 	int cd_gpio;
+	int cd_gpio_polarity;
 	int wp_gpio;
+	int wp_gpio_polarity;
 	int power_gpio;
 	unsigned int tap_delay;
 	bool is_voltage_switch_supported;

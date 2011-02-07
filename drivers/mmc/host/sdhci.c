@@ -1141,10 +1141,14 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	host->mrq = mrq;
 
-	/* If polling, assume that the card is always present. */
-	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
-		present = true;
-	else
+	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) {
+		if (host->ops->get_cd)
+			present = host->ops->get_cd(host);
+		else {
+			/* If polling, assume that card is always present. */
+			present = true;
+		}
+	} else
 		present = sdhci_readl(host, SDHCI_PRESENT_STATE) &
 				SDHCI_CARD_PRESENT;
 
@@ -1416,10 +1420,17 @@ static const struct mmc_host_ops sdhci_ops = {
 void sdhci_card_detect_callback(struct sdhci_host *host)
 {
 	unsigned long flags;
+	int present;
 
 	spin_lock_irqsave(&host->lock, flags);
 
-	if (!(sdhci_readl(host, SDHCI_PRESENT_STATE) & SDHCI_CARD_PRESENT)) {
+	if ((host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) && host->ops->get_cd)
+		present = host->ops->get_cd(host);
+	else
+		present = (sdhci_readl(host, SDHCI_PRESENT_STATE) &
+			SDHCI_CARD_PRESENT);
+
+	if (!present) {
 		if (host->mrq) {
 			printk(KERN_ERR "%s: Card removed during transfer!\n",
 				mmc_hostname(host->mmc));

@@ -34,6 +34,8 @@
 
 #define CARDHU_WLAN_PWR	TEGRA_GPIO_PD4
 #define CARDHU_WLAN_RST	TEGRA_GPIO_PD3
+#define CARDHU_SD_CD TEGRA_GPIO_PI5
+#define CARDHU_SD_WP TEGRA_GPIO_PT3
 
 static void (*wifi_status_cb)(int card_present, void *dev_id);
 static void *wifi_status_cb_devid;
@@ -183,15 +185,19 @@ static int cardhu_sd_cd_gpio_init(void)
 {
 	unsigned int rc = 0;
 
-	rc = gpio_request(TEGRA_GPIO_PI5, "card_detect");
-	if (rc)
+	rc = gpio_request(CARDHU_SD_CD, "card_detect");
+	if (rc) {
+		pr_err("Card detect gpio request failed:%d\n", rc);
 		return rc;
+	}
 
-	tegra_gpio_enable(TEGRA_GPIO_PI5);
+	tegra_gpio_enable(CARDHU_SD_CD);
 
-	rc = gpio_direction_input(TEGRA_GPIO_PI5);
-	if (rc)
+	rc = gpio_direction_input(CARDHU_SD_CD);
+	if (rc) {
+		pr_err("Unable to configure direction for card detect gpio:%d\n", rc);
 		return rc;
+	}
 
 	return 0;
 }
@@ -200,15 +206,19 @@ static int cardhu_sd_wp_gpio_init(void)
 {
 	unsigned int rc = 0;
 
-	rc = gpio_request(TEGRA_GPIO_PT3, "write_protect");
-	if (rc)
+	rc = gpio_request(CARDHU_SD_WP, "write_protect");
+	if (rc) {
+		pr_err("Write protect gpio request failed:%d\n", rc);
 		return rc;
+	}
 
-	tegra_gpio_enable(TEGRA_GPIO_PT3);
+	tegra_gpio_enable(CARDHU_SD_WP);
 
-	rc = gpio_direction_input(TEGRA_GPIO_PT3);
-	if (rc)
+	rc = gpio_direction_input(CARDHU_SD_WP);
+	if (rc) {
+		pr_err("Unable to configure direction for write protect gpio:%d\n", rc);
 		return rc;
+	}
 
 	return 0;
 }
@@ -253,15 +263,24 @@ static int cardhu_wifi_reset(int on)
 
 static int __init cardhu_wifi_init(void)
 {
+	int rc;
 
-	gpio_request(CARDHU_WLAN_PWR, "wlan_power");
-	gpio_request(CARDHU_WLAN_RST, "wlan_rst");
+	rc = gpio_request(CARDHU_WLAN_PWR, "wlan_power");
+	if (rc)
+		pr_err("WLAN_PWR gpio request failed:%d\n", rc);
+	rc = gpio_request(CARDHU_WLAN_RST, "wlan_rst");
+	if (rc)
+		pr_err("WLAN_RST gpio request failed:%d\n", rc);
 
 	tegra_gpio_enable(CARDHU_WLAN_PWR);
 	tegra_gpio_enable(CARDHU_WLAN_RST);
 
-	gpio_direction_output(CARDHU_WLAN_PWR, 0);
+	rc = gpio_direction_output(CARDHU_WLAN_PWR, 0);
+	if (rc)
+		pr_err("WLAN_PWR gpio direction configuration failed:%d\n", rc);
 	gpio_direction_output(CARDHU_WLAN_RST, 0);
+	if (rc)
+		pr_err("WLAN_RST gpio direction configuration failed:%d\n", rc);
 
 	platform_device_register(&cardhu_wifi_device);
 	return 0;
@@ -273,16 +292,18 @@ int __init cardhu_sdhci_init(void)
 	platform_device_register(&tegra_sdhci_device3);
 	platform_device_register(&tegra_sdhci_device2);
 
-#if 0
 	/* Fix ME: The gpios have to enabled for hot plug support */
 	rc = cardhu_sd_cd_gpio_init();
-	if (!rc)
-		tegra_sdhci_platform_data0.cd_gpio = TEGRA_GPIO_PI5;
-
+	if (!rc) {
+		tegra_sdhci_platform_data0.cd_gpio = CARDHU_SD_CD;
+		tegra_sdhci_platform_data0.cd_gpio_polarity = 0;
+	}
 	rc = cardhu_sd_wp_gpio_init();
-	if (!rc)
-		tegra_sdhci_platform_data0.cd_gpio = TEGRA_GPIO_PT3;
-#endif
+	if (!rc) {
+		tegra_sdhci_platform_data0.wp_gpio = CARDHU_SD_WP;
+		tegra_sdhci_platform_data0.wp_gpio_polarity = 1;
+	}
+
 	platform_device_register(&tegra_sdhci_device0);
 
 	cardhu_wifi_init();

@@ -358,6 +358,7 @@ struct sdhci_ops {
 		unsigned int signalling_voltage);
 
 	int		(*enable_dma)(struct sdhci_host *host);
+	int		(*get_cd)(struct sdhci_host *host);
 	int		(*get_ro)(struct sdhci_host *host);
 	unsigned int	(*get_max_clock)(struct sdhci_host *host);
 	unsigned int	(*get_min_clock)(struct sdhci_host *host);
