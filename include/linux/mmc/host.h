@@ -180,6 +180,7 @@ struct mmc_host {
 #define MMC_CAP_SDR50		(1 << 13)	/* Can support SDR mode at 50 MHz */
 #define MMC_CAP_SDR104		(1 << 14)	/* Can support SDR mode at 104 MHz */
 #define MMC_CAP_SDR50_TUNING	(1 << 15)	/* Is tuning required for SDR50 */
+#define MMC_CAP_VOLTAGE_SWITCHING	(1 << 16)	/* Is voltage switching supported */
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 

@@ -147,7 +147,7 @@
 #define  SDHCI_TIMEOUT_CLK_MASK	0x0000003F
 #define  SDHCI_TIMEOUT_CLK_SHIFT 0
 #define  SDHCI_TIMEOUT_CLK_UNIT	0x00000080
-#define  SDHCI_CLOCK_BASE_MASK	0x00003F00
+#define  SDHCI_CLOCK_BASE_MASK	0x0000FF00
 #define  SDHCI_CLOCK_BASE_SHIFT	8
 #define  SDHCI_MAX_BLOCK_MASK	0x00030000
 #define  SDHCI_MAX_BLOCK_SHIFT  16
@@ -190,6 +190,7 @@
 #define  SDHCI_SPEC_VER_SHIFT	0
 #define   SDHCI_SPEC_100	0
 #define   SDHCI_SPEC_200	1
+#define   SDHCI_SPEC_300	2
 
 struct sdhci_ops;
 
@@ -277,6 +278,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK_FORCE_HIGH_SPEED_MODE		(1LL<<37)
 /* Controller allows runtime enable / disable */
 #define SDHCI_QUIRK_RUNTIME_DISABLE			(1LL<<38)
+/* Controller cannot switch signalling voltage automatically */
+#define SDHCI_QUIRK_BROKEN_VOLTAGE_SWITCHING		(1LL<<39)
 
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */
@@ -351,6 +354,8 @@ struct sdhci_ops {
 
 	void	(*set_clock)(struct sdhci_host *host, unsigned int clock);
 	void	(*configure_capabilities)(struct sdhci_host *host);
+	void	(*set_signalling_voltage)(struct sdhci_host *host,
+		unsigned int signalling_voltage);
 
 	int		(*enable_dma)(struct sdhci_host *host);
 	int		(*get_ro)(struct sdhci_host *host);

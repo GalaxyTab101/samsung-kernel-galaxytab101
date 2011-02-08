@@ -176,10 +176,11 @@ static void sdhci_reset(struct sdhci_host *host, u8 mask)
 	if (host->quirks & SDHCI_QUIRK_RESTORE_IRQS_AFTER_RESET)
 		sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK, ier);
 
-	if (mask & SDHCI_RESET_ALL)
+	if (mask & SDHCI_RESET_ALL) {
 		host->ops->configure_capabilities(host);
-
-	host->uhs_mode = 0;
+		host->uhs_mode = 0;
+		host->mmc->ios.signalling_voltage = MMC_3_3_VOLT_SIGNALLING;
+	}
 }
 
 static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios);
@@ -1256,27 +1257,6 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
 	}
 
-	if ((ios->signalling_voltage == MMC_1_8_VOLT_SIGNALLING) &&
-		(ios->signalling_voltage != host->signalling_voltage)) {
-		/* Switch OFF SD clock */
-		clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
-		clk &= (~SDHCI_CLOCK_CARD_EN);
-		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
-
-		ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL_2);
-		ctrl |= SDHCI_CTRL_2_VOLT_18_EN;
-		sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL_2);
-
-		/* Wait for 5msec for the output to be stable */
-		mdelay(5);
-
-		/* Switch ON sd clock */
-		clk |= SDHCI_CLOCK_CARD_EN;
-		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
-
-		host->signalling_voltage = ios->signalling_voltage;
-	}
-
 	if (ios->tuning_arg) {
 		switch(ios->tuning_arg) {
 		case MMC_EXECUTE_TUNING:
@@ -1304,6 +1284,36 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		}
 	}
 
+	if (ios->signalling_voltage != host->signalling_voltage) {
+		/* Switch OFF SD clock */
+		clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+		clk &= (~SDHCI_CLOCK_CARD_EN);
+		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+		if (ios->signalling_voltage == MMC_1_8_VOLT_SIGNALLING) {
+			ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL_2);
+			ctrl |= SDHCI_CTRL_2_VOLT_18_EN;
+			sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL_2);
+		}
+
+		if (host->quirks & SDHCI_QUIRK_BROKEN_VOLTAGE_SWITCHING) {
+			spin_unlock_irqrestore(&host->lock, flags);
+			if (host->ops->set_signalling_voltage) {
+				host->ops->set_signalling_voltage(host,
+					ios->signalling_voltage);
+			}
+			spin_lock_irqsave(&host->lock, flags);
+		}
+
+		/* Wait for 5msec for the output to be stable */
+		mdelay(5);
+
+		/* Switch ON sd clock */
+		clk |= SDHCI_CLOCK_CARD_EN;
+		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+		host->signalling_voltage = ios->signalling_voltage;
+	}
 out:
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
@@ -1878,7 +1888,7 @@ int sdhci_add_host(struct sdhci_host *host)
 					>> SDHCI_SPEC_VER_SHIFT;
 	}
 
-	if (host->version > SDHCI_SPEC_200) {
+	if (host->version > SDHCI_SPEC_300) {
 		printk(KERN_ERR "%s: Unknown controller version (%d). "
 			"You may experience problems.\n", mmc_hostname(mmc),
 			host->version);
@@ -2098,6 +2108,17 @@ int sdhci_add_host(struct sdhci_host *host)
 		mmc->caps |= MMC_CAP_SDR104;
 	if (caps & SDHCI_CAN_SDR50_TUNING)
 		mmc->caps |= MMC_CAP_SDR50_TUNING;
+
+	if ((caps & SDHCI_CAN_SUPPORT_DDR50) || (caps & SDHCI_CAN_SUPPORT_SDR104) ||
+		(caps & SDHCI_CAN_SUPPORT_SDR50)) {
+		if (!(host->quirks & SDHCI_QUIRK_BROKEN_VOLTAGE_SWITCHING))
+			mmc->caps |= MMC_CAP_VOLTAGE_SWITCHING;
+		else {
+			/* Do the voltage switching using a regulator */
+			if (host->ops->set_signalling_voltage)
+				mmc->caps |= MMC_CAP_VOLTAGE_SWITCHING;
+		}
+	}
 
 	/*
 	 * Init tasklets.

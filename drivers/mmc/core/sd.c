@@ -349,6 +349,8 @@ static int mmc_read_switch(struct mmc_card *card)
 
 	if (status[13] & 0x08) /* UHS104 mode */
 		card->sw_caps.hs_max_dtr = 208000000;
+	else if (status[13] & 0x10) /* DDR50 mode */
+		card->sw_caps.hs_max_dtr = 50000000;
 	else if (status[13] & 0x04) /* UHS50 mode */
 		card->sw_caps.hs_max_dtr = 104000000;
 	else if (status[13] & 0x02) /* high speed mode */
@@ -356,7 +358,6 @@ static int mmc_read_switch(struct mmc_card *card)
 
 out:
 	kfree(status);
-
 	return err;
 }
 
@@ -486,12 +487,10 @@ int mmc_sd_get_cid(struct mmc_host *host, u32 ocr, u32 *cid)
 		ocr |= 1 << 30;
 
 	/*
-	 * Check the voltage switching capability if the host supports SDR
-	 * or DDR modes.
+	 * Check voltage switching capability of the card if the host supports it.
 	 */
-	if (((host->caps & MMC_CAP_SDR50) || (host->caps & MMC_CAP_SDR104) ||
-		(host->caps & MMC_CAP_DDR50))&& (!mmc_host_is_spi(host)))
-			ocr |= (1 << 24);
+	if ((host->caps & MMC_CAP_VOLTAGE_SWITCHING) && (!mmc_host_is_spi(host)))
+		ocr |= (1 << 24);
 
 	err = mmc_send_app_op_cond(host, ocr, &rocr);
 	if (err)
