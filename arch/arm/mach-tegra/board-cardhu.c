@@ -56,6 +56,21 @@
 
 #define ENABLE_USB_HOST 0
 
+static struct usb_mass_storage_platform_data tegra_usb_fsg_platform = {
+	.vendor = "NVIDIA",
+	.product = "Tegra 3",
+	.nluns = 1,
+};
+
+static struct platform_device tegra_usb_fsg_device = {
+	.name = "usb_mass_storage",
+	.id = -1,
+	.dev = {
+		.platform_data = &tegra_usb_fsg_platform,
+	},
+};
+
+
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
 		.membase	= IO_ADDRESS(TEGRA_UARTA_BASE),
@@ -157,8 +172,8 @@ static __initdata struct tegra_clk_init_table cardhu_clk_init_table[] = {
 	{ NULL,		NULL,		0,		0},
 };
 
-static char *usb_functions[] = { "mtp" };
-static char *usb_functions_adb[] = { "mtp", "adb" };
+static char *usb_functions[] = { "mtp", "usb_mass_storage" };
+static char *usb_functions_adb[] = { "mtp", "adb", "usb_mass_storage" };
 
 static struct android_usb_product usb_products[] = {
 	{
@@ -300,6 +315,7 @@ static struct platform_device tegra_rtc_device = {
 };
 
 static struct platform_device *cardhu_devices[] __initdata = {
+	&tegra_usb_fsg_device,
 	&androidusb_device,
 	&debug_uart,
 	&tegra_uartb_device,
