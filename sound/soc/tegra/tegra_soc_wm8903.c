@@ -47,6 +47,10 @@ extern struct wired_jack_conf tegra_wired_jack_conf;
 #define B04_ADC_HPF_ENA		4
 #define R20_SIDETONE_CTRL	32
 #define R29_DRC_1		41
+#define B08_GP1_FN		8
+#define B07_GP1_DIR		7
+#define B08_GP2_FN 		8
+#define B07_GP2_DIR		7
 #define SET_REG_VAL(r,m,l,v) (((r)&(~((m)<<(l))))|(((v)&(m))<<(l)))
 
 
@@ -149,6 +153,24 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 		CtrlReg = snd_soc_read(codec, R29_DRC_1);
 		CtrlReg |= 0x3; /*mic volume 18 db */
 		snd_soc_write(codec, R29_DRC_1, CtrlReg);
+
+		/* Enabling Digital mic as default*/
+#if !defined(CONFIG_ARCH_TEGRA_2x_SOC)
+		/* Set GP1_FN as DMIC_LR */
+		CtrlReg = snd_soc_read(codec, WM8903_GPIO_CONTROL_1);
+		CtrlReg = (0x06 << B08_GP1_FN) | (0x0 << B07_GP1_DIR);
+		snd_soc_write(codec, WM8903_GPIO_CONTROL_1, CtrlReg);
+
+		/* Set GP2_FN as DMIC_DAT */
+		CtrlReg = snd_soc_read(codec, WM8903_GPIO_CONTROL_2);
+		CtrlReg = (0x06 << B08_GP2_FN) | (0x1 << B07_GP2_DIR);
+		snd_soc_write(codec, WM8903_GPIO_CONTROL_2, CtrlReg);
+
+		/* Enable DIG_MIC */
+		CtrlReg = snd_soc_read(codec, WM8903_CLOCK_RATE_TEST_4);
+		CtrlReg = WM8903_ADC_DIG_MIC;
+		snd_soc_write(codec, WM8903_CLOCK_RATE_TEST_4, CtrlReg);
+#endif
 	}
 
 	return 0;
