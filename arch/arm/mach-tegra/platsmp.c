@@ -225,6 +225,9 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	for (i = 0; i < max_cpus; i++)
 		set_cpu_present(i, true);
 
+	if (max_cpus == 1)
+		tegra_all_cpus_booted = true;
+
 #ifdef CONFIG_HOTPLUG_CPU
 	for_each_present_cpu(i) {
 		init_completion(&per_cpu(cpu_killed, i));
@@ -234,13 +237,7 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	   CPU present or not. */
 	percpu_timer_setup();
 
-	/*
-	 * Initialise the SCU if there are more than one CPU and let
-	 * them know where to start. Note that, on modern versions of
-	 * MILO, the "poke" doesn't actually do anything until each
-	 * individual core is sent a soft interrupt to get it out of
-	 * WFI
-	 */
+	/* Initialise the SCU if there are more than one CPU. */
 	if (max_cpus > 1) {
 		scu_enable(scu_base);
 	}
