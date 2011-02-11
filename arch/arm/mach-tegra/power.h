@@ -28,6 +28,7 @@
    be removed. */
 #define WAR_790458	1
 
+#include <mach/iomap.h>
 #include <asm/page.h>
 
 #define TEGRA_POWER_PWRREQ_POLARITY	0x1	/* core power request polarity */
@@ -70,6 +71,8 @@
 #define FLOW_CTLR_HALT_CPU1_EVENTS	0x14
 #define FLOW_CTLR_CPU1_CSR		0x18
 
+#ifndef __ASSEMBLY__
+
 #define EVP_CPU_RSVD_VECTOR \
 	(IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE) + 0x114)
 #define CLK_RST_CONTROLLER_RST_CPU_CMPLX_SET \
@@ -89,12 +92,20 @@
 #define CPU_CLOCK(cpu)	(0x1<<(8+cpu))
 #define CPU_RESET(cpu)	(0x1111ul<<(cpu))
 
-#ifndef __ASSEMBLY__
-
 #define FLOW_CTRL_HALT_CPUx_EVENTS(cpu)	(IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + \
 	((cpu)?(((cpu)-1)*0x8 + 0x14) : 0x0))
 #define FLOW_CTRL_CPUx_CSR(cpu)		(IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + \
 	((cpu)?(((cpu)-1)*0x8 + 0x18) : 0x8))
+
+#define FLOW_CTRL_CLUSTER_CONTROL \
+	(IO_ADDRESS(TEGRA_FLOW_CTRL_BASE) + 0x2c)
+#define FLOW_CTRL_CPU_CSR_IMMEDIATE_WAKE	(1<<3)
+#define FLOW_CTRL_CPU_CSR_SWITCH_CLUSTER	(1<<2)
+
+#define FUSE_SKU_DIRECT_CONFIG \
+	(IO_ADDRESS(TEGRA_FUSE_BASE) + 0x1F4)
+#define FUSE_SKU_DISABLE_ALL_CPUS	(1<<5)
+#define FUSE_SKU_NUM_DISABLED_CPUS(x)	(((x) >> 3) & 3)
 
 static inline void flowctrl_writel(unsigned long val, void __iomem *addr)
 {
@@ -155,6 +166,8 @@ static inline int tegra_cluster_control(unsigned int us, unsigned int flags)
 { return -EPERM; }
 #define tegra_cluster_switch_prolog(flags) do {} while (0)
 #define tegra_cluster_switch_epilog(flags) do {} while (0)
+static inline bool is_g_cluster_present(void)
+{ return true; }
 static inline unsigned int is_lp_cluster(void)
 { return 0; }
 static inline unsigned long tegra_get_lpcpu_max_rate(void)
@@ -169,7 +182,19 @@ static inline bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 int tegra_cluster_control(unsigned int us, unsigned int flags);
 void tegra_cluster_switch_prolog(unsigned int flags);
 void tegra_cluster_switch_epilog(unsigned int flags);
-unsigned int is_lp_cluster(void);
+static inline bool is_g_cluster_present(void)
+{
+	u32 fuse_sku = readl(FUSE_SKU_DIRECT_CONFIG);
+	if (fuse_sku & FUSE_SKU_DISABLE_ALL_CPUS)
+		return false;
+	return true;
+}
+static inline unsigned int is_lp_cluster(void)
+{
+	unsigned int reg;
+	reg = readl(FLOW_CTRL_CLUSTER_CONTROL);
+	return (reg & 1); /* 0 == G, 1 == LP*/
+}
 unsigned long tegra_get_lpcpu_max_rate(void);
 static inline int tegra_cpudile_init_soc(void)
 { return 0; }
