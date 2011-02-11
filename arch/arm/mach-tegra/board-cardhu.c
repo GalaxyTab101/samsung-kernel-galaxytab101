@@ -54,7 +54,6 @@
 #include "gpio-names.h"
 #include "fuse.h"
 
-#define ENABLE_USB_HOST 0
 
 static struct usb_mass_storage_platform_data tegra_usb_fsg_platform = {
 	.vendor = "NVIDIA",
@@ -69,7 +68,6 @@ static struct platform_device tegra_usb_fsg_device = {
 		.platform_data = &tegra_usb_fsg_platform,
 	},
 };
-
 
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
@@ -110,17 +108,19 @@ static struct tegra_utmip_config utmi_phy_config[] = {
 			.idle_wait_delay = 17,
 			.elastic_limit = 16,
 			.term_range_adj = 6,
+			.xcvr_setup = 15,
+			.xcvr_lsfslew = 2,
+			.xcvr_lsrslew = 2,
+	},
+	[2] = {
+			.hssync_start_delay = 0,
+			.idle_wait_delay = 17,
+			.elastic_limit = 16,
+			.term_range_adj = 6,
 			.xcvr_setup = 8,
 			.xcvr_lsfslew = 2,
 			.xcvr_lsrslew = 2,
 	},
-};
-
-/* !!!TODO: Change for cardhu (Taken from Ventana) */
-static struct tegra_ulpi_config ulpi_phy_config = {
-	/* !!!TODO!!! CABLE DETECT? if so GPIO_PC7 on cardhu */
-	.reset_gpio = TEGRA_GPIO_PG2,
-	.clk = "clk_dev2",
 };
 
 #ifdef CONFIG_BCM4329_RFKILL
@@ -213,18 +213,6 @@ static struct i2c_board_info __initdata cardhu_i2c_bus1_board_info[] = {
 	{
 		I2C_BOARD_INFO("wm8903", 0x1a),
 	},
-};
-
-
-static struct tegra_ulpi_config cardhu_ehci2_ulpi_phy_config = {
-	.reset_gpio = TEGRA_GPIO_PV1,
-	.clk = "clk_dev2",
-};
-
-static struct tegra_ehci_platform_data cardhu_ehci2_ulpi_platform_data = {
-	.operating_mode = TEGRA_USB_HOST,
-	.power_down_on_bus_suspend = 0,
-	.phy_config = &cardhu_ehci2_ulpi_phy_config,
 };
 
 static struct tegra_i2c_platform_data cardhu_i2c1_platform_data = {
@@ -330,9 +318,6 @@ static struct platform_device *cardhu_devices[] __initdata = {
 	&pmu_device,
 	&tegra_rtc_device,
 	&tegra_udc_device,
-#if ENABLE_USB_HOST
-	&tegra_ehci2_device,
-#endif
 #if defined(CONFIG_SND_HDA_TEGRA)
 	&tegra_hda_device,
 #endif
@@ -352,16 +337,19 @@ static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 			.phy_config = &utmi_phy_config[0],
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 0,
+			.usb_phy_type = TEGRA_USB_PHY_TYPE_UTMIP,
 	},
 	[1] = {
-			.phy_config = &ulpi_phy_config,
-			.operating_mode = TEGRA_USB_HOST,
-			.power_down_on_bus_suspend = 1,
-	},
-	[2] = {
 			.phy_config = &utmi_phy_config[1],
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 0,
+			.usb_phy_type = TEGRA_USB_PHY_TYPE_UTMIP,
+	},
+	[2] = {
+			.phy_config = &utmi_phy_config[2],
+			.operating_mode = TEGRA_USB_HOST,
+			.power_down_on_bus_suspend = 0,
+			.usb_phy_type = TEGRA_USB_PHY_TYPE_UTMIP,
 	},
 };
 
@@ -422,6 +410,9 @@ static void cardhu_usb_init(void)
 	tegra_otg_device.dev.platform_data = &tegra_otg_pdata;
 	platform_device_register(&tegra_otg_device);
 
+	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
+	platform_device_register(&tegra_ehci2_device);
+
 	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
 	platform_device_register(&tegra_ehci3_device);
 }
@@ -452,8 +443,6 @@ static void __init tegra_cardhu_init(void)
 	andusb_plat.serial_number = kstrdup(serial, GFP_KERNEL);
 	tegra_audio_device.dev.platform_data = &tegra_audio_pdata[0];
 	tegra_spdif_device.dev.platform_data = &tegra_spdif_pdata;
-	tegra_ehci2_device.dev.platform_data
-		= &cardhu_ehci2_ulpi_platform_data;
 	platform_add_devices(cardhu_devices, ARRAY_SIZE(cardhu_devices));
 
 	cardhu_sdhci_init();
