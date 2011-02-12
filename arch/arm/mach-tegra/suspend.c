@@ -199,6 +199,12 @@ static unsigned long tegra_cluster_switch_times[tegra_cluster_switch_time_id_max
 #define tegra_cluster_switch_time(flags, id) do {} while (0)
 #endif
 
+#ifdef CONFIG_SMP
+#define cpu_number()	hard_smp_processor_id()
+#else
+#define cpu_number()	0
+#endif
+
 static inline unsigned int time_to_bin(unsigned int time)
 {
 	return fls(time);
@@ -435,7 +441,7 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 	unsigned int mode;
 	unsigned long reg;
 	unsigned int remain;
-	unsigned int cpu = hard_smp_processor_id();
+	unsigned int cpu = cpu_number();
 
 	reg = readl(pmc + PMC_CTRL);
 	mode = (reg >> TEGRA_POWER_PMC_SHIFT) & TEGRA_POWER_PMC_MASK;
@@ -546,7 +552,7 @@ void tegra_suspend_dram(bool do_lp0)
 	mode |= ((reg >> TEGRA_POWER_PMC_SHIFT) & TEGRA_POWER_PMC_MASK);
 
 	if (!do_lp0) {
-		cpu = hard_smp_processor_id();
+		cpu = cpu_number();
 
 		mode |= TEGRA_POWER_CPU_PWRREQ_OE;
 		if (pdata->separate_req)

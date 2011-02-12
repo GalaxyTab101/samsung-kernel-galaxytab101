@@ -118,7 +118,7 @@ static inline void flowctrl_writel(unsigned long val, void __iomem *addr)
 
 extern void *tegra_context_area;
 
-#if CONFIG_SMP
+#ifdef CONFIG_SMP
 extern bool tegra_all_cpus_booted __read_mostly;
 #else
 #define tegra_all_cpus_booted (true)
