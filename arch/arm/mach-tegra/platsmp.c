@@ -98,9 +98,6 @@ void callGenericSMC(u32 param0, u32 param1, u32 param2);
 int boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned long timeout;
-#ifndef CONFIG_TRUSTED_FOUNDATIONS
-	u32 reg;
-#endif
 	int status;
 
 	if (is_lp_cluster()) {
@@ -154,16 +151,20 @@ int boot_secondary(unsigned int cpu, struct task_struct *idle)
 	flowctrl_writel(0, FLOW_CTRL_CPUx_CSR(cpu));
 	barrier();
 
-	/* enable cpu clock on cpu */
-	reg = readl(CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
-	writel(reg & ~CPU_CLOCK(cpu), CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
-	barrier();
-
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+	{
+		/* enable cpu clock on cpu */
+		u32 reg = readl(CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
+		writel(reg & ~CPU_CLOCK(cpu), CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
+		barrier();
+	}
+#endif
 	status = power_up_cpu(cpu);
 	if (status)
 		goto done;
 
 	barrier();
+	udelay(10);	/* power up delay */
 	writel(CPU_RESET(cpu), CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR);
 	wmb();
 	barrier();
@@ -325,11 +326,24 @@ static bool is_cpu_powered(unsigned int cpu)
 static int power_up_cpu(unsigned int cpu)
 {
 	int ret;
+	u32 reg;
 	unsigned long timeout;
 
 	BUG_ON(cpu == smp_processor_id());
 	BUG_ON(is_lp_cluster());
 
+	/* This function is entered after CPU has been already un-gated by
+	   flow controller. Wait for confirmation that cpu is powered and
+	   remove clamps. */
+	timeout = jiffies + HZ;
+	do {
+		if (is_cpu_powered(cpu))
+			goto remove_clamps;
+		udelay(10);
+	} while (time_before(jiffies, timeout));
+
+	/* Flow controller did not work as expected - try directly toggle
+	   power gates. Bail out if direct power on also failed */
 	if (!is_cpu_powered(cpu))
 	{
 		ret = tegra_powergate_power_on(TEGRA_CPU_POWERGATE_ID(cpu));
@@ -349,6 +363,13 @@ static int power_up_cpu(unsigned int cpu)
 	}
 
 remove_clamps:
+	/* now CPU is up: enable clock, propagate reset, and remove clamps */
+	reg = readl(CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
+	writel(reg & ~CPU_CLOCK(cpu), CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
+	barrier();
+	reg = readl(CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
+
+	udelay(10);
 	ret = tegra_powergate_remove_clamping(TEGRA_CPU_POWERGATE_ID(cpu));
 fail:
 	return ret;
