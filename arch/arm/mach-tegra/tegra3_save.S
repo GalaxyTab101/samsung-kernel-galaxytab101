@@ -440,6 +440,13 @@ __halted:
 	str	r3, [r6, #FLOW_CTRL_HALT_CPU_EVENTS]
 	ldr	r3, [r6, #FLOW_CTRL_HALT_CPU_EVENTS]
 
+#ifdef CONFIG_CACHE_L2X0
+	/* Disable L2 - L2 must be disabled when it is configured and
+	   enabled by the reset handler */
+	mov32	r3, (TEGRA_ARM_PL310_BASE + L2X0_CTRL)
+	mov	r0, #0
+	str	r0, [r3]
+#endif
 	/* Restart the CPU as if it has been reset. */
 	mov32	r3, TEGRA_EXCEPTION_VECTORS_BASE
 	ldr	r3, [r3]
