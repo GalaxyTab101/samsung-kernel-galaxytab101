@@ -439,15 +439,13 @@ static void __init tegra_cardhu_init(void)
 	tegra_common_init();
 	tegra_clk_init_from_table(cardhu_clk_init_table);
 	cardhu_pinmux_init();
-
+	cardhu_i2c_init();
 	snprintf(serial, sizeof(serial), "%llx", tegra_chip_uid());
 	andusb_plat.serial_number = kstrdup(serial, GFP_KERNEL);
 	tegra_audio_device.dev.platform_data = &tegra_audio_pdata[0];
 	tegra_spdif_device.dev.platform_data = &tegra_spdif_pdata;
 	platform_add_devices(cardhu_devices, ARRAY_SIZE(cardhu_devices));
-
 	cardhu_sdhci_init();
-	cardhu_i2c_init();
 	cardhu_regulator_init();
 	cardhu_gpio_switch_regulator_init();
 	cardhu_suspend_init();
