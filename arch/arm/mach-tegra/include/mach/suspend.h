@@ -74,7 +74,9 @@ int tegra_wake_to_irq(int wake);
 void tegra_irq_disable_affinity(void);
 void tegra_irq_affinity_to_cpu0(void);
 void tegra_irq_restore_affinity(void);
+void tegra_irq_pass_through_disable(void);
 #endif
+
 
 int tegra_set_lp0_wake(int irq, int enable);
 int tegra_set_lp0_wake_type(int irq, int flow_type);

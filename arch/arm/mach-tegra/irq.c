@@ -387,6 +387,14 @@ void tegra_irq_affinity_to_cpu0(void)
 		__raw_writel(0x01010101, gic_base + GIC_DIST_TARGET + i);
        wmb();
 }
+
+void tegra_irq_pass_through_disable(void)
+{
+	void __iomem *base = IO_ADDRESS(TEGRA_ARM_PERIF_BASE + 0x100);
+	u32 val = readl(base + GIC_CPU_CTRL);
+	val |= 2; /* enableNS = disable pass through */
+	writel(1, base + GIC_CPU_CTRL);
+}
 #endif
 
 #ifdef CONFIG_DEBUG_FS

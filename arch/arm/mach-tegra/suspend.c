@@ -434,6 +434,12 @@ static noinline void suspend_cpu_complex(void)
 
 	gic_cpu_exit(0);
 	gic_dist_save(0);
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
+	/* tegra3 enters lpx states via WFI - do not propagate legacy IRQs
+	   to CPU core to avoid fall through WFI (IRQ-to-flow controller wake
+	   path is not affected) */
+	tegra_irq_pass_through_disable();
+#endif
 }
 
 unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
