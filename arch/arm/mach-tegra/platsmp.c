@@ -36,6 +36,7 @@
 
 #include <mach/iomap.h>
 #include <mach/powergate.h>
+#include <mach/suspend.h>
 
 #include "power.h"
 #include "reset.h"
@@ -148,22 +149,28 @@ int boot_secondary(unsigned int cpu, struct task_struct *idle)
 	   is now driving reset. */
 	wmb();
 	flowctrl_writel(0, FLOW_CTRL_HALT_CPUx_EVENTS(cpu));
-	flowctrl_writel(0, FLOW_CTRL_CPUx_CSR(cpu));
 	barrier();
 
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+	flowctrl_writel(0, FLOW_CTRL_CPUx_CSR(cpu));
+	barrier();
 	{
 		/* enable cpu clock on cpu */
 		u32 reg = readl(CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
 		writel(reg & ~CPU_CLOCK(cpu), CLK_RST_CONTROLLER_CLK_CPU_CMPLX);
 		barrier();
 	}
-#endif
+#else
+	/* On Tegra3 secondary CPU was power gated (not just halted). Clearing
+	   CSR may abort power on state machine transition - do it only after
+	   CPU is powered up */
 	status = power_up_cpu(cpu);
 	if (status)
 		goto done;
-
+	flowctrl_writel(0, FLOW_CTRL_CPUx_CSR(cpu));
 	barrier();
+#endif
+
 	udelay(10);	/* power up delay */
 	writel(CPU_RESET(cpu), CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR);
 	wmb();
@@ -289,9 +296,17 @@ void platform_cpu_die(unsigned int cpu)
 #endif
 
 	gic_cpu_exit(0);
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
+	/* Tegra3 enters lpx states via WFI - do not propagate legacy IRQs
+	   to CPU core to avoid fall through WFI; then gic output will be
+	   enabled, however at this time - CPU is dying - no interrupt should
+	   have afiinity to this CPU */
+	tegra_irq_pass_through_disable();
+#endif
 	barrier();
 	complete(&per_cpu(cpu_killed, cpu));
 	flush_cache_all();
+	tegra_cpu_reset_handler_flush(false);
 	barrier();
 	__cortex_a9_save(TEGRA_POWER_HOTPLUG_SHUTDOWN);
 

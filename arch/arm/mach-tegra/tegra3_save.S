@@ -494,10 +494,15 @@ __put_cpu_in_reset_again:
 	bge	__put_cpu_in_reset_again
 
 	/* Halt failed to take effect and all retries have been exausted.
+	   Clear the flow controller halt status.
 	   If trying to go to LP2 state, just jump to the reset handler and
 	   restart the CPU as if it has been woken up. If trying to offline
 	   this CPU, just assert our own reset. The requester will have to
 	   clean up the mess (disable clock, power gate, etc.). */
+	mov	r3, #0
+	str	r3, [r7, r2]
+	str	r3, [r7, r1]
+	ldr	r3, [r7, r1]
 	tst	sp, #TEGRA_POWER_HOTPLUG_SHUTDOWN
 	bne	__assert_reset
 

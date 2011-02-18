@@ -268,13 +268,14 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 
 	/* Powergate CPUn. */
 	stop_critical_timings();
-	gic_cpu_exit(0);
+	/* gic_cpu_exit(0); - we want to wake cpu_n on gic interrupt */
 	barrier();
 	twd_ctrl = readl(twd_base + 0x8);
 	twd_load = readl(twd_base + 0);
 
 	cpu_set(dev->cpu, tegra_cpu_lp2_map);
 	flush_cache_all();
+	tegra_cpu_reset_handler_flush(false);
 	barrier();
 	__cortex_a9_save(0);
 	/* CPUn is powergated */

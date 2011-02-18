@@ -203,8 +203,8 @@ void tegra_cpu_reset_handler_enable(void)
 
 void tegra_cpu_reset_handler_flush(bool l1cache)
 {
-	unsigned long first = (unsigned long)&cpu_online_mask;
-	unsigned long last  = (unsigned long)&cpu_present_mask;
+	unsigned long first = (unsigned long)cpu_online_mask;
+	unsigned long last  = (unsigned long)cpu_present_mask;
 
 	if (first > last)
 		swap(first,last);
