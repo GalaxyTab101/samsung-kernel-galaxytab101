@@ -105,18 +105,15 @@ static int tegra_sdhci_enable_dma(struct sdhci_host *host)
 }
 
 #if defined (CONFIG_ARCH_TEGRA_3x_SOC)
-static void tegra_sdhci_set_trimmer_values(struct sdhci_host *sdhci)
+static void tegra_sdhci_configure_tap_value(struct sdhci_host *sdhci, unsigned int tap_delay)
 {
 	u32 ctrl;
-	struct tegra_sdhci_host *host = sdhci_priv(sdhci);
 
-	BUG_ON(host->tap_delay > 0xFF);
+	BUG_ON(tap_delay > 0xFF);
 
 	ctrl = sdhci_readl(sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
 	ctrl &= ~(0xFF << SDHCI_VENDOR_CLOCK_CNTRL_TAP_VAL_SHIFT);
-	ctrl |= (host->tap_delay << SDHCI_VENDOR_CLOCK_CNTRL_TAP_VAL_SHIFT);
-	ctrl &= ~(0xFF << SDHCI_VENDOR_CLOCK_CNTRL_BASE_CLK_FREQ_SHIFT);
-	ctrl |= ((host->max_clk/1000000) << SDHCI_VENDOR_CLOCK_CNTRL_BASE_CLK_FREQ_SHIFT);
+	ctrl |= (tap_delay << SDHCI_VENDOR_CLOCK_CNTRL_TAP_VAL_SHIFT);
 	sdhci_writel(sdhci, ctrl, SDHCI_VENDOR_CLOCK_CNTRL);
 }
 #endif
@@ -125,6 +122,7 @@ static void tegra_sdhci_configure_capabilities(struct sdhci_host *sdhci)
 {
 #if defined (CONFIG_ARCH_TEGRA_3x_SOC)
 	u32 ctrl;
+	struct tegra_sdhci_host *host = sdhci_priv(sdhci);
 
 	/*
 	 * Configure clock override bits and SDR50 tuning requirement in
@@ -132,6 +130,8 @@ static void tegra_sdhci_configure_capabilities(struct sdhci_host *sdhci)
 	 */
 	ctrl = sdhci_readl(sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
 	ctrl |= SDHCI_VENDOR_CLOCK_CNTRL_PADPIPE_CLKEN_OVERRIDE;
+	ctrl &= ~(0xFF << SDHCI_VENDOR_CLOCK_CNTRL_BASE_CLK_FREQ_SHIFT);
+	ctrl |= ((host->max_clk/1000000) << SDHCI_VENDOR_CLOCK_CNTRL_BASE_CLK_FREQ_SHIFT);
 	sdhci_writel(sdhci, ctrl, SDHCI_VENDOR_CLOCK_CNTRL);
 
 	/* Enable support for SD 3.0 */
@@ -141,7 +141,7 @@ static void tegra_sdhci_configure_capabilities(struct sdhci_host *sdhci)
 	ctrl |= SDMMC_VENDOR_MISC_CNTRL_SDMMC_SPARE0_ENABLE_SD3_0_SUPPORT;
 	sdhci_writel(sdhci, ctrl, SDMMC_VENDOR_MISC_CNTRL);
 
-	tegra_sdhci_set_trimmer_values(sdhci);
+	tegra_sdhci_configure_tap_value(sdhci, host->tap_delay);
 #endif
 }
 
@@ -198,8 +198,8 @@ static void tegra_sdhci_set_signalling_voltage(struct sdhci_host *sdhci,
 		printk(KERN_ERR "%s switching to %dV failed %d\n",
 			mmc_hostname(sdhci->mmc), (maxV/1000000), rc);
 	else {
-		if (signalling_voltage == SDHCI_POWER_180) {
 #if CONFIG_ARCH_TEGRA_3x_SOC
+		if (signalling_voltage == MMC_1_8_VOLT_SIGNALLING) {
 			/* Do Auto Calibration */
 			val = sdhci_readl(sdhci, SDMMC_AUTO_CAL_CONFIG);
 			val |= SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_ENABLE;
@@ -222,6 +222,9 @@ static struct sdhci_ops tegra_sdhci_ops = {
 	.set_clock = tegra_sdhci_set_clock,
 	.configure_capabilities = tegra_sdhci_configure_capabilities,
 	.get_cd = tegra_sdhci_card_detect,
+#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+	.configure_tap_value = tegra_sdhci_configure_tap_value,
+#endif
 };
 
 static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
@@ -267,6 +270,9 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	host->cd_gpio_polarity = plat->cd_gpio_polarity;
 	host->wp_gpio = plat->wp_gpio;
 	host->wp_gpio_polarity = plat->wp_gpio_polarity;
+#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+	host->sdhci->tap_value = plat->tap_delay;
+#endif
 
 	host->clk = clk_get(&pdev->dev, plat->clk_id);
 	if (IS_ERR(host->clk)) {
