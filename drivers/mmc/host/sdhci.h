@@ -337,7 +337,9 @@ struct sdhci_host {
 	struct timer_list	timer;		/* Timer for timeouts */
 
 	unsigned int		caps;		/* Alternative capabilities */
-
+#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+	unsigned int		tap_value;	/* Tap delay value */
+#endif
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
@@ -356,6 +358,10 @@ struct sdhci_ops {
 	void	(*configure_capabilities)(struct sdhci_host *host);
 	void	(*set_signalling_voltage)(struct sdhci_host *host,
 		unsigned int signalling_voltage);
+#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+	void	(*configure_tap_value)(struct sdhci_host *sdhci,
+		unsigned int tap_value);
+#endif
 
 	int		(*enable_dma)(struct sdhci_host *host);
 	int		(*get_cd)(struct sdhci_host *host);

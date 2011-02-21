@@ -68,6 +68,10 @@ struct mmc_ios {
 #define MMC_QUERY_TUNING_STATUS		2
 #define MMC_SAMPLING_CLOCK_SELECT		3
 #define MMC_RESET_TUNING_CIRCUIT		4
+
+#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+	unsigned int	tap_value;		/* Tap delay value */
+#endif
 };
 
 struct mmc_host_ops {

@@ -715,6 +715,17 @@ void mmc_reset_tuning_circuit(struct mmc_host *host)
 	host->ios.tuning_arg = 0;
 }
 
+#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+/*
+ * Set the tap value.
+ */
+void mmc_set_tap_value(struct mmc_host *host, unsigned char tap_value)
+{
+	host->ios.tap_value = tap_value;
+	mmc_set_ios(host);
+}
+#endif
+
 /**
  * mmc_vdd_to_ocrbitnum - Convert a voltage to the OCR bit number
  * @vdd:	voltage (mV)

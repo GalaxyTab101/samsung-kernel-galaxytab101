@@ -1264,6 +1264,12 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (ios->tuning_arg) {
 		switch(ios->tuning_arg) {
 		case MMC_EXECUTE_TUNING:
+			/* Clear the sampling clock select bit */
+			ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL_2);
+			ctrl &= ~SDHCI_CTRL_2_SAMPLING_CLOCK_SELECT;
+			sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL_2);
+
+			/* Set the execute tuning bit */
 			ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL_2);
 			if (!(ctrl & SDHCI_CTRL_2_EXECUTE_TUNING)) {
 				ctrl |= SDHCI_CTRL_2_EXECUTE_TUNING;
@@ -1280,6 +1286,12 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL_2);
 			if (ctrl & SDHCI_CTRL_2_SAMPLING_CLOCK_SELECT)
 				mmc->tuning_status = MMC_SD_SAMPLING_CLOCK_SELECT_SET;
+			break;
+		case MMC_RESET_TUNING_CIRCUIT:
+			ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL_2);
+			ctrl &= ~(SDHCI_CTRL_2_SAMPLING_CLOCK_SELECT);
+			sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL_2);
+			mmc->tuning_status = MMC_SD_RESET_TUNING_CIRCUIT;
 			break;
 		default:
 			printk(KERN_ERR "%s: Undefined tuning operation\n",
@@ -1318,6 +1330,22 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 		host->signalling_voltage = ios->signalling_voltage;
 	}
+
+#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+	if (ios->tap_value != host->tap_value) {
+		/* Switch OFF SD clock */
+		clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+		clk &= (~SDHCI_CLOCK_CARD_EN);
+		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+		host->ops->configure_tap_value(host, ios->tap_value);
+		host->tap_value = ios->tap_value;
+
+		/* Switch ON sd clock */
+		clk |= SDHCI_CLOCK_CARD_EN;
+		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+	}
+#endif
 out:
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
@@ -2008,6 +2036,7 @@ int sdhci_add_host(struct sdhci_host *host)
 		mmc->f_min = host->ops->get_min_clock(host);
 	else
 		mmc->f_min = host->max_clk / 256;
+
 	mmc->f_max = host->max_clk;
 	mmc->caps = 0;
 

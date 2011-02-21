@@ -264,43 +264,157 @@ static int mmc_execute_tuning(struct mmc_card *card)
 	mmc_get_tuning_status(card->host, MMC_QUERY_TUNING_STATUS);
 	if (card->host->tuning_status != MMC_SD_TUNING_COMPLETED)
 		err = -EAGAIN;
+
+	/* If the sampling clock select is set, tuning is successful */
+	mmc_get_tuning_status(card->host, MMC_SAMPLING_CLOCK_SELECT);
+	if (card->host->tuning_status != MMC_SD_SAMPLING_CLOCK_SELECT_SET) {
+		printk(KERN_ERR "%s: frequency tuning failed\n",
+			mmc_hostname(card->host));
+		err = -EAGAIN;
+	}
 out:
 	card->host->tuning_status = 0;
 	return err;
 }
+
+#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+#define FIND_PASSING_TAP	0
+#define FIND_MAX_TAP		1
+#define FIND_MIN_TAP		2
+#define SET_MAX_TAP		3
+#define SET_MIN_TAP		4
+#define SET_PASSING_TAP		5
+
+static int set_tap_delay(struct mmc_card *card, bool *is_tap_working, unsigned char* tuning_done)
+{
+	struct mmc_host *host = card->host;
+	unsigned int err = 0;
+	static unsigned int tap_delay = 10;
+	static unsigned int tap_delta = 10;
+	static int min_tap;
+	static int max_tap;
+	static unsigned int tap_config_arg = 0;
+	static bool best_tap_found = false;
+
+	if (tap_delay > 0xFF)
+		return -EINVAL;
+
+	if (!tap_config_arg && *is_tap_working)
+		tap_config_arg = SET_PASSING_TAP;
+
+	switch(tap_config_arg) {
+		case FIND_PASSING_TAP:
+			mmc_set_tap_value(host, tap_delay);
+			tap_delay += tap_delta;
+			break;
+		case SET_PASSING_TAP:
+			tap_delay -= tap_delta;
+			min_tap = tap_delay;
+			tap_delta = 1;
+			tap_delay += tap_delta;
+			mmc_set_tap_value(host, tap_delay);
+			tap_config_arg = FIND_MAX_TAP;
+			break;
+		case FIND_MAX_TAP:
+			if (*is_tap_working) {
+				tap_delay += tap_delta;
+				mmc_set_tap_value(host, tap_delay);
+			} else {
+				max_tap = tap_delay - 1;
+				tap_config_arg = FIND_MIN_TAP;
+				tap_delay = min_tap;
+				mmc_set_tap_value(host, tap_delay);
+			}
+			break;
+		case FIND_MIN_TAP:
+			if (*is_tap_working) {
+				if (tap_delay) {
+					tap_delay -= tap_delta;
+					mmc_set_tap_value(host, tap_delay);
+				} else {
+					min_tap = tap_delay;
+					best_tap_found = true;
+				}
+			} else {
+				min_tap = tap_delay + 1;
+				best_tap_found = true;
+			}
+			break;
+		default:
+			pr_err("Incorrect tap configuration argument\n");
+			break;
+	}
+
+	if (best_tap_found) {
+		/*
+		 * Both the min and max tap values should not be less
+		 * 10. This tap range is prone to errors and is not
+		 * recommended.
+		 */
+		if ((min_tap == 0) && (max_tap < 10)) {
+			tap_delta = 10;
+			tap_delay = max_tap + tap_delta;
+			pr_err("Passing tap window is too small. Do frequency "
+				"tuning again from %d\n", tap_delay);
+			tap_config_arg = FIND_PASSING_TAP;
+			best_tap_found = false;
+			*is_tap_working = false;
+			mmc_set_tap_value(host, tap_delay);
+			tap_delay += tap_delta;
+		} else {
+			tap_delay = (min_tap + (((max_tap - min_tap) * 3) >> 2));
+			mmc_set_tap_value(host, tap_delay);
+			err = mmc_execute_tuning(card);
+			*tuning_done = 1;
+		}
+	}
+
+	return err;
+}
+#endif
 
 static int mmc_frequency_tuning(struct mmc_card *card)
 {
 	int err;
 	unsigned int count = 0;
 	unsigned char tuning_done = 0;
+#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+	bool is_tap_working = false;
+#endif
 
-	while (!tuning_done) {
+	do {
+		#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+		err = set_tap_delay(card, &is_tap_working, &tuning_done);
+		if (err)
+			return err;
+		#endif
 		err = mmc_execute_tuning(card);
 		if (err) {
+			#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+			is_tap_working = false;
+			#endif
 			count++;
 			continue;
 		} else {
 			if (count >= 40) {
-				count = 0;
 				mmc_reset_tuning_circuit(card->host);
+				#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+				is_tap_working = false;
+				#endif
+				count = 0;
 				continue;
-			} else
-			tuning_done = 1;
+			} else {
+				#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+				is_tap_working = true;
+				count = 0;
+				#else
+				tuning_done = 1;
+				#endif
+			}
 		}
-	}
+	} while (!tuning_done);
 
-	/* If the sampling clock select is set, tuning is successful */
-	mmc_get_tuning_status(card->host, MMC_SAMPLING_CLOCK_SELECT);
-	if (card->host->tuning_status != MMC_SD_SAMPLING_CLOCK_SELECT_SET) {
-		printk(KERN_ERR "%s: frequency tuning failed.Reset tuning circuit\n",
-			mmc_hostname(card->host));
-
-		mmc_reset_tuning_circuit(card->host);
-		return -EIO;
-	}
-
-	return 0;
+	return err;
 }
 
 /*
@@ -717,6 +831,18 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		goto free_card;
 
 	/*
+	 * Switch to wider bus (if supported).
+	 */
+	if ((host->caps & MMC_CAP_4_BIT_DATA) &&
+		(card->scr.bus_widths & SD_SCR_BUS_WIDTH_4)) {
+		err = mmc_app_set_bus_width(card, MMC_BUS_WIDTH_4);
+		if (err)
+			goto free_card;
+
+		mmc_set_bus_width(host, MMC_BUS_WIDTH_4);
+	}
+
+	/*
 	 * If voltage switching is supported, attempt to switch to a supported
 	 * UHS mode. If voltage switching is not supported, attempt to switch
 	 * to high speed mode.
@@ -755,18 +881,6 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 			err = mmc_frequency_tuning(card);
 			if (err)
 				goto free_card;
-	}
-
-	/*
-	 * Switch to wider bus (if supported).
-	 */
-	if ((host->caps & MMC_CAP_4_BIT_DATA) &&
-		(card->scr.bus_widths & SD_SCR_BUS_WIDTH_4)) {
-		err = mmc_app_set_bus_width(card, MMC_BUS_WIDTH_4);
-		if (err)
-			goto free_card;
-
-		mmc_set_bus_width(host, MMC_BUS_WIDTH_4);
 	}
 
 	host->card = card;

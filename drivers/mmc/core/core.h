@@ -42,6 +42,9 @@ void mmc_switch_signalling_voltage(struct mmc_host *host, unsigned int signallin
 void mmc_start_tuning(struct mmc_host *host);
 void mmc_get_tuning_status(struct mmc_host *host, int tuning_arg);
 void mmc_reset_tuning_circuit(struct mmc_host *host);
+#ifdef CONFIG_MMC_TEGRA_TAP_DELAY
+void mmc_set_tap_value(struct mmc_host *host, unsigned char tap_value);
+#endif
 
 static inline void mmc_delay(unsigned int ms)
 {

@@ -121,6 +121,14 @@ config MMC_SDHCI_PLTFM
 
 	  If unsure, say N.
 
+config MMC_TEGRA_TAP_DELAY
+	bool "TEGRA SDHCI tap delay configuration support"
+	depends on ARCH_TEGRA
+	depends on ARCH_TEGRA_3x_SOC
+	help
+	  This selects the tap delay configuration for tegra
+	  sdhci driver.
+
 config MMC_SDHCI_CNS3XXX
 	bool "SDHCI support on the Cavium Networks CNS3xxx SoC"
 	depends on ARCH_CNS3XXX
