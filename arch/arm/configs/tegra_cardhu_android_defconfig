@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.36.3
-# Fri Feb 18 13:36:31 2011
+# Mon Feb 21 17:33:53 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -2082,6 +2082,7 @@ CONFIG_MMC_BLOCK_DEFERRED_RESUME=y
 #
 CONFIG_MMC_SDHCI=y
 # CONFIG_MMC_SDHCI_PLTFM is not set
+CONFIG_MMC_TEGRA_TAP_DELAY=y
 CONFIG_MMC_SDHCI_TEGRA=y
 # CONFIG_MEMSTICK is not set
 # CONFIG_NEW_LEDS is not set
