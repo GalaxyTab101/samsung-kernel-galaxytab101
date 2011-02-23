@@ -2057,8 +2057,10 @@ int sdhci_add_host(struct sdhci_host *host)
 	if (host->quirks & SDHCI_QUIRK_FORCE_HIGH_SPEED_MODE)
 		mmc->caps |= MMC_CAP_FORCE_HS;
 
-	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
-		mmc->caps |= MMC_CAP_NEEDS_POLL;
+	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) {
+		if (!host->ops->get_cd)
+			mmc->caps |= MMC_CAP_NEEDS_POLL;
+	}
 
 	if (host->quirks & SDHCI_QUIRK_RUNTIME_DISABLE)
 		mmc->caps |= MMC_CAP_DISABLE;
