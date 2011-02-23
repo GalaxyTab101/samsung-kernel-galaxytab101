@@ -47,7 +47,23 @@ extern struct tegra_touchscreen_init atmel_mxt_init_data;
 
 int generic_touch_init(struct tegra_touchscreen_init *tsdata)
 {
+	int ret;
 /*	pr_info("### TOUCHSCREEN:  Inside generic_touch_init()\n");	*/
+	ret = gpio_request(tsdata->rst_gpio, "touch-reset");
+	if (ret < 0) {
+		pr_err("%s(): gpio_request() fails for gpio %d (touch-reset)\n",
+						__func__, tsdata->rst_gpio);
+		return ret;
+	}
+
+	ret = gpio_request(tsdata->irq_gpio, "touch-irq");
+	if (ret < 0) {
+		pr_err("%s(): gpio_request() fails for gpio %d (touch-irq)\n",
+						__func__, tsdata->irq_gpio);
+		gpio_free(tsdata->rst_gpio);
+		return ret;
+	}
+
 	tegra_gpio_enable(tsdata->irq_gpio);
 	tegra_gpio_enable(tsdata->rst_gpio);
 	gpio_direction_output(tsdata->rst_gpio, 1);
