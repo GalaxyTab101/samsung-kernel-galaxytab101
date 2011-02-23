@@ -165,4 +165,6 @@ struct tegra_wired_jack_conf {
 	struct regulator *amp_reg;   /* regulator for speaker amp */
 };
 
+int audio_wired_jack_init(void);
+
 #endif /* __ARCH_ARM_MACH_TEGRA_AUDIO_H */
