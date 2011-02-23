@@ -352,8 +352,7 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 			SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
 			SDHCI_QUIRK_RUNTIME_DISABLE;
 #ifdef CONFIG_ARCH_TEGRA_3x_SOC
-	/* This change acquire wake_lock forever preventing system not to enter suspend */
-	/* sdhci->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION; */
+	sdhci->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 #endif
 
 	if (plat->force_hs != 0)
