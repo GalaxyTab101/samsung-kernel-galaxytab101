@@ -30,6 +30,7 @@ struct tegra_sdhci_platform_data {
 	int power_gpio;
 	unsigned int tap_delay;
 	bool is_voltage_switch_supported;
+	bool is_8bit_supported;
 	const char *vsd_name;
 	const char *vsd_slot_name;
 	unsigned int max_clk;
