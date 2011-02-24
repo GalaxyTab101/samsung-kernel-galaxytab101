@@ -34,6 +34,7 @@
 #include <linux/input.h>
 #include <linux/platform_data/tegra_usb.h>
 #include <linux/usb/android_composite.h>
+#include <linux/spi/spi.h>
 #include <mach/clk.h>
 #include <mach/iomap.h>
 #include <mach/irqs.h>
@@ -330,6 +331,7 @@ static struct platform_device *cardhu_devices[] __initdata = {
 	&tegra_spdif_device,
 	&tegra_avp_device,
 	&tegra_camera,
+	&tegra_spi_device4,
 };
 
 
