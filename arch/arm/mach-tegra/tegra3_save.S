@@ -71,6 +71,8 @@
 #define CLK_RESET_PLLP_MISC		0xac
 #define CLK_RESET_PLLX_MISC		0xe4
 
+#define CLK_RESET_CLK_SOURCE_MSELECT	0x3b4
+#define MSELECT_CLKM			(0x3 << 30)
 
 #include "power-macros.S"
 
@@ -357,6 +359,11 @@ __tear_down_master_pll_cpu:
 	mov	r0, #0
 	str	r0, [r5, #CLK_RESET_CCLK_DIVIDER]
 	str	r0, [r5, #CLK_RESET_SCLK_DIVIDER]
+
+	/* switch the clock source for mselect to be CLK_M */
+	ldr	r0, [r5, #CLK_RESET_CLK_SOURCE_MSELECT]
+	orr	r0, r0, #MSELECT_CLKM
+	str	r0, [r5, #CLK_RESET_CLK_SOURCE_MSELECT]
 
 	/* 2 us delay between changing sclk and disabling PLLs */
 	wait_for_us r1, r7, r9
