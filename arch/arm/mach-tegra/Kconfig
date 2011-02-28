@@ -138,6 +138,13 @@ source "arch/arm/mach-tegra/nv/Kconfig"
 
 endif
 
+config TEGRA_CARDHU_DSI
+	bool "Support DSI panel on Cardhu"
+	depends on MACH_CARDHU
+	select TEGRA_DSI
+	help
+		Support for DSI Panel on Nvidia Cardhu
+
 config TEGRA_EMC_SCALING_ENABLE
 	bool "Enable scaling the memory frequency"
 	default n
