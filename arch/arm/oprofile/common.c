@@ -298,15 +298,8 @@ static int report_trace(struct stackframe *frame, void *d)
 	return *depth == 0;
 }
 
-/*
- * The registers we're interested in are at the end of the variable
- * length saved register structure. The fp points at the end of this
- * structure so the address of this struct is:
- * (struct frame_tail *)(xxx->fp)-1
- */
 struct frame_tail {
-	struct frame_tail *fp;
-	unsigned long sp;
+	unsigned long fp;
 	unsigned long lr;
 } __attribute__((packed));
 
@@ -324,15 +317,16 @@ static struct frame_tail* user_backtrace(struct frame_tail *tail)
 
 	/* frame pointers should strictly progress back up the stack
 	 * (towards higher addresses) */
-	if (tail >= buftail[0].fp)
+	if (tail >= (struct frame_tail *) buftail[0].fp)
 		return NULL;
 
-	return buftail[0].fp-1;
+	return (struct frame_tail *) buftail[0].fp - sizeof(unsigned long);
 }
 
 static void arm_backtrace(struct pt_regs * const regs, unsigned int depth)
 {
-	struct frame_tail *tail = ((struct frame_tail *) regs->ARM_fp) - 1;
+	struct frame_tail *tail = (struct frame_tail *)
+	                          (regs->ARM_fp - sizeof(unsigned long));
 
 	if (!user_mode(regs)) {
 		struct stackframe frame;
