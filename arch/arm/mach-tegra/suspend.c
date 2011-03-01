@@ -541,6 +541,8 @@ static void pmc_32kwritel(u32 val, unsigned long offs)
 static u8 *iram_save = NULL;
 static unsigned int iram_save_size = 0;
 static void __iomem *iram_code = IO_ADDRESS(TEGRA_IRAM_CODE_AREA);
+static void __iomem *evp_cpu_reset =
+				IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE + 0x100);
 
 void tegra_suspend_dram(bool do_lp0)
 {
@@ -592,6 +594,10 @@ void tegra_suspend_dram(bool do_lp0)
 			pdata->wake_any);
 	}
 
+	/* FIXME we should not change evp_cpu_reset here */
+	writel(TEGRA_IRAM_CODE_AREA, evp_cpu_reset);
+	wmb();
+
 	suspend_cpu_complex();
 	if (!do_lp0)
 		cpu_set(cpu, tegra_cpu_lp1_map);
@@ -615,8 +621,8 @@ void tegra_suspend_dram(bool do_lp0)
 					    cpu, tegra_wfi_fail_count[cpu]);
 		}
 	}
-	else
-		tegra_cpu_reset_handler_enable();
+
+	tegra_cpu_reset_handler_enable();
 
 	restore_cpu_complex();
 
