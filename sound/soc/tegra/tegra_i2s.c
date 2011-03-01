@@ -1,20 +1,22 @@
 /*
  * tegra_i2s.c  --  ALSA Soc Audio Layer
  *
- * (c) 2010-2011 Nvidia Graphics Pvt. Ltd.
- *  http://www.nvidia.com
+ * Copyright (c) 2009-2011, NVIDIA Corporation.
  *
- * (c) 2006 Wolfson Microelectronics PLC.
- * Graeme Gregory graeme.gregory@wolfsonmicro.com or linux@wolfsonmicro.com
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
  *
- * (c) 2004-2005 Simtec Electronics
- *    http://armlinux.simtec.co.uk/
- *    Ben Dooks <ben@simtec.co.uk>
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
  *
- *  This program is free software; you can redistribute  it and/or modify it
- *  under  the terms of  the GNU General  Public License as published by the
- *  Free Software Foundation;  either version 2 of the  License, or (at your
- *  option) any later version.
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ *
  */
 
 #include "tegra_soc.h"
@@ -111,7 +113,6 @@ static inline void stop_i2s_capture(struct snd_soc_dai *cpu_dai)
 	i2s_fifo_enable(cpu_dai->id, I2S_FIFO_RX, 0);
 	while (i2s_get_status(cpu_dai->id) & I2S_I2S_FIFO_RX_BUSY);
 }
-#endif
 
 
 static int tegra_i2s_hw_params(struct snd_pcm_substream *substream,
@@ -202,6 +203,7 @@ static int tegra_i2s_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	}
 	i2s_set_master(i2s_id, val1);
 	info->i2s_master = val1;
+
 
 	val2 = AUDIO_LRCK_LEFT_LOW;
 
@@ -359,7 +361,7 @@ static void tegra_i2s_shutdown(struct snd_pcm_substream *substream,
 }
 
 static int tegra_i2s_probe(struct platform_device *pdev,
-				struct snd_soc_dai *dai)
+				struct snd_soc_dai *cpu_dai)
 {
 	return 0;
 }

@@ -1,19 +1,22 @@
 /*
  * tegra_soc.h  --  SoC audio for tegra
  *
- * (c) 2010-2011 Nvidia Graphics Pvt. Ltd.
- *  http://www.nvidia.com
+* Copyright (c) 2009-2011, NVIDIA Corporation.
  *
- * Copyright 2007 Wolfson Microelectronics PLC.
- * Author: Graeme Gregory
- *         graeme.gregory@wolfsonmicro.com or linux@wolfsonmicro.com
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
  *
- *  This program is free software; you can redistribute  it and/or modify it
- *  under  the terms of  the GNU General  Public License as published by the
- *  Free Software Foundation;  either version 2 of the  License, or (at your
- *  option) any later version.
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
  *
- */
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ * */
 
 #ifndef __TEGRA_AUDIO__
 #define __TEGRA_AUDIO__
@@ -138,6 +141,10 @@ int tegra_controls_init(struct snd_soc_codec *codec);
 int tegra_jack_init(struct snd_soc_codec *codec);
 void tegra_jack_exit(void);
 void tegra_jack_resume(void);
+void setup_dma_request(struct snd_pcm_substream *substream,
+			struct tegra_dma_req *req,
+			void (*dma_callback)(struct tegra_dma_req *req),
+			void *dma_data);
 
 void tegra_switch_set_state(int state);
 

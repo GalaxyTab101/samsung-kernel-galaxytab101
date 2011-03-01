@@ -1,24 +1,25 @@
 /*
  * tegra_pcm.c  --  ALSA Soc Audio Layer
  *
- * (c) 2010-2011 Nvidia Corporation.
- *  http://www.nvidia.com
+ * Copyright (c) 2009-2011, NVIDIA Corporation.
  *
- * (c) 2006 Wolfson Microelectronics PLC.
- * Graeme Gregory graeme.gregory@wolfsonmicro.com or linux@wolfsonmicro.com
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
  *
- * (c) 2004-2005 Simtec Electronics
- *    http://armlinux.simtec.co.uk/
- *    Ben Dooks <ben@simtec.co.uk>
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
  *
- *  This program is free software; you can redistribute  it and/or modify it
- *  under  the terms of  the GNU General  Public License as published by the
- *  Free Software Foundation;  either version 2 of the  License, or (at your
- *  option) any later version.
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ *
  */
 
 #include "tegra_soc.h"
-#include <mach/tegra_das.h>
 
 #define PLAYBACK_STARTED true
 #define PLAYBACK_STOPPED false
@@ -28,6 +29,7 @@ static void tegra_pcm_play(struct tegra_runtime_data *prtd)
 	struct snd_pcm_substream *substream = prtd->substream;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_dma_buffer *buf = &substream->dma_buffer;
+	struct tegra_dma_req *dma_req;
 
 	if (runtime->dma_addr) {
 		prtd->size = frames_to_bytes(runtime, runtime->period_size);
@@ -156,10 +158,11 @@ static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 				tegra_pcm_capture(prtd); /* dma enqueue req */
 		}
 		break;
+
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		prtd->state = STATE_ABORT;
+
 		prtd->dma_state = STATE_ABORT;
 		tegra_dma_cancel(prtd->dma_chan);
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
@@ -180,6 +183,7 @@ static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 			}
 		}
 		break;
+
 	default:
 		ret = -EINVAL;
 		break;
@@ -228,11 +232,11 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 		goto fail;
 	}
 
+	/* 
 	prtd = kzalloc(sizeof(struct tegra_runtime_data), GFP_KERNEL);
 	if (prtd == NULL)
 		return -ENOMEM;
 
-	memset(prtd, 0, sizeof(*prtd));
 	runtime->private_data = prtd;
 	prtd->substream = substream;
 
@@ -258,10 +262,10 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 	}
 
 	prtd->dma_chan = tegra_dma_allocate_channel(TEGRA_DMA_MODE_CONTINUOUS_DOUBLE);
-	if (IS_ERR(prtd->dma_chan)) {
-		pr_err("%s: could not allocate DMA channel for I2S: %ld\n",
-		       __func__, PTR_ERR(prtd->dma_chan));
-		ret = PTR_ERR(prtd->dma_chan);
+	if (prtd->dma_chan == NULL) {
+		pr_err("%s: could not allocate DMA channel for PCM:\n",
+				__func__);
+		ret = -ENOMEM;
 		goto fail;
 	}
 
@@ -295,8 +299,6 @@ static int tegra_pcm_close(struct snd_pcm_substream *substream)
 		printk(KERN_ERR "tegra_pcm_close called with prtd == NULL\n");
 		return 0;
 	}
-
-	prtd->state = STATE_EXIT;
 
 	if (prtd->dma_chan) {
 		prtd->dma_state = STATE_EXIT;
@@ -342,12 +344,17 @@ static int tegra_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	struct snd_dma_buffer *buf = &substream->dma_buffer;
 	size_t size = tegra_pcm_hardware.buffer_bytes_max;
 
+	buf->area = dma_alloc_writecombine(pcm->card->dev, size,
+						&buf->addr, GFP_KERNEL);
+
+	if (!buf->area)
+		return -ENOMEM;
+
 	buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	buf->dev.dev = pcm->card->dev;
 	buf->private_data = NULL;
-	buf->area = dma_alloc_writecombine(pcm->card->dev, size,
-						&buf->addr, GFP_KERNEL);
 	buf->bytes = size;
+
 	return 0;
 }
 
@@ -371,7 +378,7 @@ static void tegra_pcm_deallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	}
 }
 
-static void tegra_pcm_free_dma_buffers(struct snd_pcm *pcm)
+static void tegra_pcm_free(struct snd_pcm *pcm)
 {
 	struct snd_pcm_substream *substream;
 	struct snd_dma_buffer *buf;
@@ -386,7 +393,6 @@ static void tegra_pcm_free_dma_buffers(struct snd_pcm *pcm)
 		}
 		tegra_pcm_deallocate_dma_buffer(pcm ,stream);
 	}
-
 }
 
 static u64 tegra_dma_mask = DMA_BIT_MASK(32);
@@ -405,24 +411,29 @@ static int tegra_pcm_new(struct snd_card *card,
 		ret = tegra_pcm_preallocate_dma_buffer(pcm,
 						SNDRV_PCM_STREAM_PLAYBACK);
 		if (ret)
-			goto out;
+			goto err;
 	}
 
 	if (dai->capture.channels_min) {
 		ret = tegra_pcm_preallocate_dma_buffer(pcm,
 						SNDRV_PCM_STREAM_CAPTURE);
 		if (ret)
-			goto out;
+			goto err_free_play;
 	}
-out:
+
+	return 0;
+
+err_free_play:
+	tegra_pcm_deallocate_dma_buffer(pcm, SNDRV_PCM_STREAM_PLAYBACK);
+err:
 	return ret;
 }
 
 struct snd_soc_platform tegra_soc_platform = {
-	.name     = "tegra-audio",
+	.name     = "tegra-pcm-audio",
 	.pcm_ops  = &tegra_pcm_ops,
 	.pcm_new  = tegra_pcm_new,
-	.pcm_free = tegra_pcm_free_dma_buffers,
+	.pcm_free = tegra_pcm_free,
 };
 EXPORT_SYMBOL_GPL(tegra_soc_platform);
 
@@ -438,5 +449,5 @@ static void __exit tegra_soc_platform_exit(void)
 }
 module_exit(tegra_soc_platform_exit);
 
-MODULE_DESCRIPTION("Tegra PCM DMA module");
+MODULE_DESCRIPTION("Tegra PCM ASoC module");
 MODULE_LICENSE("GPL");

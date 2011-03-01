@@ -256,6 +256,8 @@ static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 		.mode		= I2S_BIT_FORMAT_I2S,
 		.fifo_fmt	= I2S_FIFO_16_LSB,
 		.bit_size	= I2S_BIT_SIZE_16,
+		.i2s_bus_width = 32,
+		.dsp_bus_width = 16,
 	},
 };
 
