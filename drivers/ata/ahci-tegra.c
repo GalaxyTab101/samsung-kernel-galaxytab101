@@ -45,16 +45,12 @@
 
 #include <linux/clk.h>
 #include <mach/clk.h>
-
 #include <mach/iomap.h>
 #include <mach/io.h>
 #include <mach/powergate.h>
 
 #define DRV_NAME	"tegra-sata"
 #define DRV_VERSION	"1.0"
-
-/*define IMPL_POWER_GATE*/
-#undef IMPL_POWER_GATE
 
 #define ENABLE_AHCI_DBG_PRINT			0
 #if ENABLE_AHCI_DBG_PRINT
@@ -63,8 +59,13 @@
 #define AHCI_DBG_PRINT(fmt, arg...) do {} while (0)
 #endif
 
+/* number of AHCI ports */
+#define TEGRA_AHCI_NUM_PORTS			1
+
 /* idle timeout for PM in msec */
-#define TEGRA_AHCI_IDLE_TIMEOUT			2000
+#define TEGRA_AHCI_MIN_IDLE_TIME		1000
+#define TEGRA_AHCI_DEFAULT_IDLE_TIME		2000
+static u32 tegra_ahci_idle_time = TEGRA_AHCI_DEFAULT_IDLE_TIME;
 
 /* Bit 0 (EN_FPCI) to allow FPCI accesses to SATA */
 #define SATA_CONFIGURATION_0_OFFSET		0x180
@@ -82,6 +83,9 @@
 #define TEGRA_SATA_BAR5_INIT_PROGRAM		0xFFFFFFFF
 #define TEGRA_SATA_BAR5_FINAL_PROGRAM		0x40020000
 
+#define FUSE_SATA_CALIB_OFFSET			0x224
+#define FUSE_SATA_CALIB_MASK			0x3
+
 #define T_SATA0_CFG_PHY_REG			0x120
 #define PHY_USE_7BIT_ALIGN_DET_FOR_SPD_MASK	(1 << 11)
 
@@ -90,14 +94,33 @@
 #define POWER_GATE_SSTS_RESTORED_YES		(1 << 23)
 #define POWER_GATE_SSTS_RESTORED_NO		(0 << 23)
 
+#define T_SATA0_INDEX_OFFSET			0x680
+#define SATA0_NONE_SELECTED			0
+#define SATA0_CH1_SELECTED			(1 << 0)
+
+#define T_SATA0_CHX_PHY_CTRL1_GEN1_OFFSET	0x690
+#define SATA0_CHX_PHY_CTRL1_GEN1_TX_AMP_SHIFT	0
+#define SATA0_CHX_PHY_CTRL1_GEN1_TX_AMP_MASK	(0xff << 0)
+#define SATA0_CHX_PHY_CTRL1_GEN1_TX_PEAK_SHIFT	8
+#define SATA0_CHX_PHY_CTRL1_GEN1_TX_PEAK_MASK	(0xff << 8)
+
+#define T_SATA0_CHX_PHY_CTRL1_GEN2_OFFSET	0x694
+#define SATA0_CHX_PHY_CTRL1_GEN2_TX_AMP_SHIFT	0
+#define SATA0_CHX_PHY_CTRL1_GEN2_TX_AMP_MASK	(0xff << 0)
+#define SATA0_CHX_PHY_CTRL1_GEN2_TX_PEAK_SHIFT	12
+#define SATA0_CHX_PHY_CTRL1_GEN2_TX_PEAK_MASK	(0xff << 12)
+#define SATA0_CHX_PHY_CTRL1_GEN2_RX_EQ_SHIFT	24
+#define SATA0_CHX_PHY_CTRL1_GEN2_RX_EQ_MASK	(0xf << 24)
+
 /* AHCI config space defines */
-#define TEGRA_PRIVATE_AHCI_CC_BKDR		0x4A4
-#define TEGRA_PRIVATE_AHCI_CC_BKDR_OVERRIDE	0x54C
+#define TEGRA_PRIVATE_AHCI_CC_BKDR		0x4a4
+#define TEGRA_PRIVATE_AHCI_CC_BKDR_OVERRIDE	0x54c
 #define TEGRA_PRIVATE_AHCI_CC_BKDR_OVERRIDE_EN	(1 << 12)
 #define TEGRA_PRIVATE_AHCI_CC_BKDR_PGM		0x01060100
 
 /* AHCI HBA_CAP */
-#define TEGRA_PRIVATE_AHCI_CAP_BKDR		0xA0
+#define TEGRA_PRIVATE_AHCI_CAP_BKDR		0xa0
+#define T_SATA0_AHCI_HBA_CAP_BKDR		0x300
 
 #define TEGRA_SATA_IO_SPACE_OFFSET		4
 #define TEGRA_SATA_ENABLE_IO_SPACE		(1 << 0)
@@ -112,6 +135,7 @@
 #define APB_PMC_PWRGATE_STATUS_REG		0x038
 #define APB_PMC_SATA_PWRGT_0_REG		0x1ac
 #define CLK_RST_CONTROLLER_PLLE_BASE		0x0e8
+#define CLK_RST_CONTROLLER_RST_DEVICES_W_REG	0x35c
 #define CLK_RST_CLK_SOURCE_SATA_OOB_REG		0x420
 #define CLK_RST_CLK_SOURCE_SATA_REG		0x424
 #define CLK_RST_CONTROLLER_PLLE_AUX_REG		0x48c
@@ -128,6 +152,11 @@
 #define PLLE_ENABLE_MASK			(1 << 30)
 #define PLLE_ENABLE_ENABLE			(1 << 30)
 #define PLLE_ENABLE_DISABLE			(0 << 30)
+
+/* for CLK_RST_CONTROLLER_RST_DEVICES_W_REG */
+#define SWR_SATACOLD_RST_MASK			(1 << 1)
+#define SWR_SATACOLD_RST_ENABLE			(1 << 1)
+#define SWR_SATACOLD_RST_DISABLE		(0 << 1)
 
 /* for SATA & SATA_OOB CLK SOURCE */
 #define CLK_SOURCE_SATA_MASK			(3 << 30)
@@ -208,6 +237,11 @@ static int tegra_ahci_init_one(struct platform_device *pdev);
 static int tegra_ahci_remove_one(struct platform_device *pdev);
 
 #ifdef CONFIG_PM
+static bool tegra_ahci_power_un_gate(struct ata_host *host);
+static bool tegra_ahci_power_gate(struct ata_host *host);
+static void tegra_ahci_abort_power_gate(struct ata_host *host);
+static int tegra_ahci_controller_suspend(struct platform_device *pdev);
+static int tegra_ahci_controller_resume(struct platform_device *pdev);
 static int tegra_ahci_suspend(struct platform_device *pdev, pm_message_t mesg);
 static int tegra_ahci_resume(struct platform_device *pdev);
 static void tegra_ahci_idle_timer(unsigned long arg);
@@ -217,9 +251,10 @@ static bool tegra_ahci_are_all_ports_idle(struct ata_host *host);
 static bool tegra_ahci_are_all_ports_slumber(struct ata_host *host);
 static unsigned int tegra_ahci_qc_issue(struct ata_queued_cmd *qc);
 #else
-#define tegra_ahci_qc_issue	ahci_qc_issue
-#define tegra_ahci_suspend	NULL
-#define tegra_ahci_resume	NULL
+#define tegra_ahci_controller_suspend	NULL
+#define tegra_ahci_controller_resume	NULL
+#define tegra_ahci_suspend		NULL
+#define tegra_ahci_resume		NULL
 #endif
 
 /*  tegra_ahci_host_priv is the extension of ahci_host_priv
@@ -238,12 +273,14 @@ struct tegra_ahci_host_priv {
 };
 
 static struct scsi_host_template ahci_sht = {
-	AHCI_SHT("tegra-data"),
+	AHCI_SHT("tegra-sata"),
 };
 
 static struct ata_port_operations tegra_ahci_ops = {
 	.inherits	= &ahci_ops,
+#ifdef CONFIG_PM
 	.qc_issue	= tegra_ahci_qc_issue,
+#endif
 };
 
 static const struct ata_port_info ahci_port_info = {
@@ -337,21 +374,6 @@ static inline void scfg_writel(u32 val, u32 offset)
 	AHCI_DBG_PRINT("[0x%x] <= 0x%08x\n", TEGRA_SATA_CONFIG_BASE+offset,
 					     val);
 	writel(val, IO_ADDRESS(TEGRA_SATA_CONFIG_BASE + offset));
-}
-
-static inline u32 sbar5_readl(u32 offset)
-{
-	u32 val;
-
-	val = readl(IO_ADDRESS(TEGRA_SATA_BAR5_BASE + offset));
-	AHCI_DBG_PRINT("[0x%x] => 0x%08x\n", TEGRA_SATA_BAR5_BASE+offset, val);
-	return val;
-}
-
-static inline void sbar5_writel(u32 val, u32 offset)
-{
-	AHCI_DBG_PRINT("[0x%x] <= 0x%08x\n", TEGRA_SATA_BAR5_BASE+offset, val);
-	writel(val, IO_ADDRESS(TEGRA_SATA_BAR5_BASE + offset));
 }
 
 static inline u32 pictlr_readl(u32 offset)
@@ -462,13 +484,6 @@ static int tegra_ahci_controller_init(struct tegra_ahci_host_priv *tegra_hpriv)
 	val |= (PADPHY_IDDQ_OVERRIDE_VALUE_ON | PADPHY_IDDQ_SWCTL_ON);
 	pmc_writel(val, APB_PMC_SATA_PWRGT_0_REG);
 
-	/* FIXME: These are the steps specified in the IAS */
-	/* select PLLE as input ref clock to IOPHY */
-	/* get SATA pad PLL out of IDDQ mode by settin
-	   SATA_PADPLL_IDDQ_OVERRIDE_VALUE=0 */
-	/* Wait for a time SATA_PADPLL_IDDQ2LANE_SLUMBER_DLY = 3 microseconds */
-
-	/* FIXME: The steps following are the steps taken by bootrom */
 	/* Get SATA pad PLL out of IDDQ mode */
 	val = pmc_readl(APB_PMC_SATA_PWRGT_0_REG);
 	val &= ~PADPLL_IDDQ_OVERRIDE_VALUE_MASK;
@@ -489,7 +504,6 @@ static int tegra_ahci_controller_init(struct tegra_ahci_host_priv *tegra_hpriv)
 	val |= IDDQ2LANE_SLUMBER_DLY_3MS;
 	clk_writel(val, CLK_RST_SATA_PLL_CFG1_REG);
 	udelay(3);
-	/* FIXME: The steps above are from bootrom */
 
 	/* de-assert IDDQ mode signal going to PHY */
 	val = pmc_readl(APB_PMC_SATA_PWRGT_0_REG);
@@ -545,6 +559,16 @@ static int tegra_ahci_controller_init(struct tegra_ahci_host_priv *tegra_hpriv)
 	tegra_periph_reset_deassert(clk_sata);
 	tegra_periph_reset_deassert(clk_sata_oob);
 
+	/* unset SATACOLD_RST */
+	val = clk_readl(CLK_RST_CONTROLLER_RST_DEVICES_W_REG);
+	val &= ~SWR_SATACOLD_RST_MASK;
+	val |= SWR_SATACOLD_RST_DISABLE;
+	clk_writel(val, CLK_RST_CONTROLLER_RST_DEVICES_W_REG);
+
+	val = sata_readl(SATA_CONFIGURATION_0_OFFSET);
+	val |= EN_FPCI;
+	sata_writel(val, SATA_CONFIGURATION_0_OFFSET);
+
 	/* bug 748271:
 	 * clear bit T_SATA0_CFG_PHY_0_USE_7BIT_ALIGN_DET_FOR_SPD of
 	 * T_SATA0_CFG_PHY_0
@@ -552,10 +576,6 @@ static int tegra_ahci_controller_init(struct tegra_ahci_host_priv *tegra_hpriv)
 	val = scfg_readl(T_SATA0_CFG_PHY_REG);
 	val &= ~PHY_USE_7BIT_ALIGN_DET_FOR_SPD_MASK;
 	scfg_writel(val, T_SATA0_CFG_PHY_REG);
-
-	val = sata_readl(SATA_CONFIGURATION_0_OFFSET);
-	val |= EN_FPCI;
-	sata_writel(val, SATA_CONFIGURATION_0_OFFSET);
 
 	/* program class code and programming interface for AHCI */
 	val = scfg_readl(TEGRA_PRIVATE_AHCI_CC_BKDR_OVERRIDE);
@@ -585,9 +605,9 @@ static int tegra_ahci_controller_init(struct tegra_ahci_host_priv *tegra_hpriv)
 	sata_writel((TEGRA_SATA_BAR5_FINAL_PROGRAM >> 8),
 		    SATA_FPCI_BAR5_0_OFFSET);
 
-	val = sbar5_readl(TEGRA_PRIVATE_AHCI_CAP_BKDR);
+	val = scfg_readl(T_SATA0_AHCI_HBA_CAP_BKDR);
 	val |= (HOST_CAP_ALPM | HOST_CAP_SSC | HOST_CAP_PART);
-	sbar5_writel(val, TEGRA_PRIVATE_AHCI_CAP_BKDR);
+	scfg_writel(val, T_SATA0_AHCI_HBA_CAP_BKDR);
 
 	/* enable Interrupt channel */
 	val = pictlr_readl(PRI_ICTLR_CPU_IER_SET_0_OFFSET);
@@ -606,6 +626,7 @@ fail:
 		clk_put(clk_sata_oob);
 	if (!IS_ERR_OR_NULL(clk_cml1))
 		clk_put(clk_cml1);
+
 	return err;
 }
 
@@ -619,6 +640,11 @@ static void tegra_ahci_controller_remove(struct platform_device *pdev)
 {
 	struct ata_host *host = dev_get_drvdata(&pdev->dev);
 	struct tegra_ahci_host_priv *tegra_hpriv;
+
+	/* call tegra_ahci_controller_suspend() to power-down the SATA */
+#ifdef CONFIG_PM
+	tegra_ahci_controller_suspend(pdev);
+#endif
 
 	tegra_hpriv = (struct tegra_ahci_host_priv *)host->private_data;
 	clk_disable(tegra_hpriv->clk_sata_oob);
@@ -634,14 +660,37 @@ static int tegra_ahci_controller_suspend(struct platform_device *pdev)
 {
 	struct ata_host *host = dev_get_drvdata(&pdev->dev);
 	struct tegra_ahci_host_priv *tegra_hpriv;
+	unsigned long flags;
 
 	tegra_hpriv = (struct tegra_ahci_host_priv *)host->private_data;
-	clk_disable(tegra_hpriv->clk_sata_oob);
-	clk_put(tegra_hpriv->clk_sata_oob);
-	clk_disable(tegra_hpriv->clk_sata);
-	clk_put(tegra_hpriv->clk_sata);
-	clk_disable(tegra_hpriv->clk_cml1);
-	clk_put(tegra_hpriv->clk_cml1);
+
+	/* stop the idle timer */
+	if (timer_pending(&tegra_hpriv->idle_timer))
+		del_timer_sync(&tegra_hpriv->idle_timer);
+
+	spin_lock_irqsave(&host->lock, flags);
+	if (tegra_hpriv->pg_state)
+		dev_printk(KERN_DEBUG, host->dev,
+			   "suspend: SATA already powered down\n");
+	else {
+		bool pg_ok;
+
+		dev_printk(KERN_DEBUG, host->dev,
+			   "suspend: powering down SATA...\n");
+		pg_ok = tegra_ahci_power_gate(host);
+		if (pg_ok) {
+			tegra_hpriv->pg_state = true;
+			dev_printk(KERN_DEBUG, host->dev,
+				   "suspend: SATA is down\n");
+		} else {
+			dev_printk(KERN_ERR, host->dev,
+				   "suspend: abort power gating\n");
+			tegra_ahci_abort_power_gate(host);
+			spin_unlock_irqrestore(&host->lock, flags);
+			return -EBUSY;
+		}
+	}
+	spin_unlock_irqrestore(&host->lock, flags);
 	return 0;
 }
 
@@ -649,15 +698,21 @@ static int tegra_ahci_controller_resume(struct platform_device *pdev)
 {
 	struct ata_host *host = dev_get_drvdata(&pdev->dev);
 	struct tegra_ahci_host_priv *tegra_hpriv;
-	int ret;
+	unsigned long flags;
 
 	tegra_hpriv = (struct tegra_ahci_host_priv *)host->private_data;
-	ret = clk_enable(tegra_hpriv->clk_sata);
-	if (ret == 0)
-		ret = clk_enable(tegra_hpriv->clk_sata_oob);
-	if (ret == 0)
-		ret = clk_enable(tegra_hpriv->clk_cml1);
-	return ret;
+	spin_lock_irqsave(&host->lock, flags);
+	if (!tegra_hpriv->pg_state)
+		dev_printk(KERN_DEBUG, host->dev,
+			   "resume: SATA already powered on\n");
+	else {
+		dev_printk(KERN_DEBUG, host->dev,
+			   "resume: powering on SATA...\n");
+		tegra_ahci_power_un_gate(host);
+		tegra_hpriv->pg_state = false;
+	}
+	spin_unlock_irqrestore(&host->lock, flags);
+	return 0;
 }
 
 static int tegra_ahci_suspend(struct platform_device *pdev, pm_message_t mesg)
@@ -707,44 +762,64 @@ static int tegra_ahci_resume(struct platform_device *pdev)
 }
 
 static u16 pg_save_bar5_registers[] = {
-	0x0A4,	/* T_AHCI_HBA_SPARE_0 */
 	0x018,	/* T_AHCI_HBA_CCC_PORTS */
 	0x004,	/* T_AHCI_HBA_GHC */
 	0x014,	/* T_AHCI_HBA_CCC_CTL - OP (optional) */
 	0x01C,	/* T_AHCI_HBA_EM_LOC */
-	0x020,	/* T_AHCI_HBA_EM_CTL - OP */
+	0x020	/* T_AHCI_HBA_EM_CTL - OP */
+};
+
+static u16 pg_save_bar5_port_registers[] = {
 	0x100,	/* T_AHCI_PORT_PXCLB */
 	0x104,	/* T_AHCI_PORT_PXCLBU */
 	0x108,	/* T_AHCI_PORT_PXFB */
 	0x10C,	/* T_AHCI_PORT_PXFBU */
 	0x114,	/* T_AHCI_PORT_PXIE */
 	0x118,	/* T_AHCI_PORT_PXCMD */
-	0x0AC,	/* T_AHCI_HBA_SHUTDOWN_TIMER */
-	0x0A8,	/* T_AHCI_HBA_PLL_CTRL */
-	0x12C,	/* T_AHCI_PORT_PXSCTL */
-	0x140,	/* T_AHCI_PORT_PXFBS */
-	0x17C	/* T_AHCI_PORT_MP */
-/* FIXME: */
-#if 0
+	0x12C	/* T_AHCI_PORT_PXSCTL */
+};
+
+/*
+ * pg_save_bar5_bkdr_registers:
+ *    These registers in BAR5 are read only.
+ * To restore back those register values, write the saved value
+ *    to the registers specified in pg_restore_bar5_bkdr_registers[].
+ *    These pg_restore_bar5_bkdr_registers[] are in SATA_CONFIG space.
+ */
+static u16 pg_save_bar5_bkdr_registers[] = {
 	/* Save and restore via bkdr writes */
 	0x000,	/* T_AHCI_HBA_CAP */
 	0x00C,	/* T_AHCI_HBA_PI */
-	0x024,	/* T_AHCI_HBA_CAP2 */
+	0x024	/* T_AHCI_HBA_CAP2 */
+};
+
+static u16 pg_restore_bar5_bkdr_registers[] = {
+	/* Save and restore via bkdr writes */
+	0x300,	/* BKDR of T_AHCI_HBA_CAP */
+	0x33c,	/* BKDR of T_AHCI_HBA_PI */
+	0x330	/* BKDR of T_AHCI_HBA_CAP2 */
+};
+
+/* These registers are saved for each port */
+/* To save those registers, T_SATA0_INDEX register needs to be set */
+static u16 pg_save_bar5_bkdr_port_registers[] = {
 	0x120,	/* NV_PROJ__SATA0_CHX_AHCI_PORT_PXTFD  */
 	0x124,	/* NV_PROJ__SATA0_CHX_AHCI_PORT_PXSIG */
-	0x128,	/* NV_PROJ__SATA0_CHX_AHCI_PORT_PXSSTS */
-	0x170,	/* T_AHCI_PORT_BKDR */
-#endif
+	0x128	/* NV_PROJ__SATA0_CHX_AHCI_PORT_PXSSTS */
+};
+
+static u16 pg_restore_bar5_bkdr_port_registers[] = {
+	/* Save and restore via bkdr writes */
+	0x790,	/* BKDR of NV_PROJ__SATA0_CHX_AHCI_PORT_PXTFD  */
+	0x794,	/* BKDR of NV_PROJ__SATA0_CHX_AHCI_PORT_PXSIG */
+	0x798	/* BKDR of NV_PROJ__SATA0_CHX_AHCI_PORT_PXSSTS */
 };
 
 static u16 pg_save_config_registers[] = {
-	0x000,	/* T_SATA0_CFG_0 */
 	0x004,	/* T_SATA0_CFG_1 */
-	0x008,	/* T_SATA0_CFG_2 */
 	0x00C,	/* T_SATA0_CFG_3 */
 	0x024,	/* T_SATA0_CFG_9 */
 	0x028,	/* T_SATA0_CFG_10 */
-	0x02C,	/* T_SATA0_CFG_11 */
 	0x030,	/* T_SATA0_CFG_12 */
 	0x034,	/* T_SATA0_CFG_13 */
 	0x038,	/* T_SATA0_CFG_14 */
@@ -752,66 +827,38 @@ static u16 pg_save_config_registers[] = {
 	0x040,	/* T_SATA0_CFG_16 */
 	0x044,	/* T_SATA0_CFG_17 */
 	0x048,	/* T_SATA0_CFG_18 */
-	0x04C,	/* T_SATA0_FPCI_DBG_0 */
-	0x050,	/* T_SATA0_FPCI_DBG_1 */
-	0x054,	/* T_SATA0_FPCI_SW */
-	0x08C,	/* T_SATA0_ATACAP0 */
-	0x090,	/* T_SATA0_ATACAP1 */
-	0x094,	/* T_SATA0_CFG_35 */
-	0x098,	/* T_SATA0_AHCI_IDP1 */
 	0x0B0,	/* T_SATA0_MSI_CTRL */
 	0x0B4,	/* T_SATA0_MSI_ADDR1 */
 	0x0B8,	/* T_SATA0_MSI_ADDR2 */
 	0x0BC,	/* T_SATA0_MSI_DATA */
 	0x0C0,	/* T_SATA0_MSI_QUEUE */
 	0x0EC,	/* T_SATA0_MSI_MAP */
-	0x0F0,	/* T_SATA0_INDIRECT_IDP0 */
-	0x0F4,	/* T_SATA0_INDIRECT_IDP1 */
-	0x0F8,	/* T_SATA0_FPCICFG */
-	0x0FC,	/* T_SATA0_SCRATCH_1 */
-	0x540,	/* T_SATA0_CTRL */
-	0x114,	/* T_SATA0_NVOOB */
-	0x118,	/* T_SATA0_CROSS_BAR */
-	0x11C,	/* T_SATA0_PMUCTL */
-	0x120,	/* T_SATA0_CFG_PHY_0 */
 	0x124,	/* T_SATA0_CFG_PHY_POWER */
 	0x128,	/* T_SATA0_CFG_PHY_POWER_1 */
 	0x12C,	/* T_SATA0_CFG_PHY_1 */
-	0x170,	/* T_SATA0_FIFO */
 	0x174,	/* T_SATA0_CFG_LINK_0 */
 	0x178,	/* T_SATA0_CFG_LINK_1 */
 	0x1D0,	/* MCP_SATA0_CFG_TRANS_0 */
 	0x238,	/* T_SATA0_ALPM_CTRL */
-	0x23C,	/* T_SATA0_FBS_CONFIG_0 - OP */
-	0x304,	/* T_SATA0_AHCI_HBA_HOLD_GEN */
 	0x30C,	/* T_SATA0_AHCI_HBA_CYA_0 */
-	0x318,	/* T_SATA0_AHCI_HBA_BIST_OVERRIDE_CTL */
 	0x320,	/* T_SATA0_AHCI_HBA_SPARE_1 */
 	0x324,	/* T_SATA0_AHCI_HBA_SPARE_2 */
 	0x328,	/* T_SATA0_AHCI_HBA_DYN_CLK_CLAMP */
 	0x32C,	/* T_SATA0_AHCI_CFG_ERR_CTRL */
 	0x338,	/* T_SATA0_AHCI_HBA_CYA_1 */
 	0x340,	/* T_SATA0_AHCI_HBA_PRE_STAGING_CONTROL */
-	0x370,	/* T_SATA0_CFG */
-	0x374,	/* T_SATA0_CFG_ATAPI */
-	0x378,	/* T_SATA0_CYA_SHADOW */
 	0x430,	/* T_SATA0_CFG_FPCI_0 */
-	0x490,	/* T_SATA0_IDE1 (OLD_IDE_TIMING) */
 	0x494,	/* T_SATA0_CFG_ESATA_CTRL */
 	0x4A0,	/* T_SATA0_CYA1 */
-	0x4A8,	/* T_SATA0_CFG_CTRL_1 */
 	0x4B0,	/* T_SATA0_CFG_GLUE */
-	0x4BC,	/* T_SATA0_CFG_CTL_FA */
-	0x4F0,	/* T_SATA0_PERF0 */
-	0x4F4,	/* T_SATA0_PERF1 */
 	0x534,	/* T_SATA0_PHY_CTRL */
 	0x540,	/* T_SATA0_CTRL */
-	0x54C,	/* T_SATA0_CFG_SATA */
 	0x554	/* T_SATA0_LOW_POWER_COUNT */
-/* FIXME: */
-#if 0
-	/* Save and restore following protocol */
-	0x4A4,	/* T_SATA0_BKDOOR_CC */
+};
+
+static u16 pg_save_config_port_registers[] = {
+	/* Save and restore per port */
+	/* need to have port selected */
 	0x530,	/* T_SATA0_CHXCFG1 */
 	0x684,	/* T_SATA0_CHX_MISC */
 	0x700,	/* T_SATA0_CHXCFG3 */
@@ -826,42 +873,11 @@ static u16 pg_save_config_registers[] = {
 	0x6BC,	/* T_SATA0_CHX_PHY_CTRL_6 */
 	0x714,	/* T_SATA0_PRBS_CHX - OP */
 	0x750,	/* T_SATA0_CHX_LINK0 */
-	0x7F0,	/* T_SATA0_CHX_GLUE */
-	0x6B0,	/* T_SATA0_CHX_PHY_COMMON */
-	0x300,	/* T_SATA0_AHCI_HBA_CAP_BKDR */
-	0x330,	/* T_SATA0_AHCI_HBA_CAP2_BKDR */
-	0x33C,	/* T_SATA0_AHCI_HBA_PI_BKDR */
-	0x790,	/* T_SATA0_CHX_AHCI_PORT_PXTFD  */
-	0x794,	/* T_SATA0_CHX_AHCI_PORT_PXSIG */
-	0x798,	/* T_SATA0_CHX_AHCI_PORT_PXSSTS */
-#endif
+	0x7F0	/* T_SATA0_CHX_GLUE */
 };
 
 static u16 pg_save_ipfs_registers[] = {
-	0x000,	/* SATA_AXI_BAR0_SZ_0 */
-	0x004,	/* SATA_AXI_BAR1_SZ_0 */
-	0x008,	/* SATA_AXI_BAR2_SZ_0 */
-	0x00C,	/* SATA_AXI_BAR3_SZ_0 */
-	0x010,	/* SATA_AXI_BAR4_SZ_0 */
-	0x014,	/* SATA_AXI_BAR5_SZ_0 */
-	0x018,	/* SATA_AXI_BAR6_SZ_0 */
-	0x01C,	/* SATA_AXI_BAR7_SZ_0 */
-	0x040,	/* SATA_AXI_BAR0_START_0 */
-	0x044,	/* SATA_AXI_BAR1_START_0 */
-	0x048,	/* SATA_AXI_BAR2_START_0 */
-	0x04C,	/* SATA_AXI_BAR3_START_0 */
-	0x050,	/* SATA_AXI_BAR4_START_0 */
-	0x054,	/* SATA_AXI_BAR5_START_0 */
-	0x058,	/* SATA_AXI_BAR6_START_0 */
-	0x05C,	/* SATA_AXI_BAR7_START_0 */
-	0x080,	/* SATA_FPCI_BAR0_0 */
-	0x084,	/* SATA_FPCI_BAR1_0 */
-	0x088,	/* SATA_FPCI_BAR2_0 */
-	0x08C,	/* SATA_FPCI_BAR3_0 */
-	0x090,	/* SATA_FPCI_BAR4_0 */
 	0x094,	/* SATA_FPCI_BAR5_0 */
-	0x098,	/* SATA_FPCI_BAR6_0 */
-	0x09C,	/* SATA_FPCI_BAR7_0 */
 	0x0C0,	/* SATA_MSI_BAR_SZ_0 */
 	0x0C4,	/* SATA_MSI_AXI_BAR_ST_0 */
 	0x0C8,	/* SATA_MSI_FPCI_BAR_ST_0 */
@@ -876,18 +892,12 @@ static u16 pg_save_ipfs_registers[] = {
 	0x180,	/* SATA_CONFIGURATION_0 */
 	0x184,	/* SATA_FPCI_ERROR_MASKS_0 */
 	0x188,	/* SATA_INTR_MASK_0 */
-	0x198,	/* SATA_IPFS_INTR_ENABLE_0 */
-	0x19C,	/* SATA_UFPCI_CONFIG_0 */
 	0x1A0,	/* SATA_CFG_REVID_0 */
-	0x1A4,	/* SATA_FPCI_TIMEOUT_0 */
-	0x1A8,	/* SATA_TOM_0 */
-	0x1B8,	/* SATA_DFPCI_BEN_0 */
+	0x198,	/* SATA_IPFS_INTR_ENABLE_0 */
 	0x1BC,	/* SATA_CLKGATE_HYSTERSIS_0 */
-	0x1D8,	/* SATA_SPARE_REG0_0 */
-	0x1DC,	/* SATA_SATA_MCCIF_FIFOCTRL_0 */
+	0x1DC	/* SATA_SATA_MCCIF_FIFOCTRL_0 */
 };
 
-#ifdef IMPL_POWER_GATE
 static void tegra_ahci_save_regs(u32 **save_addr,
 				 u32 reg_base,
 				 u16 reg_array[],
@@ -927,15 +937,14 @@ static void tegra_ahci_pg_save_registers(struct ata_host *host)
 	struct tegra_ahci_host_priv *tegra_hpriv;
 	u32 *pg_save;
 	u32 regs;
+	int i;
 
 	tegra_hpriv = (struct tegra_ahci_host_priv *)host->private_data;
 	pg_save = tegra_hpriv->pg_save;
 
 	/*
-	 * Driver should restore the registers in the order of
+	 * Driver should save/restore the registers in the order of
 	 * IPFS, CFG, Ext CFG, BAR5.
-	 *
-	 * Driver needs to save the registers in that order also.
 	 */
 
 	/* save IPFS registers */
@@ -949,17 +958,48 @@ static void tegra_ahci_pg_save_registers(struct ata_host *host)
 	tegra_ahci_save_regs(&pg_save, TEGRA_SATA_CONFIG_BASE,
 			     pg_save_config_registers, regs);
 
+	/* save CONFIG per port registers */
+	for (i = 0; i < TEGRA_AHCI_NUM_PORTS; ++i) {
+		scfg_writel((1 << i), T_SATA0_INDEX_OFFSET);
+		regs = ARRAY_SIZE(pg_save_config_port_registers);
+		tegra_ahci_save_regs(&pg_save, TEGRA_SATA_CONFIG_BASE,
+				     pg_save_config_port_registers, regs);
+	}
+	scfg_writel(SATA0_NONE_SELECTED, T_SATA0_INDEX_OFFSET);
+
 	/* save BAR5 registers */
 	regs = ARRAY_SIZE(pg_save_bar5_registers);
 	tegra_ahci_save_regs(&pg_save, TEGRA_SATA_BAR5_BASE,
 			     pg_save_bar5_registers, regs);
+
+	/* save BAR5 port_registers */
+	regs = ARRAY_SIZE(pg_save_bar5_port_registers);
+	for (i = 0; i < TEGRA_AHCI_NUM_PORTS; ++i)
+		tegra_ahci_save_regs(&pg_save, TEGRA_SATA_BAR5_BASE + (0x80*i),
+				     pg_save_bar5_port_registers, regs);
+
+	/* save bkdr registers */
+	regs = ARRAY_SIZE(pg_save_bar5_bkdr_registers);
+	tegra_ahci_save_regs(&pg_save, TEGRA_SATA_BAR5_BASE,
+			     pg_save_bar5_bkdr_registers, regs);
+
+	/* and save bkdr per_port registers */
+	for (i = 0; i < TEGRA_AHCI_NUM_PORTS; ++i) {
+		scfg_writel((1 << i), T_SATA0_INDEX_OFFSET);
+		regs = ARRAY_SIZE(pg_save_bar5_bkdr_port_registers);
+		tegra_ahci_save_regs(&pg_save, TEGRA_SATA_BAR5_BASE + (0x80*i),
+				     pg_save_bar5_bkdr_port_registers,
+				     regs);
+	}
+	scfg_writel(SATA0_NONE_SELECTED, T_SATA0_INDEX_OFFSET);
 }
 
 static void tegra_ahci_pg_restore_registers(struct ata_host *host)
 {
 	struct tegra_ahci_host_priv *tegra_hpriv;
 	void *pg_save;
-	u32 regs;
+	u32 regs, val;
+	int i;
 
 	tegra_hpriv = (struct tegra_ahci_host_priv *)host->private_data;
 	pg_save = tegra_hpriv->pg_save;
@@ -980,10 +1020,49 @@ static void tegra_ahci_pg_restore_registers(struct ata_host *host)
 	tegra_ahci_restore_regs(&pg_save, TEGRA_SATA_CONFIG_BASE,
 				pg_save_config_registers, regs);
 
+	/* restore CONFIG per port registers */
+	for (i = 0; i < TEGRA_AHCI_NUM_PORTS; ++i) {
+		scfg_writel((1 << i), T_SATA0_INDEX_OFFSET);
+		regs = ARRAY_SIZE(pg_save_config_port_registers);
+		tegra_ahci_restore_regs(&pg_save, TEGRA_SATA_CONFIG_BASE,
+					pg_save_config_port_registers,
+					regs);
+	}
+	scfg_writel(SATA0_NONE_SELECTED, T_SATA0_INDEX_OFFSET);
+
 	/* restore BAR5 registers */
 	regs = ARRAY_SIZE(pg_save_bar5_registers);
 	tegra_ahci_restore_regs(&pg_save, TEGRA_SATA_BAR5_BASE,
 				pg_save_bar5_registers, regs);
+
+	/* restore BAR5 port_registers */
+	regs = ARRAY_SIZE(pg_save_bar5_port_registers);
+	for (i = 0; i < TEGRA_AHCI_NUM_PORTS; ++i)
+		tegra_ahci_restore_regs(&pg_save, TEGRA_SATA_BAR5_BASE+(0x80*i),
+					pg_save_bar5_port_registers, regs);
+
+	/* restore bkdr registers */
+	regs = ARRAY_SIZE(pg_restore_bar5_bkdr_registers);
+	tegra_ahci_restore_regs(&pg_save, TEGRA_SATA_CONFIG_BASE,
+			     pg_restore_bar5_bkdr_registers, regs);
+
+	/* and restore BAR5 bkdr per_port registers */
+	for (i = 0; i < TEGRA_AHCI_NUM_PORTS; ++i) {
+		scfg_writel((1 << i), T_SATA0_INDEX_OFFSET);
+		regs = ARRAY_SIZE(pg_restore_bar5_bkdr_port_registers);
+		tegra_ahci_restore_regs(&pg_save, TEGRA_SATA_CONFIG_BASE,
+					pg_restore_bar5_bkdr_port_registers,
+					regs);
+	}
+	scfg_writel(SATA0_NONE_SELECTED, T_SATA0_INDEX_OFFSET);
+
+	/* program class code and programming interface for AHCI */
+	val = scfg_readl(TEGRA_PRIVATE_AHCI_CC_BKDR_OVERRIDE);
+	val |= TEGRA_PRIVATE_AHCI_CC_BKDR_OVERRIDE_EN;
+	scfg_writel(val, TEGRA_PRIVATE_AHCI_CC_BKDR_OVERRIDE);
+	scfg_writel(TEGRA_PRIVATE_AHCI_CC_BKDR_PGM, TEGRA_PRIVATE_AHCI_CC_BKDR);
+	val &= ~TEGRA_PRIVATE_AHCI_CC_BKDR_OVERRIDE_EN;
+	scfg_writel(val, TEGRA_PRIVATE_AHCI_CC_BKDR_OVERRIDE);
 }
 
 static u32 tegra_ahci_port_error(struct ata_port *ap)
@@ -1013,16 +1092,6 @@ static bool tegra_ahci_check_errors(struct ata_host *host)
 	return false;
 }
 
-static void tegra_ahci_prep_power_gate(struct ata_host *host)
-{
-	u32 val;
-
-	val = pmc_readl(APB_PMC_SATA_PWRGT_0_REG);
-	val &= ~PG_INFO_MASK;
-	val |= PG_INFO_ON;
-	pmc_writel(val, APB_PMC_SATA_PWRGT_0_REG);
-}
-
 static void tegra_ahci_abort_power_gate(struct ata_host *host)
 {
 	u32 val;
@@ -1041,6 +1110,13 @@ static bool tegra_ahci_power_gate(struct ata_host *host)
 	int status;
 
 	tegra_hpriv = (struct tegra_ahci_host_priv *)host->private_data;
+
+	val = pmc_readl(APB_PMC_SATA_PWRGT_0_REG);
+	val &= ~PG_INFO_MASK;
+	val |= PG_INFO_ON;
+	pmc_writel(val, APB_PMC_SATA_PWRGT_0_REG);
+
+	tegra_ahci_pg_save_registers(host);
 
 	/* Read SATA_AUX_MISC_CNTL_1_0 register L0_RX_IDLE_T_SAX field and
 	 * write that value into same register L0_RX_IDLE_T_NPG field.
@@ -1076,10 +1152,15 @@ static bool tegra_ahci_power_gate(struct ata_host *host)
 	 * CLK_RST_CONTROLLER_RST_DEVICES_V_0.SATA_RESET = 1,
 	 * CLK_RST_CONTROLLER_RST_DEVICES_W_0.SATACOLD_RST = 1
 	 */
-	/* FIXME: how about clk_sata_oob */
 	clk_disable(tegra_hpriv->clk_sata);
+	clk_disable(tegra_hpriv->clk_sata_oob);
 	tegra_periph_reset_assert(tegra_hpriv->clk_sata);
-	/* FIXME: need to set SATACOLD_RST */
+	tegra_periph_reset_assert(tegra_hpriv->clk_sata_oob);
+	/* set SATACOLD_RST */
+	val = clk_readl(CLK_RST_CONTROLLER_RST_DEVICES_W_REG);
+	val &= ~SWR_SATACOLD_RST_MASK;
+	val |= SWR_SATACOLD_RST_ENABLE;
+	clk_writel(val, CLK_RST_CONTROLLER_RST_DEVICES_W_REG);
 
 	/* Hw wake up is not needed:
 	 * Driver/RM shall place the SATA PHY and SATA PADPLL in IDDQ.
@@ -1109,14 +1190,7 @@ static bool tegra_ahci_power_gate(struct ata_host *host)
 	val |= (PADPLL_IDDQ_SWCTL_ON | PADPLL_IDDQ_OVERRIDE_VALUE_ON);
 	pmc_writel(val, APB_PMC_SATA_PWRGT_0_REG);
 
-	/* FIXME: */
-	/* If PLLE is not being used, PLLE can be set to iether reset or IDDQ.
-	 *
-	 *   b). If HW wake up is not needed or PLLE IDDQ mode exit latency is
-	 *	 sufficient: PLLE can be set to IDDQ.
-	 */
 	clk_disable(tegra_hpriv->clk_cml1);
-	/* FIXME: need to check if PLLE is not used */
 
 	/* PLLE_ENABLE_SWCTL=1 (PLLE enable by SW)
 	 * CLK_RST_CONTROLLER_PLLE_BASE_0.PLLE_ENABLE=0
@@ -1138,27 +1212,11 @@ static bool tegra_ahci_power_gate(struct ata_host *host)
 	pmc_writel(val, APB_PMC_SATA_PWRGT_0_REG);
 
 	/* power off the sata */
-#if 0
-	val = pmc_readl(APB_PMC_PWRGATE_STATUS_REG);
-	dev_printk(KERN_ERR, host->dev, "** PWRGATE_STATUS = %08x **\n", val);
-	if (val & (1 << PWRGATE_ID_SAX)) {
-		dev_printk(KERN_ERR, host->dev, "** power off SATA **\n");
-		val = PWRGATE_TOGGLE_START | PWRGATE_ID_SAX;
-		pmc_writel(val, APB_PMC_PWRGATE_TOGGLE_REG);
-	} else {
-		dev_printk(KERN_ERR, host->dev, "** SATA off already **\n");
-		BUG_ON(1);
-	}
-
-	val = pmc_readl(APB_PMC_PWRGATE_STATUS_REG);
-	dev_printk(KERN_ERR, host->dev, "** PWRGATE_STATUS = %08x **\n", val);
-#else
 	status = tegra_powergate_power_off(TEGRA_POWERGATE_SATA);
 	if (status)
 		dev_printk(KERN_ERR, host->dev,
 				     "** failed to turn-off SATA (0x%x) **\n",
 				     status);
-#endif
 	return true;
 }
 
@@ -1186,7 +1244,7 @@ static bool tegra_ahci_power_un_gate(struct ata_host *host)
 	val |= PADPHY_IDDQ_OVERRIDE_VALUE_OFF;
 	pmc_writel(val, APB_PMC_SATA_PWRGT_0_REG);
 
-	/* FIXME: enable PLLE */
+	/* enable PLLE */
 	clk_enable(tegra_hpriv->clk_cml1);
 
 	/* deasset PADPLL and wait until it locks. */
@@ -1208,41 +1266,23 @@ static bool tegra_ahci_power_un_gate(struct ata_host *host)
 		pr_err("%s: SATA_PAD_PLL is not locked in 15us.\n", __func__);
 
 	/* power-ungate SAX */
-#if 0
-	val = pmc_readl(APB_PMC_PWRGATE_STATUS_REG);
-	dev_printk(KERN_ERR, host->dev, "** PWRGATE_STATUS = %08x **\n", val);
-	if (val & (1 << PWRGATE_ID_SAX)) {
-		dev_printk(KERN_ERR, host->dev, "** SATA on already **\n");
-		BUG_ON(1);
-	} else {
-		dev_printk(KERN_ERR, host->dev, "** power on SATA **\n");
-		val = PWRGATE_TOGGLE_START | PWRGATE_ID_SAX;
-		pmc_writel(val, APB_PMC_PWRGATE_TOGGLE_REG);
-	}
+	/* unset SATACOLD_RST */
+	val = clk_readl(CLK_RST_CONTROLLER_RST_DEVICES_W_REG);
+	val &= ~SWR_SATACOLD_RST_MASK;
+	val |= SWR_SATACOLD_RST_DISABLE;
+	clk_writel(val, CLK_RST_CONTROLLER_RST_DEVICES_W_REG);
 
-	val = pmc_readl(APB_PMC_PWRGATE_STATUS_REG);
-	dev_printk(KERN_ERR, host->dev, "** PWRGATE_STATUS = %08x **\n", val);
-
-	/* turn on clocks for SATA and de-asserts resets */
-	/* CLK_RST_CONTROLLER_CLK_OUT_ENB_V_0.SATA_CLKEN = 1,
-	 * CLK_RST_CONTROLLER_RST_DEVICES_V_0.SATA_RESET = 0,
-	 * CLK_RST_CONTROLLER_RST_DEVICES_W_0.SATACOLD_RST = 0
-	 */
-	/* FIXME */
-	clk_enable(tegra_hpriv->clk_sata);
-	tegra_periph_reset_deassert(tegra_hpriv->clk_sata);
-#else
 	status = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_SATA,
 						   tegra_hpriv->clk_sata);
 	if (status)
 		dev_printk(KERN_ERR, host->dev,
 				     "** failed to turn-on SATA (0x%x) **\n",
 				     status);
-#endif
+	clk_enable(tegra_hpriv->clk_sata_oob);
+
 	/* restore registers */
 	tegra_ahci_pg_restore_registers(host);
 
-	/* FIXME */
 	/* During the restoration of the registers, the driver would now need to
 	 * restore the register T_SATA0_CFG_POWER_GATE_SSTS_RESTORED after the
 	 * ssts_det, ssts_spd are restored. This register is used to tell the
@@ -1270,7 +1310,6 @@ static bool tegra_ahci_power_un_gate(struct ata_host *host)
 	pictlr_writel(val, PRI_ICTLR_CPU_IER_SET_0_OFFSET);
 
 	/* Set the bits in the CAR to allow HW based low power sequencing. */
-	/* FIXME: SATAPAD_PLL_PLLE_IDDQ_RESET_SWCTL =0 ???? */
 	val = clk_readl(CLK_RST_SATA_PLL_CFG0_REG);
 	val &= ~PADPLL_RESET_SWCTL_MASK;
 	val |= PADPLL_RESET_SWCTL_OFF;
@@ -1286,14 +1325,6 @@ static bool tegra_ahci_power_un_gate(struct ata_host *host)
 
 	return true;
 }
-#else
-static void tegra_ahci_pg_save_registers(struct ata_host *host) {}
-static void tegra_ahci_pg_restore_registers(struct ata_host *host) {}
-static void tegra_ahci_prep_power_gate(struct ata_host *host) {}
-static void tegra_ahci_abort_power_gate(struct ata_host *host) {}
-static bool tegra_ahci_power_gate(struct ata_host *host) { return true; }
-static bool tegra_ahci_power_un_gate(struct ata_host *host) { return true; }
-#endif
 
 static enum port_idle_status tegra_ahci_is_port_idle(struct ata_port *ap)
 {
@@ -1351,15 +1382,18 @@ static void tegra_ahci_to_add_idle_timer(struct ata_host *host)
 	struct tegra_ahci_host_priv *tegra_hpriv;
 
 	tegra_hpriv = (struct tegra_ahci_host_priv *)host->private_data;
-	spin_lock(&host->lock);
 
+	/* note: the routine is called from interrupt context */
+	spin_lock(&host->lock);
 	/* start idle-timer if all ports have no outstanding commands */
 	if (tegra_ahci_are_all_ports_idle(host)) {
-		if (timer_pending(&tegra_hpriv->idle_timer))
-			del_timer(&tegra_hpriv->idle_timer);
+		/* adjust tegra_ahci_idle_time to minimum if it is too small */
+		tegra_ahci_idle_time = max((u32)TEGRA_AHCI_MIN_IDLE_TIME,
+					   tegra_ahci_idle_time);
 		tegra_hpriv->idle_timer.expires =
-			ata_deadline(jiffies, TEGRA_AHCI_IDLE_TIMEOUT);
-		add_timer(&tegra_hpriv->idle_timer);
+			ata_deadline(jiffies, tegra_ahci_idle_time);
+		mod_timer(&tegra_hpriv->idle_timer,
+			  tegra_hpriv->idle_timer.expires);
 	}
 	spin_unlock(&host->lock);
 }
@@ -1369,13 +1403,16 @@ static void tegra_ahci_idle_timer(unsigned long arg)
 {
 	struct ata_host *host = (void *)arg;
 	struct ahci_host_priv *hpriv = host->private_data;
+	bool pg_ok;
+	unsigned long flags;
 
+	spin_lock_irqsave(&host->lock, flags);
 	if (tegra_ahci_are_all_ports_slumber(host)) {
 		/* if all ports are in slumber, do power-gate */
 		dev_printk(KERN_DEBUG, host->dev, "** power-down sata **\n");
-		tegra_ahci_prep_power_gate(host);
-		tegra_ahci_pg_save_registers(host);
-		if (tegra_ahci_power_gate(host))
+		pg_ok = tegra_ahci_power_gate(host);
+		dev_printk(KERN_DEBUG, host->dev, "** done **\n");
+		if (pg_ok)
 			((struct tegra_ahci_host_priv *)hpriv)->pg_state = true;
 		else {
 			dev_printk(KERN_ERR, host->dev, "** abort pg **\n");
@@ -1383,6 +1420,7 @@ static void tegra_ahci_idle_timer(unsigned long arg)
 		}
 	} else
 		dev_printk(KERN_DEBUG, host->dev, "** keep power **\n");
+	spin_unlock_irqrestore(&host->lock, flags);
 }
 
 static unsigned int tegra_ahci_qc_issue(struct ata_queued_cmd *qc)
@@ -1393,12 +1431,14 @@ static unsigned int tegra_ahci_qc_issue(struct ata_queued_cmd *qc)
 
 	/* stop the idle timer */
 	if (timer_pending(&tegra_hpriv->idle_timer))
-		del_timer(&tegra_hpriv->idle_timer);
+		del_timer_sync(&tegra_hpriv->idle_timer);
 
+	/* note: host->lock is locked */
 	if (tegra_hpriv->pg_state) {
 		dev_printk(KERN_DEBUG, host->dev, "** power-up sata **\n");
 		tegra_ahci_power_un_gate(host);
-		tegra_hpriv->pg_state = 0;
+		dev_printk(KERN_DEBUG, host->dev, "** done **\n");
+		tegra_hpriv->pg_state = false;
 	}
 
 	return ahci_ops.qc_issue(qc);
@@ -1422,7 +1462,16 @@ static irqreturn_t tegra_ahci_interrupt(int irq, void *dev_instance)
 
 static int __devexit tegra_ahci_remove_one(struct platform_device *pdev)
 {
-	/* FIXME add a iounmap here to unmap the bar resource */
+	struct ata_host *host = dev_get_drvdata(&pdev->dev);
+	struct ahci_host_priv *hpriv;
+
+	BUG_ON(host == NULL);
+	BUG_ON(host->iomap[AHCI_PCI_BAR] == NULL);
+	hpriv = host->private_data;
+	devm_iounmap(&pdev->dev, host->iomap[AHCI_PCI_BAR]);
+	devres_free(host);
+	devm_kfree(&pdev->dev, hpriv);
+
 	tegra_ahci_controller_remove(pdev);
 	return 0;
 }
@@ -1556,9 +1605,19 @@ static int __devinit tegra_ahci_init_one(struct platform_device *pdev)
 		tegra_hpriv->idle_timer.data = (unsigned long)host;
 
 		/* setup PG save/restore area */
-		save_size = (ARRAY_SIZE(pg_save_ipfs_registers) +
-			     ARRAY_SIZE(pg_save_config_registers) +
-			     ARRAY_SIZE(pg_save_bar5_registers)) * sizeof(u32);
+		/* calculate the size */
+		save_size = ARRAY_SIZE(pg_save_ipfs_registers) +
+			    ARRAY_SIZE(pg_save_config_registers) +
+			    ARRAY_SIZE(pg_save_bar5_registers) +
+			    ARRAY_SIZE(pg_save_bar5_bkdr_registers);
+		/* and add save port_registers for all the ports */
+		save_size += TEGRA_AHCI_NUM_PORTS *
+			     (ARRAY_SIZE(pg_save_config_port_registers) +
+			      ARRAY_SIZE(pg_save_bar5_port_registers) +
+			      ARRAY_SIZE(pg_save_bar5_bkdr_port_registers));
+		/* save_size is number of registers,
+		 * times number of bytes per register to get total save size */
+		save_size *= sizeof(u32);
 		tegra_hpriv->pg_save = devm_kzalloc(dev, save_size, GFP_KERNEL);
 		if (!tegra_hpriv->pg_save) {
 			rc = -ENOMEM;
@@ -1620,6 +1679,7 @@ static int dbg_ahci_dump_show(struct seq_file *s, void *unused)
 {
 	u32 base;
 	u32 *ptr;
+	u32 i;
 
 	base = TEGRA_SATA_CONFIG_BASE;
 	ptr = (u32 *)IO_TO_VIRT(base);
@@ -1633,11 +1693,24 @@ static int dbg_ahci_dump_show(struct seq_file *s, void *unused)
 	seq_printf(s, "-------------------\n");
 	dbg_ahci_dump_regs(s, ptr, base, 64);
 
-	base = TEGRA_SATA_BAR5_BASE+0x100;
-	ptr = (u32 *)IO_TO_VIRT(base);
-	seq_printf(s, "\nPort Registers:\n");
-	seq_printf(s, "---------------\n");
-	dbg_ahci_dump_regs(s, ptr, base, 16);
+	for (i = 0; i < TEGRA_AHCI_NUM_PORTS; ++i) {
+		base = TEGRA_SATA_BAR5_BASE + 0x100 + (0x80*i);
+		ptr = (u32 *)IO_TO_VIRT(base);
+		seq_printf(s, "\nPort %u Registers:\n", i);
+		seq_printf(s, "---------------\n");
+		dbg_ahci_dump_regs(s, ptr, base, 16);
+	}
+
+	/* adjust tegra_ahci_idle_time to minimum if it is too small */
+	tegra_ahci_idle_time = max((u32)TEGRA_AHCI_MIN_IDLE_TIME,
+				   tegra_ahci_idle_time);
+	seq_printf(s, "\nIdle Timeout = %u milli-seconds.\n",
+		      tegra_ahci_idle_time);
+	if (tegra_powergate_is_powered(TEGRA_POWERGATE_SATA))
+		seq_printf(s, "\n=== SATA controller is powered on ===\n\n");
+	else
+		seq_printf(s, "\n=== SATA controller is powered off ===\n\n");
+
 	return 0;
 }
 
@@ -1656,7 +1729,9 @@ static const struct file_operations debug_fops = {
 static int __init tegra_ahci_dump_debuginit(void)
 {
 	(void) debugfs_create_file("tegra_ahci", S_IRUGO,
-					NULL, NULL, &debug_fops);
+				   NULL, NULL, &debug_fops);
+	(void) debugfs_create_u32("tegra_ahci_idle_ms", S_IRWXUGO,
+				   NULL, &tegra_ahci_idle_time);
 	return 0;
 }
 late_initcall(tegra_ahci_dump_debuginit);
