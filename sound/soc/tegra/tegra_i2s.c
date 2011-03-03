@@ -378,7 +378,11 @@ static struct snd_soc_dai_ops tegra_i2s_dai_ops = {
 struct snd_soc_dai tegra_i2s_dai[] = {
 	{
 		.name = "tegra-i2s-1",
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 		.id = 0,
+#else
+		.id = 1,
+#endif
 		.probe = tegra_i2s_probe,
 		.suspend = tegra_i2s_suspend,
 		.resume = tegra_i2s_resume,
@@ -396,6 +400,7 @@ struct snd_soc_dai tegra_i2s_dai[] = {
 		},
 		.ops = &tegra_i2s_dai_ops,
 	},
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 	{
 		.name = "tegra-i2s-2",
 		.id = 1,
@@ -416,6 +421,7 @@ struct snd_soc_dai tegra_i2s_dai[] = {
 		},
 		.ops = &tegra_i2s_dai_ops,
 	},
+#endif
 };
 EXPORT_SYMBOL_GPL(tegra_i2s_dai);
 
@@ -424,6 +430,7 @@ static int tegra_i2s_driver_probe(struct platform_device *pdev)
 	int err = 0;
 	struct resource *res, *mem;
 	struct tegra_i2s_info *info;
+	int i = 0;
 	struct clk *pll_a_out0_clk =
 				clk_get_sys(NULL, "pll_a_out0");
 	int i = 0;
@@ -485,6 +492,16 @@ static int tegra_i2s_driver_probe(struct platform_device *pdev)
 	clk_enable(info->i2s_clk);
 	clk_set_rate(info->i2s_clk, info->pdata->i2s_clk_rate);
 
+#if !defined(CONFIG_ARCH_TEGRA_2x_SOC)
+	info->pmc_clk  = clk_get_sys("clk_out_1", "extern1");
+	if (IS_ERR_OR_NULL(info->pmc_clk))
+	{
+		dev_err(&pdev->dev, "can't get pmc clock\n");
+		goto fail_unmap_mem;
+	}
+	clk_enable(info->pmc_clk);
+#endif
+
 	info->bit_format = TEGRA_AUDIO_BIT_FORMAT_DEFAULT;
 	if (info->pdata->mode == I2S_BIT_FORMAT_DSP)
 		info->bit_format = TEGRA_AUDIO_BIT_FORMAT_DSP;
@@ -512,6 +529,7 @@ fail_release_mem:
 	release_mem_region(mem->start, resource_size(mem));
 fail:
 	kfree(info);
+
 	return err;
 }
 

@@ -4,15 +4,19 @@
  * (c) 2010-2011 Nvidia Graphics Pvt. Ltd.
  *  http://www.nvidia.com
  *
- * Copyright 2007 Wolfson Microelectronics PLC.
- * Author: Graeme Gregory
- *         graeme.gregory@wolfsonmicro.com or linux@wolfsonmicro.com
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- *  This program is free software; you can redistribute  it and/or modify it
- *  under  the terms of  the GNU General  Public License as published by the
- *  Free Software Foundation;  either version 2 of the  License, or (at your
- *  option) any later version.
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
  *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
 #include "tegra_soc.h"
@@ -490,6 +494,7 @@ static struct snd_soc_dai_link tegra_soc_dai[] = {
 		.init = tegra_codec_init,
 		.ops = &tegra_hifi_ops,
 	},
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 	{
 		.name = "Tegra-generic",
 		.stream_name = "Tegra Generic Voice",
@@ -506,6 +511,7 @@ static struct snd_soc_dai_link tegra_soc_dai[] = {
 		.init = tegra_codec_init,
 		.ops = &tegra_spdif_ops,
 	},
+#endif
 };
 
 static struct tegra_audio_data audio_data = {
