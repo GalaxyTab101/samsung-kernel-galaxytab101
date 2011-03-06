@@ -196,6 +196,7 @@ unsigned long clk_get_rate_locked(struct clk *c);
 void tegra2_sdmmc_tap_delay(struct clk *c, int delay);
 int tegra_emc_set_rate(unsigned long rate);
 long tegra_emc_round_rate(unsigned long rate);
+struct clk *tegra_emc_predict_parent(unsigned long rate, u32 *div_value);
 
 #ifdef CONFIG_CPU_FREQ
 struct cpufreq_frequency_table;
