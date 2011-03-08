@@ -52,6 +52,13 @@
 #define PMC_CTRL			0x0
 #define PMC_CTRL_BFI_SHIFT		8
 #define PMC_CTRL_BFI_WIDTH		9
+
+#define PMC_PWRGATE_TOGGLE			0x30
+#define PMC_REMOVE_CLAMPING_CMD		0x34
+#define PMC_PWRGATE_STATUS			0x38
+
+#define PMC_PWRGATE_PARTID_L2C		(0x5)
+
 #define PMC_SCRATCH1			0x54
 #define PMC_PLLP_WB0_OVERRIDE		0xf8
 #define PMC_SCRATCH38			0x134
@@ -254,6 +261,23 @@ padload_done:
 	mov32	r4, ((1<<28) | (8))	@ burst policy is PLLX
 	str	r4, [r0, #CLK_RESET_CCLK_BURST]
 
+#if defined (CONFIG_CACHE_L2X0)
+	/* power up L2 */
+	mov32	r4, TEGRA_PMC_BASE
+	ldr	r0, [r4, #PMC_PWRGATE_STATUS]
+	tst	r0, #(1<<PMC_PWRGATE_PARTID_L2C)
+	bne	powerup_l2_done
+	movw	r0, #(1<<8) | PMC_PWRGATE_PARTID_L2C
+	str	r0, [r4, #PMC_PWRGATE_TOGGLE]
+powerup_l2_wait:
+	ldr	r0, [r4, #PMC_PWRGATE_STATUS]
+	tst	r0, #(1<<PMC_PWRGATE_PARTID_L2C)
+	beq	powerup_l2_wait
+powerup_l2_done:
+	mov	r0, #PMC_PWRGATE_PARTID_L2C
+	str	r0, [r4, #PMC_REMOVE_CLAMPING_CMD]
+#endif
+
 	mov32	r0, TEGRA_EMC_BASE
 	ldr	r1, [r0, #EMC_CFG]
 	bic	r1, r1, #(1<<31)	@ disable DRAM_CLK_STOP
@@ -355,6 +379,16 @@ __tear_down_master_pll_cpu:
 	/* in LP2 idle (SDRAM active) leave CPU burst policy as it is */
 	tst	sp, #TEGRA_POWER_SDRAM_SELFREFRESH
 	beq	__do_halt
+
+#if defined (CONFIG_CACHE_L2X0)
+	/* power down L2 */
+	ldr	r0, [r4, #PMC_PWRGATE_STATUS]
+	tst	r0, #(1<<PMC_PWRGATE_PARTID_L2C)
+	beq	powerdown_l2_done
+	movw	r0, #(1<<8) | PMC_PWRGATE_PARTID_L2C
+	str	r0, [r4, #PMC_PWRGATE_TOGGLE]
+powerdown_l2_done:
+#endif
 
 	/* In other modes, set system & CPU burst policies to 32KHz.
 	 * Start by switching to CLKM to safely disable PLLs, then
