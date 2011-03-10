@@ -74,51 +74,47 @@ static struct snd_soc_dai_ops tegra_generic_codec_stub_ops = {
 	.set_sysclk	= tegra_generic_codec_set_dai_sysclk,
 };
 
+#define TEGRA_CREATE_GENERIC_CODEC_DAI(xname, link_id,	\
+			ch_min, ch_max, sample_rates)	\
+{							\
+	.name = xname,					\
+	.id = (link_id),				\
+	.playback = {					\
+		.stream_name    = "Playback",		\
+		.channels_min = (ch_min),		\
+		.channels_max = (ch_max),		\
+		.rates = (sample_rates),		\
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,	\
+	},						\
+	.capture = {					\
+		.stream_name    = "Capture",		\
+		.channels_min = (ch_min),		\
+		.channels_max = (ch_max),		\
+		.rates = (sample_rates),		\
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,	\
+	},						\
+	.ops = &tegra_generic_codec_stub_ops,		\
+}
+
 struct snd_soc_dai tegra_generic_codec_dai[] = {
-	{
-		.name = "tegra_generic_voice_codec",
-		.id = 0,
-		.playback = {
-			.stream_name    = "Playback",
-			.channels_min   = 1,
-			.channels_max   = 1,
-			.rates          = TEGRA_VOICE_SAMPLE_RATES,
-			.formats        = SNDRV_PCM_FMTBIT_S16_LE,
-		},
-		.capture = {
-			.stream_name    = "Capture",
-			.channels_min   = 1,
-			.channels_max   = 1,
-			.rates          = TEGRA_VOICE_SAMPLE_RATES,
-			.formats        = SNDRV_PCM_FMTBIT_S16_LE,
-		},
-		.ops = &tegra_generic_codec_stub_ops,
-	},
-	{
-		.name = "tegra_generic_spdif_codec",
-		.id = 1,
-		.playback = {
-			.stream_name    = "Playback",
-			.channels_min   = 2,
-			.channels_max   = 2,
-			.rates          = TEGRA_SAMPLE_RATES,
-			.formats        = SNDRV_PCM_FMTBIT_S16_LE,
-		},
-		.capture = {
-			.stream_name    = "Capture",
-			.channels_min   = 2,
-			.channels_max   = 2,
-			.rates          = TEGRA_SAMPLE_RATES,
-			.formats        = SNDRV_PCM_FMTBIT_S16_LE,
-		},
-		.ops = &tegra_generic_codec_stub_ops,
-	}
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+	TEGRA_CREATE_GENERIC_CODEC_DAI("tegra_generic_voice_codec",
+			0, 1, 1, TEGRA_VOICE_SAMPLE_RATES),
+	TEGRA_CREATE_GENERIC_CODEC_DAI("tegra_generic_spdif_codec",
+			1, 1, 1, TEGRA_SAMPLE_RATES),
+#else
+	TEGRA_CREATE_GENERIC_CODEC_DAI("tegra_generic_BB_codec",
+			0, 1, 1, TEGRA_VOICE_SAMPLE_RATES),
+	TEGRA_CREATE_GENERIC_CODEC_DAI("tegra_generic_BT_codec",
+			1, 1, 1, TEGRA_VOICE_SAMPLE_RATES),
+#endif
 };
+
 EXPORT_SYMBOL_GPL(tegra_generic_codec_dai);
 
 static int generic_codec_init(struct platform_device *pdev)
 {
-	int i, ret = 0;
+	int i = 0, ret = 0;
 
 	tegra_generic_codec = kzalloc(sizeof(struct snd_soc_codec), GFP_KERNEL);
 	if (!tegra_generic_codec)
@@ -145,7 +141,8 @@ static int generic_codec_init(struct platform_device *pdev)
 		goto codec_err;
 	}
 
-	ret = snd_soc_register_dais(tegra_generic_codec_dai, ARRAY_SIZE(tegra_generic_codec_dai));
+	ret = snd_soc_register_dais(tegra_generic_codec_dai,
+					ARRAY_SIZE(tegra_generic_codec_dai));
 	if (ret != 0) {
 		pr_err("codec: failed to register dais\n");
 		goto dai_err;
@@ -164,17 +161,19 @@ codec_err:
 
 static int generic_codec_remove(struct platform_device *pdev)
 {
-	int i;
+	int i = 0;
 
 	if (!tegra_generic_codec)
 		return 0;
 
-	snd_soc_unregister_dais(tegra_generic_codec_dai, ARRAY_SIZE(tegra_generic_codec_dai));
+	snd_soc_unregister_dais(tegra_generic_codec_dai,
+			ARRAY_SIZE(tegra_generic_codec_dai));
 	snd_soc_unregister_codec(tegra_generic_codec);
-	kfree(tegra_generic_codec);
-	tegra_generic_codec = NULL;
 	for (i = 0; i < tegra_generic_codec->num_dai; i++)
 		tegra_generic_codec_dai[i].dev = NULL;
+
+	kfree(tegra_generic_codec);
+	tegra_generic_codec = NULL;
 
 	return 0;
 }
@@ -184,7 +183,8 @@ static int __init tegra_generic_codec_init(void)
 	int ret = 0;
 
 	tegra_generic_codec_dev =
-		platform_device_register_simple("tegra_generic_codec", -1, NULL, 0);
+		platform_device_register_simple("tegra_generic_codec",
+						 -1, NULL, 0);
 	if (!tegra_generic_codec_dev)
 		return -ENOMEM;
 

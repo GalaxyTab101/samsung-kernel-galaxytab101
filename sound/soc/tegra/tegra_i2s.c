@@ -375,54 +375,39 @@ static struct snd_soc_dai_ops tegra_i2s_dai_ops = {
 	.set_sysclk	= tegra_i2s_set_dai_sysclk,
 };
 
+#define TEGRA_I2S_CREATE_DAI(link_id, ch_min, ch_max, sample_rates)	\
+{							\
+	.name = "tegra-i2s-"#link_id,			\
+	.id = (link_id),				\
+	.probe = tegra_i2s_probe,			\
+	.suspend = tegra_i2s_suspend,			\
+	.resume = tegra_i2s_resume,			\
+	.playback = {					\
+		.channels_min = (ch_min),		\
+		.channels_max = (ch_max),		\
+		.rates = (sample_rates),		\
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,	\
+	},						\
+	.capture = {					\
+		.channels_min = (ch_min),		\
+		.channels_max = (ch_max),		\
+		.rates = (sample_rates),		\
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,	\
+	},						\
+	.ops = &tegra_i2s_dai_ops,			\
+}
+
 struct snd_soc_dai tegra_i2s_dai[] = {
-	{
-		.name = "tegra-i2s-1",
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
-		.id = 0,
+	TEGRA_I2S_CREATE_DAI(0, 1, 2, TEGRA_SAMPLE_RATES),
+	TEGRA_I2S_CREATE_DAI(1, 1, 2, TEGRA_SAMPLE_RATES),
 #else
-		.id = 1,
-#endif
-		.probe = tegra_i2s_probe,
-		.suspend = tegra_i2s_suspend,
-		.resume = tegra_i2s_resume,
-		.playback = {
-			.channels_min = 1,
-			.channels_max = 2,
-			.rates = TEGRA_SAMPLE_RATES,
-			.formats = SNDRV_PCM_FMTBIT_S16_LE,
-		},
-		.capture = {
-			.channels_min = 1,
-			.channels_max = 2,
-			.rates = TEGRA_SAMPLE_RATES,
-			.formats = SNDRV_PCM_FMTBIT_S16_LE,
-		},
-		.ops = &tegra_i2s_dai_ops,
-	},
-#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
-	{
-		.name = "tegra-i2s-2",
-		.id = 1,
-		.probe = tegra_i2s_probe,
-		.suspend = tegra_i2s_suspend,
-		.resume = tegra_i2s_resume,
-		.playback = {
-			.channels_min = 1,
-			.channels_max = 2,
-			.rates = TEGRA_SAMPLE_RATES,
-			.formats = SNDRV_PCM_FMTBIT_S16_LE,
-		},
-		.capture = {
-			.channels_min = 1,
-			.channels_max = 2,
-			.rates = TEGRA_SAMPLE_RATES,
-			.formats = SNDRV_PCM_FMTBIT_S16_LE,
-		},
-		.ops = &tegra_i2s_dai_ops,
-	},
+	TEGRA_I2S_CREATE_DAI(1, 2, 2, TEGRA_SAMPLE_RATES),
+	TEGRA_I2S_CREATE_DAI(2, 1, 2, TEGRA_SAMPLE_RATES),
+	TEGRA_I2S_CREATE_DAI(3, 1, 2, TEGRA_SAMPLE_RATES),
 #endif
 };
+
 EXPORT_SYMBOL_GPL(tegra_i2s_dai);
 
 static int tegra_i2s_driver_probe(struct platform_device *pdev)
@@ -507,6 +492,7 @@ static int tegra_i2s_driver_probe(struct platform_device *pdev)
 		info->bit_format = TEGRA_AUDIO_BIT_FORMAT_DSP;
 
 	i2s_configure(info);
+
 
 	for (i = 0; i < ARRAY_SIZE(tegra_i2s_dai); i++) {
 		if (tegra_i2s_dai[i].id == pdev->id) {

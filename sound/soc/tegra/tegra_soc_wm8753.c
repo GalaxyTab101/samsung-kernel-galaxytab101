@@ -687,31 +687,29 @@ failed:
 	return ret;
 }
 
+#define TEGRA_CREATE_SOC_DAI_LINK(xname, xstreamname, 	\
+			xcpudai, xcodecdai, xops)	\
+{							\
+	.name = xname,					\
+	.stream_name = xstreamname,			\
+	.cpu_dai = xcpudai,				\
+	.codec_dai = xcodecdai,				\
+	.init = tegra_codec_init,			\
+	.ops = xops,					\
+}
+
 static struct snd_soc_dai_link tegra_soc_dai[] = {
-	{
-		.name = "WM8753",
-		.stream_name = "WM8753 HiFi",
-		.cpu_dai = &tegra_i2s_dai[0],
-		.codec_dai = &wm8753_dai[WM8753_DAI_HIFI],
-		.init = tegra_codec_init,
-		.ops = &tegra_hifi_ops,
-	},
-	{
-		.name = "Tegra-generic",
-		.stream_name = "Tegra Generic Voice",
-		.cpu_dai = &tegra_i2s_dai[1],
-		.codec_dai = &tegra_generic_codec_dai[0],
-		.init = tegra_codec_init,
-		.ops = &tegra_voice_ops,
-	},
-	{
-		.name = "Tegra-spdif",
-		.stream_name = "Tegra Spdif",
-		.cpu_dai = &tegra_spdif_dai,
-		.codec_dai = &tegra_generic_codec_dai[1],
-		.init = tegra_codec_init,
-		.ops = &tegra_spdif_ops,
-	},
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+	TEGRA_CREATE_SOC_DAI_LINK("WM8753", "WM8753 HiFi",
+		&tegra_i2s_dai[0], &wm8753_dai[WM8753_DAI_HIFI],
+		&tegra_hifi_ops),
+	TEGRA_CREATE_SOC_DAI_LINK("Tegra-generic", "Tegra Generic Voice",
+		&tegra_i2s_dai[1], &tegra_generic_codec_dai[0],
+		&tegra_voice_ops),
+	TEGRA_CREATE_SOC_DAI_LINK("Tegra-spdif", "Tegra Spdif",
+		&tegra_spdif_dai, &tegra_generic_codec_dai[1],
+		&tegra_spdif_ops),
+#endif
 };
 
 static struct tegra_audio_data audio_data = {
