@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.36.3
-# Tue Mar  8 20:52:34 2011
+# Thu Mar 10 18:19:28 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -282,6 +282,7 @@ CONFIG_TEGRA_FIQ_DEBUGGER=y
 #
 # CONFIG_TEGRA_NVRM is not set
 # CONFIG_TEGRA_NVOS is not set
+# CONFIG_TEGRA_CARDHU_DSI is not set
 # CONFIG_TEGRA_EMC_SCALING_ENABLE is not set
 # CONFIG_TEGRA_CPU_DVFS is not set
 CONFIG_TEGRA_IOVMM_SMMU=y
@@ -1079,6 +1080,7 @@ CONFIG_USB_USBNET=y
 # CONFIG_USB_NET_AX8817X is not set
 CONFIG_USB_NET_CDCETHER=y
 # CONFIG_USB_NET_CDC_EEM is not set
+CONFIG_USB_NET_CDCNCM=y
 # CONFIG_USB_NET_DM9601 is not set
 # CONFIG_USB_NET_SMSC75XX is not set
 # CONFIG_USB_NET_SMSC95XX is not set
