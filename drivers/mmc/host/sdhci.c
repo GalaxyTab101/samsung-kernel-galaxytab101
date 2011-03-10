@@ -179,6 +179,7 @@ static void sdhci_reset(struct sdhci_host *host, u8 mask)
 	if (mask & SDHCI_RESET_ALL) {
 		host->ops->configure_capabilities(host);
 		host->uhs_mode = 0;
+		host->mmc->ios.bus_speed_mode = 0;
 		host->mmc->ios.signalling_voltage = MMC_3_3_VOLT_SIGNALLING;
 	}
 }

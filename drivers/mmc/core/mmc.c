@@ -466,16 +466,14 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			goto free_card;
 	}
 
-	if (!oldcard) {
-		/*
-		 * Fetch and process extended CSD.
-		 */
-		err = mmc_read_ext_csd(card);
-		if (err)
-			goto free_card;
-		/* Erase size depends on CSD and Extended CSD */
-		mmc_set_erase_size(card);
-	}
+	/*
+	 * Fetch and process extended CSD.
+	 */
+	err = mmc_read_ext_csd(card);
+	if (err)
+		goto free_card;
+	/* Erase size depends on CSD and Extended CSD */
+	mmc_set_erase_size(card);
 
 	/*
 	 * Activate high speed (if supported)
