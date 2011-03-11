@@ -185,7 +185,9 @@ static void tegra_sdhci_set_signalling_voltage(struct sdhci_host *sdhci,
 	struct tegra_sdhci_host *host = sdhci_priv(sdhci);
 	unsigned int minV = 3280000;
 	unsigned int maxV = 3320000;
+#if defined (CONFIG_ARCH_TEGRA_3x_SOC)
 	unsigned int val;
+#endif
 	unsigned int rc;
 
 	if (signalling_voltage == MMC_1_8_VOLT_SIGNALLING) {
@@ -198,14 +200,15 @@ static void tegra_sdhci_set_signalling_voltage(struct sdhci_host *sdhci,
 		printk(KERN_ERR "%s switching to %dV failed %d\n",
 			mmc_hostname(sdhci->mmc), (maxV/1000000), rc);
 	else {
-#if CONFIG_ARCH_TEGRA_3x_SOC
+#if defined (CONFIG_ARCH_TEGRA_3x_SOC)
 		if (signalling_voltage == MMC_1_8_VOLT_SIGNALLING) {
 			/* Do Auto Calibration */
 			val = sdhci_readl(sdhci, SDMMC_AUTO_CAL_CONFIG);
 			val |= SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_ENABLE;
 			sdhci_writel(sdhci, val, SDMMC_AUTO_CAL_CONFIG);
-#endif
+
 		}
+#endif
 	}
 }
 
