@@ -197,14 +197,24 @@ static void tegra_pm_restart(char mode, const char *cmd)
 void tegra_cpu_reset_handler_enable(void)
 {
 	extern void __tegra_cpu_reset_handler(void);
+	extern void __tegra_cpu_reset_handler_start(void);
+	extern void __tegra_cpu_reset_handler_end(void);
 	void __iomem *evp_cpu_reset =
 		IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE + 0x100);
-	unsigned long cpu_reset_handler;
+	void __iomem *iram_base =
+		IO_ADDRESS(TEGRA_IRAM_BASE);
+	unsigned long cpu_reset_handler_size =
+		__tegra_cpu_reset_handler_end - __tegra_cpu_reset_handler_start;
+	unsigned long cpu_reset_handler_offset =
+		__tegra_cpu_reset_handler - __tegra_cpu_reset_handler_start;
 
+	BUG_ON(cpu_reset_handler_size > TEGRA_RESET_HANDLER_SIZE);
+
+	memcpy(iram_base, (void *)__tegra_cpu_reset_handler_start, cpu_reset_handler_size);
 	/* NOTE: This must be the one and only write to the CPU reset
 		 vector in the entire system. */
-	cpu_reset_handler = virt_to_phys(__tegra_cpu_reset_handler);
-	writel(cpu_reset_handler, evp_cpu_reset);
+	writel(TEGRA_RESET_HANDLER_BASE + cpu_reset_handler_offset,
+		evp_cpu_reset);
 	wmb();
 }
 
@@ -234,7 +244,7 @@ void __init tegra_cpu_reset_handler_init(void)
 {
 #ifdef CONFIG_SMP
 	/* Mark the initial boot CPU as initialized. */
-	cpu_set(0, tegra_cpu_init_map);
+	__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_INIT] |= 1;
 
 	__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_PRESENT_PTR] =
 		virt_to_phys((void*)cpu_present_mask);

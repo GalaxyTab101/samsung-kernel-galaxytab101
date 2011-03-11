@@ -353,7 +353,10 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	twd_ctrl = readl(twd_base + 0x8);
 	twd_load = readl(twd_base + 0);
 
-	cpu_set(dev->cpu, tegra_cpu_lp2_map);
+	spin_lock(&lp2_map_lock);
+	tegra_cpu_lp2_map |= (1 << dev->cpu);
+	spin_unlock(&lp2_map_lock);
+
 	flush_cache_all();
 	tegra_cpu_reset_handler_flush(false);
 	barrier();
@@ -362,7 +365,11 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 
 	/* CPU0 booted CPU1 out of reset */
 	barrier();
-	cpu_clear(dev->cpu, tegra_cpu_lp2_map);
+
+	spin_lock(&lp2_map_lock);
+	tegra_cpu_lp2_map &= ~(1 << dev->cpu);
+	spin_unlock(&lp2_map_lock);
+
 	writel(twd_ctrl, twd_base + 0x8);
 	writel(twd_load, twd_base + 0);
 	gic_cpu_init(0, IO_ADDRESS(TEGRA_ARM_PERIF_BASE) + 0x100);

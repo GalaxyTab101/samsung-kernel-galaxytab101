@@ -40,14 +40,24 @@
 
 extern unsigned long __tegra_cpu_reset_handler_data[TEGRA_RESET_DATA_SIZE];
 extern unsigned long tegra_wfi_fail_count[CONFIG_NR_CPUS];
+extern void __tegra_cpu_reset_handler_start(void);
 
 #ifdef CONFIG_SMP
-#define tegra_cpu_init_map (*(cpumask_t *)(&__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_INIT]))
+#define tegra_cpu_init_map (*(unsigned long *)(IO_ADDRESS(TEGRA_RESET_HANDLER_BASE + \
+		((unsigned long)&__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_INIT] - \
+		 (unsigned long)__tegra_cpu_reset_handler_start))))
 #endif
 #ifdef CONFIG_PM
-#define tegra_cpu_lp1_map  (*(cpumask_t *)(&__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_LP1]))
+#define tegra_cpu_lp1_map (*(unsigned long *)(IO_ADDRESS(TEGRA_RESET_HANDLER_BASE + \
+		((unsigned long)&__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_LP1] - \
+		 (unsigned long)__tegra_cpu_reset_handler_start))))
 #endif
-#define tegra_cpu_lp2_map  (*(cpumask_t *)(&__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_LP2]))
+
+#define tegra_cpu_lp2_map (*(unsigned long *)(IO_ADDRESS(TEGRA_RESET_HANDLER_BASE + \
+		((unsigned long)&__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_LP2] - \
+		 (unsigned long)__tegra_cpu_reset_handler_start))))
+
+extern spinlock_t lp2_map_lock;
 
 static inline bool suspend_wfi_failed(void)
 {

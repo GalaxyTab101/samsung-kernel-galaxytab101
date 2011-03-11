@@ -82,6 +82,8 @@ u32 buffer_rdv[64];
 
 /**************** END TL *********************/
 
+DEFINE_SPINLOCK(lp2_map_lock);
+
 struct suspend_context {
 	/*
 	 * The next 7 values are referenced by offset in __restart_plls
@@ -474,7 +476,11 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 	suspend_cpu_complex();
 	stop_critical_timings();
 	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_prolog);
-	cpu_set(cpu, tegra_cpu_lp2_map);
+
+	spin_lock(&lp2_map_lock);
+	tegra_cpu_lp2_map |= (1 << cpu);
+	spin_unlock(&lp2_map_lock);
+
 	flush_cache_all();
 	/* structure is read by reset code, so the L2 lines
 	 * must be invalidated */
@@ -499,7 +505,11 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 
 	restore_cpu_complex();
 	start_critical_timings();
-	cpu_clear(cpu, tegra_cpu_lp2_map);
+
+	spin_lock(&lp2_map_lock);
+	tegra_cpu_lp2_map &= ~(1 << cpu);
+	spin_unlock(&lp2_map_lock);
+
 	remain = tegra_lp2_timer_remain();
 	if (us)
 		tegra_lp2_set_trigger(0);
@@ -541,8 +551,6 @@ static void pmc_32kwritel(u32 val, unsigned long offs)
 static u8 *iram_save = NULL;
 static unsigned int iram_save_size = 0;
 static void __iomem *iram_code = IO_ADDRESS(TEGRA_IRAM_CODE_AREA);
-static void __iomem *evp_cpu_reset =
-				IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE + 0x100);
 
 void tegra_suspend_dram(bool do_lp0)
 {
@@ -594,13 +602,9 @@ void tegra_suspend_dram(bool do_lp0)
 			pdata->wake_any);
 	}
 
-	/* FIXME we should not change evp_cpu_reset here */
-	writel(TEGRA_IRAM_CODE_AREA, evp_cpu_reset);
-	wmb();
-
 	suspend_cpu_complex();
 	if (!do_lp0)
-		cpu_set(cpu, tegra_cpu_lp1_map);
+		tegra_cpu_lp1_map = 1;
 	flush_cache_all();
 	tegra_cpu_reset_handler_flush(false);
 #ifdef CONFIG_CACHE_L2X0
@@ -614,15 +618,15 @@ void tegra_suspend_dram(bool do_lp0)
 	__cortex_a9_save(mode);
 
 	if (!do_lp0) {
-		cpu_clear(cpu, tegra_cpu_lp1_map);
+		tegra_cpu_lp1_map = 0;
 		if (suspend_wfi_failed()) {
 			tegra_wfi_fail_count[cpu]++;
 			pr_err_ratelimited("WFI for LP1 failed for CPU %d: count %lu\n",
 					    cpu, tegra_wfi_fail_count[cpu]);
 		}
 	}
-
-	tegra_cpu_reset_handler_enable();
+	else
+		tegra_cpu_reset_handler_enable();
 
 	restore_cpu_complex();
 

@@ -108,6 +108,25 @@ ENTRY(__tegra_cpu_reset_handler)
 	mov	r11, r11, lsl r10  		@ R11 = CPU mask
 	add	r12, pc, #__tegra_cpu_reset_handler_data-(.+8)
 
+#ifdef CONFIG_PM
+	ldr	r8, [r12, #RESET_DATA(MASK_LP1)]
+#else
+	mov	r8, #0
+#endif
+
+#ifdef CONFIG_PM
+	/* Waking up from LP1? */
+	tst	r8, r11				@ if in_lp1
+	beq	__is_not_lp1
+	cmp	r10, #0
+	bne	__die				@ only CPU0 can be here
+	ldr	lr, [r12, #RESET_DATA(STARTUP_LP1)]
+	cmp	lr, #0
+	bleq	__die				@ no LP1 startup handler
+	bx	lr
+__is_not_lp1:
+#endif
+
 #ifdef CONFIG_SMP
 	ldr	r5, [r12, #RESET_DATA(MASK_PRESENT_PTR)]
 	cmp	r5, #0
@@ -125,13 +144,6 @@ ENTRY(__tegra_cpu_reset_handler)
 	mov	r6, #0
 	mov	r7, #0
 #endif
-
-#ifdef CONFIG_PM
-	ldr	r8, [r12, #RESET_DATA(MASK_LP1)]
-#else
-	mov	r8, #0
-#endif
-	ldr	r9, [r12, #RESET_DATA(MASK_LP2)]
 
 #ifdef CONFIG_SMP
 	/* Does the OS know about this CPU? */
@@ -162,18 +174,7 @@ __is_initialized:
 __is_online:
 #endif
 #endif
-#ifdef CONFIG_PM
-	/* Waking up from LP1? */
-	tst	r8, r11				@ if in_lp1
-	beq	__is_not_lp1
-	cmp	r10, #0
-	bne	__die				@ only CPU0 can be here
-	ldr	lr, [r12, #RESET_DATA(STARTUP_LP1)]
-	cmp	lr, #0
-	bleq	__die				@ no LP1 startup handler
-	bx	lr
-__is_not_lp1:
-#endif
+	ldr	r9, [r12, #RESET_DATA(MASK_LP2)]
 
 	/* Waking up from LP2? */
 	tst	r9, r11				@ if in_lp2

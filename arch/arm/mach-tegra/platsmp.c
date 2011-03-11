@@ -84,10 +84,10 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 #ifdef CONFIG_HOTPLUG_CPU
 	INIT_COMPLETION(per_cpu(cpu_killed, cpu));
 #endif
-	cpu_set(cpu, tegra_cpu_init_map);
+	tegra_cpu_init_map |= (1 << cpu);
 
 	if (!tegra_all_cpus_booted)
-		if (cpus_equal(tegra_cpu_init_map, cpu_present_map))
+		if (cpus_equal(*(cpumask_t*)&tegra_cpu_init_map, cpu_present_map))
 			tegra_all_cpus_booted = true;
 
 	spin_unlock(&boot_lock);
