@@ -162,6 +162,7 @@ static inline void tegra_auto_hotplug_governor(unsigned int cpu_freq)
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
 #define INSTRUMENT_CLUSTER_SWITCH 0	/* Must be zero for ARCH_TEGRA_2x_SOC */
 #define DEBUG_CLUSTER_SWITCH 0		/* Must be zero for ARCH_TEGRA_2x_SOC */
+#define PARAMETERIZE_CLUSTER_SWITCH 0	/* Must be zero for ARCH_TEGRA_2x_SOC */
 static inline int tegra_cluster_control(unsigned int us, unsigned int flags)
 { return -EPERM; }
 #define tegra_cluster_switch_prolog(flags) do {} while (0)
@@ -169,8 +170,6 @@ static inline int tegra_cluster_control(unsigned int us, unsigned int flags)
 static inline bool is_g_cluster_present(void)
 { return true; }
 static inline unsigned int is_lp_cluster(void)
-{ return 0; }
-static inline unsigned long tegra_get_lpcpu_max_rate(void)
 { return 0; }
 int tegra_cpudile_init_soc(void);
 static inline bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
@@ -181,6 +180,7 @@ static inline bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 #else
 #define INSTRUMENT_CLUSTER_SWITCH 1	/* Should be zero for shipping code */
 #define DEBUG_CLUSTER_SWITCH 1		/* Should be zero for shipping code */
+#define PARAMETERIZE_CLUSTER_SWITCH 1	/* Should be zero for shipping code */
 int tegra_cluster_control(unsigned int us, unsigned int flags);
 void tegra_cluster_switch_prolog(unsigned int flags);
 void tegra_cluster_switch_epilog(unsigned int flags);
@@ -197,7 +197,6 @@ static inline unsigned int is_lp_cluster(void)
 	reg = readl(FLOW_CTRL_CLUSTER_CONTROL);
 	return (reg & 1); /* 0 == G, 1 == LP*/
 }
-unsigned long tegra_get_lpcpu_max_rate(void);
 static inline int tegra_cpudile_init_soc(void)
 { return 0; }
 bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
@@ -210,6 +209,13 @@ extern unsigned int tegra_cluster_debug;
 #define DEBUG_CLUSTER(x) do { if (tegra_cluster_debug) printk x; } while (0)
 #else
 #define DEBUG_CLUSTER(x) do { } while (0)
+#endif
+#if PARAMETERIZE_CLUSTER_SWITCH
+void tegra_cluster_switch_set_parameters(unsigned int us, unsigned int flags);
+#else
+static inline void tegra_cluster_switch_set_parameters(
+	unsigned int us, unsigned int flags)
+{ }
 #endif
 
 #endif
