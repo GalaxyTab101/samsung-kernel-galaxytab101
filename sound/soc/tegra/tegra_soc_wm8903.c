@@ -114,8 +114,6 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 		int SidetoneCtrlReg = 0;
 		int SideToneAtenuation = 0;
 
-		snd_soc_write(codec, WM8903_ANALOGUE_LEFT_INPUT_0, 0X7);
-		snd_soc_write(codec, WM8903_ANALOGUE_RIGHT_INPUT_0, 0X7);
 		/* Mic Bias enable */
 		CtrlReg = (0x1<<B00_MICBIAS_ENA) | (0x1<<B01_MICDET_ENA);
 		snd_soc_write(codec, WM8903_MIC_BIAS_CONTROL_0, CtrlReg);
@@ -123,19 +121,38 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 		CtrlReg = snd_soc_read(codec, WM8903_DRC_0);
 		CtrlReg |= (1<<B15_DRC_ENA);
 		snd_soc_write(codec, WM8903_DRC_0, CtrlReg);
-		/* Single Ended Mic */
-		CtrlReg = (0x0<<B06_IN_CM_ENA) |
-			(0x0<<B00_MODE) | (0x0<<B04_IP_SEL_N)
-					| (0x1<<B02_IP_SEL_P);
+
 		VolumeCtrlReg = (0x1C << B00_IN_VOL);
-		/* Mic Setting */
-		snd_soc_write(codec, WM8903_ANALOGUE_LEFT_INPUT_1, CtrlReg);
-		snd_soc_write(codec, WM8903_ANALOGUE_RIGHT_INPUT_1, CtrlReg);
+
 		/* voulme for single ended mic */
 		snd_soc_write(codec, WM8903_ANALOGUE_LEFT_INPUT_0,
 				VolumeCtrlReg);
 		snd_soc_write(codec, WM8903_ANALOGUE_RIGHT_INPUT_0,
 				VolumeCtrlReg);
+
+		/* ADC Settings */
+		CtrlReg = snd_soc_read(codec, WM8903_ADC_DIGITAL_0);
+		CtrlReg |= (0x1<<B04_ADC_HPF_ENA);
+		snd_soc_write(codec, WM8903_ADC_DIGITAL_0, CtrlReg);
+
+		SidetoneCtrlReg = 0;
+		snd_soc_write(codec, R20_SIDETONE_CTRL, SidetoneCtrlReg);
+
+		SideToneAtenuation = 12 ; /* sidetone 0 db */
+
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+
+		snd_soc_write(codec, WM8903_ANALOGUE_LEFT_INPUT_0, 0X7);
+		snd_soc_write(codec, WM8903_ANALOGUE_RIGHT_INPUT_0, 0X7);
+
+		/* Single Ended Mic */
+		CtrlReg = (0x0<<B06_IN_CM_ENA) |
+			(0x0<<B00_MODE) | (0x0<<B04_IP_SEL_N)
+					| (0x1<<B02_IP_SEL_P);
+		/* Mic Setting */
+		snd_soc_write(codec, WM8903_ANALOGUE_LEFT_INPUT_1, CtrlReg);
+		snd_soc_write(codec, WM8903_ANALOGUE_RIGHT_INPUT_1, CtrlReg);
+
 		/* replicate mic setting on both channels */
 		CtrlReg = snd_soc_read(codec, WM8903_AUDIO_INTERFACE_0);
 		CtrlReg  = SET_REG_VAL(CtrlReg, 0x1, B06_AIF_ADCR, 0x0);
@@ -144,12 +161,7 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 		/* Enable analog inputs */
 		CtrlReg = (0x1<<B01_INL_ENA) | (0x1<<B00_INR_ENA);
 		snd_soc_write(codec, WM8903_POWER_MANAGEMENT_0, CtrlReg);
-		/* ADC Settings */
-		CtrlReg = snd_soc_read(codec, WM8903_ADC_DIGITAL_0);
-		CtrlReg |= (0x1<<B04_ADC_HPF_ENA);
-		snd_soc_write(codec, WM8903_ADC_DIGITAL_0, CtrlReg);
-		SidetoneCtrlReg = 0;
-		snd_soc_write(codec, R20_SIDETONE_CTRL, SidetoneCtrlReg);
+
 		/* Enable ADC */
 		CtrlReg = snd_soc_read(codec, WM8903_POWER_MANAGEMENT_6);
 		CtrlReg |= (0x1<<B00_ADCR_ENA)|(0x1<<B01_ADCL_ENA);
@@ -157,9 +169,9 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 		CtrlReg = snd_soc_read(codec, R29_DRC_1);
 		CtrlReg |= 0x3; /*mic volume 18 db */
 		snd_soc_write(codec, R29_DRC_1, CtrlReg);
+#else
 
 		/* Enabling Digital mic as default*/
-#if !defined(CONFIG_ARCH_TEGRA_2x_SOC)
 		/* Set GP1_FN as DMIC_LR */
 		CtrlReg = snd_soc_read(codec, WM8903_GPIO_CONTROL_1);
 		CtrlReg = (0x06 << B08_GP1_FN) | (0x0 << B07_GP1_DIR);
