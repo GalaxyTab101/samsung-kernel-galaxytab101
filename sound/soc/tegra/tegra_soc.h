@@ -145,6 +145,8 @@ void setup_dma_request(struct snd_pcm_substream *substream,
 			struct tegra_dma_req *req,
 			void (*dma_callback)(struct tegra_dma_req *req),
 			void *dma_data);
+void set_fifo_attention(struct snd_pcm_substream *substream,
+			int buffersize);
 
 void tegra_switch_set_state(int state);
 

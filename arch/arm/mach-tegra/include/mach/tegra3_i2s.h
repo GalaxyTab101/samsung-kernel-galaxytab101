@@ -302,6 +302,8 @@
 *  this will be part of apbif fifo
 */
 #define I2S_FIFO_ATN_LVL_FOUR_SLOTS		4
+#define I2S_FIFO_ATN_LVL_EIGHT_SLOTS		8
+#define I2S_FIFO_ATN_LVL_ONE_SLOT		1
 #define I2S_I2S_STATUS_FIFO1_BSY		(1<<1)
 #define I2S_I2S_STATUS_FIFO2_BSY		(1<<0)
 

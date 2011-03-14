@@ -473,7 +473,7 @@ int i2s_set_flow_control(int ifc, int enable, int filtertype, int stepsize)
 
 int i2s_fifo_set_attention_level(int ifc, int fifo, unsigned level)
 {
-	return apbif_fifo_set_attention_level(ifc, fifo, level);
+	return apbif_fifo_set_attention_level(ifc, fifo, (level - 1));
 }
 
 void i2s_fifo_clear(int ifc, int fifo)

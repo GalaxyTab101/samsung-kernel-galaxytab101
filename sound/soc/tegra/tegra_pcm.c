@@ -58,6 +58,7 @@ static void tegra_pcm_capture(struct tegra_runtime_data *prtd)
 
 	if (runtime->dma_addr) {
 		prtd->size = frames_to_bytes(runtime, runtime->period_size);
+
 		if (prtd->dma_state != STATE_ABORT) {
 			prtd->dma_reqid_tail = (prtd->dma_reqid_tail + 1) % DMA_REQ_QCOUNT;
 			prtd->dma_req[prtd->dma_reqid_tail].dest_addr = buf->addr +
@@ -115,6 +116,7 @@ static int tegra_pcm_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
 {
 	snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
+	set_fifo_attention(substream, params_period_bytes(params));
 	return 0;
 }
 

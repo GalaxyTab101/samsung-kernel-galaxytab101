@@ -37,6 +37,8 @@ struct tegra_i2s_info {
 	unsigned int bit_format;
 	bool i2s_master;
 	int ref_count;
+	int fifo_tx_attn;
+	int fifo_rx_attn;
 	struct i2s_runtime_data i2s_regs;
 	struct das_regs_cache das_regs;
 };
@@ -81,10 +83,34 @@ void setup_i2s_dma_request(struct snd_pcm_substream *substream,
 	return;
 }
 
+void set_fifo_attention(struct snd_pcm_substream *substream,
+			int buffersize)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
+	struct tegra_i2s_info *info = cpu_dai->private_data;
+	int fifoattn = I2S_FIFO_ATN_LVL_FOUR_SLOTS;
+
+#if !defined(CONFIG_ARCH_TEGRA_2x_SOC)
+	if (buffersize & 0xF)
+		fifoattn = I2S_FIFO_ATN_LVL_ONE_SLOT;
+	else if ((buffersize >> 4) & 0x1)
+		fifoattn = I2S_FIFO_ATN_LVL_FOUR_SLOTS;
+	else
+		fifoattn = I2S_FIFO_ATN_LVL_EIGHT_SLOTS;
+#endif
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		info->fifo_tx_attn = fifoattn;
+	else
+		info->fifo_rx_attn = fifoattn;
+}
 
 /* playback */
 static inline void start_i2s_playback(struct snd_soc_dai *cpu_dai)
 {
+//	struct tegra_i2s_info *info = cpu_dai->private_data;
+
 	i2s_fifo_set_attention_level(cpu_dai->id, I2S_FIFO_TX,
 					I2S_FIFO_ATN_LVL_FOUR_SLOTS);
 	i2s_fifo_enable(cpu_dai->id, I2S_FIFO_TX, 1);
@@ -101,6 +127,8 @@ static inline void stop_i2s_playback(struct snd_soc_dai *cpu_dai)
 /* recording */
 static inline void start_i2s_capture(struct snd_soc_dai *cpu_dai)
 {
+//	struct tegra_i2s_info *info = cpu_dai->private_data;
+
 	i2s_fifo_set_attention_level(cpu_dai->id, I2S_FIFO_RX,
 					I2S_FIFO_ATN_LVL_FOUR_SLOTS);
 	i2s_fifo_enable(cpu_dai->id, I2S_FIFO_RX, 1);
