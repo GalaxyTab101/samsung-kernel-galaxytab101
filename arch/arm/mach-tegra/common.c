@@ -201,12 +201,13 @@ void tegra_cpu_reset_handler_enable(void)
 	extern void __tegra_cpu_reset_handler_end(void);
 	void __iomem *evp_cpu_reset =
 		IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE + 0x100);
-	void __iomem *iram_base =
-		IO_ADDRESS(TEGRA_IRAM_BASE);
+	void __iomem *iram_base = IO_ADDRESS(TEGRA_IRAM_BASE);
+	void __iomem *sb_ctrl = IO_ADDRESS(TEGRA_SB_BASE);
 	unsigned long cpu_reset_handler_size =
 		__tegra_cpu_reset_handler_end - __tegra_cpu_reset_handler_start;
 	unsigned long cpu_reset_handler_offset =
 		__tegra_cpu_reset_handler - __tegra_cpu_reset_handler_start;
+	unsigned long reg;
 
 	BUG_ON(cpu_reset_handler_size > TEGRA_RESET_HANDLER_SIZE);
 
@@ -215,6 +216,13 @@ void tegra_cpu_reset_handler_enable(void)
 		 vector in the entire system. */
 	writel(TEGRA_RESET_HANDLER_BASE + cpu_reset_handler_offset,
 		evp_cpu_reset);
+	wmb();
+
+	/* Prevent further modifications to the physical reset vector.
+	   NOTE: Has no effect on chips prior to Tegra3. */
+	reg = readl(sb_ctrl);
+	reg |= 2;
+	writel(reg, sb_ctrl);
 	wmb();
 }
 
