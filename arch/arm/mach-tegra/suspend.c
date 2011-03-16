@@ -267,7 +267,6 @@ static int create_suspend_pgtable(void)
 {
 	int i;
 	pmd_t *pmd;
-	void __tegra_cpu_reset_handler_start(void);
 	void __put_cpu_in_reset(void);
 
 	/* arrays of virtual-to-physical mappings which must be
@@ -285,7 +284,6 @@ static int create_suspend_pgtable(void)
 #endif
 		(unsigned long)__cortex_a9_restore,
 		(unsigned long)virt_to_phys(__shut_off_mmu),
-		(unsigned long)virt_to_phys(__tegra_cpu_reset_handler_start),
 		(unsigned long)virt_to_phys(__put_cpu_in_reset),
 	};
 	unsigned long addr_p[] = {
@@ -297,7 +295,6 @@ static int create_suspend_pgtable(void)
 #endif
 		(unsigned long)virt_to_phys(__cortex_a9_restore),
 		(unsigned long)virt_to_phys(__shut_off_mmu),
-		(unsigned long)virt_to_phys(__tegra_cpu_reset_handler_start),
 		(unsigned long)virt_to_phys(__put_cpu_in_reset),
 	};
 	unsigned int flags = PMD_TYPE_SECT | PMD_SECT_AP_WRITE |
