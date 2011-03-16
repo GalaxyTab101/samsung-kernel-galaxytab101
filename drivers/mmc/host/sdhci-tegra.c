@@ -150,16 +150,17 @@ static void tegra_sdhci_enable_clock(struct tegra_sdhci_host *host, int clock)
 	u8 val;
 
 	if (clock) {
-		clk_enable(host->clk);
+		if (!host->clk_enabled) {
+			clk_enable(host->clk);
+			val = sdhci_readb(host->sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
+			val |= 1;
+			sdhci_writeb(host->sdhci, val, SDHCI_VENDOR_CLOCK_CNTRL);
+			host->clk_enabled = 1;
+		}
 		if (clock < SDHCI_TEGRA_MIN_CONTROLLER_CLOCK)
 			clk_set_rate(host->clk, SDHCI_TEGRA_MIN_CONTROLLER_CLOCK);
 		else
 			clk_set_rate(host->clk, clock);
-
-		val = sdhci_readb(host->sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
-		val |= 1;
-		sdhci_writeb(host->sdhci, val, SDHCI_VENDOR_CLOCK_CNTRL);
-		host->clk_enabled = 1;
 	} else if (host->clk_enabled) {
 		val = sdhci_readb(host->sdhci, SDHCI_VENDOR_CLOCK_CNTRL);
 		val &= ~(0x1);
@@ -167,7 +168,10 @@ static void tegra_sdhci_enable_clock(struct tegra_sdhci_host *host, int clock)
 		clk_disable(host->clk);
 		host->clk_enabled = 0;
 	}
-	host->sdhci->max_clk = clk_get_rate(host->clk);
+	if (host->clk_enabled)
+		host->sdhci->max_clk = clk_get_rate(host->clk);
+	else
+		host->sdhci->max_clk = 0;
 }
 
 static void tegra_sdhci_set_clock(struct sdhci_host *sdhci, unsigned int clock)
@@ -413,6 +417,7 @@ err_remove_host:
 	sdhci_remove_host(sdhci, 1);
 err_clk_disable:
 	clk_disable(host->clk);
+	host->clk_enabled = 0;
 err_clkput:
 	clk_put(host->clk);
 err_free_host:
@@ -541,6 +546,7 @@ static int tegra_sdhci_suspend(struct platform_device *pdev, pm_message_t state)
 		pr_err("%s: failed, error = %d\n", __func__, ret);
 
 	tegra_sdhci_enable_clock(host, 0);
+
 	return ret;
 }
 
@@ -570,7 +576,7 @@ static int tegra_sdhci_resume(struct platform_device *pdev)
 		return 0;
 	}
 
-	tegra_sdhci_enable_clock(host, 1);
+	tegra_sdhci_enable_clock(host, SDHCI_TEGRA_MIN_CONTROLLER_CLOCK);
 
 	pwr = SDHCI_POWER_ON;
 	sdhci_writeb(host->sdhci, pwr, SDHCI_POWER_CONTROL);
