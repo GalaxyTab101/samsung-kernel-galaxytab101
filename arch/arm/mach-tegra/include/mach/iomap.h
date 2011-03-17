@@ -85,8 +85,10 @@
 
 #if defined(CONFIG_ARCH_TEGRA_3x_SOC)
 
-#define TEGRA_SMMU_BASE			0xe0000000
-#define TEGRA_SMMU_SIZE			SZ_256M
+#define TEGRA_SMMU_BASE_A01		0xe0000000
+#define TEGRA_SMMU_SIZE_A01		SZ_256M
+#define TEGRA_SMMU_BASE			0x00001000
+#define TEGRA_SMMU_SIZE			(SZ_1G - SZ_4K * 2)
 
 #endif
 
@@ -192,6 +194,13 @@
 
 #define TEGRA_AVP_CACHE_BASE		0x6000C000
 #define TEGRA_AVP_CACHE_SIZE		4
+
+#endif
+
+#if defined(CONFIG_ARCH_TEGRA_3x_SOC)
+
+#define TEGRA_AHB_ARB_BASE		0x6000C000
+#define TEGRA_AHB_ARB_SIZE		768	/* Overlaps with GISMO */
 
 #endif
 
