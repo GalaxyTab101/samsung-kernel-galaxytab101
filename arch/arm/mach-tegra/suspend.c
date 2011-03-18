@@ -390,8 +390,9 @@ static noinline void restore_cpu_complex(void)
 
 	gic_dist_restore(0);
 	get_irq_chip(IRQ_LOCALTIMER)->unmask(IRQ_LOCALTIMER);
-
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	enable_irq(INT_SYS_STATS_MON);
+#endif
 }
 
 static noinline void suspend_cpu_complex(void)
@@ -399,8 +400,9 @@ static noinline void suspend_cpu_complex(void)
 	unsigned int reg;
 	int i;
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	disable_irq(INT_SYS_STATS_MON);
-
+#endif
 	/* switch coresite to clk_m, save off original source */
 	tegra_sctx.clk_csite_src = readl(clk_rst + CLK_RESET_SOURCE_CSITE);
 	writel(3<<30, clk_rst + CLK_RESET_SOURCE_CSITE);
