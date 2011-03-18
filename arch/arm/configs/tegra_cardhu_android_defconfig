@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.36.3
-# Thu Mar 10 18:19:28 2011
+# Fri Mar 18 15:18:12 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1642,6 +1642,7 @@ CONFIG_TEGRA_AVP=y
 CONFIG_TEGRA_CAMERA=y
 CONFIG_VIDEO_OV5650=y
 CONFIG_VIDEO_OV2710=y
+CONFIG_VIDEO_SH532U=y
 # CONFIG_VIDEO_CPIA is not set
 # CONFIG_VIDEO_CPIA2 is not set
 # CONFIG_VIDEO_SAA5246A is not set
