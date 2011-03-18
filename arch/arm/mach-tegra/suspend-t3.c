@@ -36,7 +36,7 @@
 #include "clock.h"
 #include "gpio-names.h"
 #include "power.h"
-
+#include "tegra3_emc.h"
 
 #define CAR_CCLK_BURST_POLICY \
 	(IO_ADDRESS(TEGRA_CLK_RESET_BASE) + 0x20)
@@ -408,4 +408,21 @@ int tegra_wake_to_irq(int wake)
 		return -EINVAL;
 
 	return tegra_wake_event_irq[wake];
+}
+
+static u32 mc_reserved_rsv;
+static u32 mc_emem_arb_override;
+
+void tegra_lp0_suspend_mc(void)
+{
+	void __iomem *mc = IO_ADDRESS(TEGRA_MC_BASE);
+	mc_reserved_rsv = readl(mc + MC_RESERVED_RSV);
+	mc_emem_arb_override = readl(mc + MC_EMEM_ARB_OVERRIDE);
+}
+
+void tegra_lp0_resume_mc(void)
+{
+	void __iomem *mc = IO_ADDRESS(TEGRA_MC_BASE);
+	writel(mc_reserved_rsv, mc + MC_RESERVED_RSV);
+	writel(mc_emem_arb_override, mc + MC_EMEM_ARB_OVERRIDE);
 }

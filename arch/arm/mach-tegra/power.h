@@ -146,7 +146,7 @@ void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
 
-#if defined(CONFIG_TEGRA_AUTO_HOTPLUG) && defined(CONFIG_ARCH_TEGRA_3x_SOC)
+#if defined(CONFIG_TEGRA_AUTO_HOTPLUG) && !defined(CONFIG_ARCH_TEGRA_2x_SOC)
 int tegra_auto_hotplug_init(void);
 void tegra_auto_hotplug_exit(void);
 void tegra_auto_hotplug_governor(unsigned int cpu_freq);
@@ -176,6 +176,8 @@ int tegra_cpudile_init_soc(void);
 static inline bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 	struct cpuidle_state *state)
 { return true; }
+#define tegra_lp0_suspend_mc() do {} while (0)
+#define tegra_lp0_resume_mc() do {} while (0)
 #else
 #define INSTRUMENT_CLUSTER_SWITCH 1	/* Should be zero for shipping code */
 #define DEBUG_CLUSTER_SWITCH 1		/* Should be zero for shipping code */
@@ -200,6 +202,8 @@ static inline int tegra_cpudile_init_soc(void)
 { return 0; }
 bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
+void tegra_lp0_suspend_mc(void);
+void tegra_lp0_resume_mc(void);
 #endif
 #if DEBUG_CLUSTER_SWITCH
 extern unsigned int tegra_cluster_debug;

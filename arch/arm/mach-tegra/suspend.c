@@ -602,6 +602,7 @@ void tegra_suspend_dram(bool do_lp0)
 
 		tegra_set_lp0_wake_pads(pdata->wake_enb, pdata->wake_high,
 			pdata->wake_any);
+		tegra_lp0_suspend_mc();
 	}
 
 	suspend_cpu_complex();
@@ -627,8 +628,10 @@ void tegra_suspend_dram(bool do_lp0)
 					    cpu, tegra_wfi_fail_count[cpu]);
 		}
 	}
-	else
+	else {
 		tegra_cpu_reset_handler_enable();
+		tegra_lp0_resume_mc();
+	}
 
 	restore_cpu_complex();
 
