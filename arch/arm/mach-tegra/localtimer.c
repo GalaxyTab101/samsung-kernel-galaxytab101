@@ -21,5 +21,9 @@
 void __cpuinit local_timer_setup(struct clock_event_device *evt)
 {
 	evt->irq = IRQ_LOCALTIMER;
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	twd_timer_setup_scalable(evt, 2500000, 4);
+#else
+	twd_timer_setup_scalable(evt, 4000000, 2);
+#endif
 }
