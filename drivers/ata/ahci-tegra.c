@@ -393,6 +393,95 @@ static inline void pictlr_writel(u32 val, u32 offset)
 	writel(val, IO_ADDRESS(TEGRA_PRIMARY_ICTLR_BASE + offset));
 }
 
+static inline u32 fuse_readl(u32 offset)
+{
+	u32 val;
+
+	val = readl(IO_ADDRESS(TEGRA_FUSE_BASE + offset));
+	AHCI_DBG_PRINT("[0x%x] => 0x%08x\n", TEGRA_FUSE_BASE+offset, val);
+
+	return val;
+}
+
+/* Sata Pad Cntrl Values */
+struct sata_pad_cntrl {
+	u8 gen1_tx_amp;
+	u8 gen1_tx_peak;
+	u8 gen2_tx_amp;
+	u8 gen2_tx_peak;
+};
+
+static const struct sata_pad_cntrl sata_calib_pad_val[] = {
+	{	/* SATA_CALIB[1:0]  = 00 */
+		0x0c,
+		0x04,
+		0x0e,
+		0x0a
+	},
+	{	/* SATA_CALIB[1:0]  = 01 */
+		0x0e,
+		0x04,
+		0x14,
+		0x0a
+	},
+	{	/* SATA_CALIB[1:0]  = 10 */
+		0x0e,
+		0x07,
+		0x1a,
+		0x0e
+	},
+	{	/* SATA_CALIB[1:0]  = 11 */
+		0x14,
+		0x0e,
+		0x1a,
+		0x0e
+	}
+};
+
+static void tegra_ahci_set_pad_cntrl_regs(void)
+{
+	int	calib_val;
+	int	val;
+	int	i;
+
+	calib_val = fuse_readl(FUSE_SATA_CALIB_OFFSET) & FUSE_SATA_CALIB_MASK;
+
+	for (i = 0; i < TEGRA_AHCI_NUM_PORTS; ++i) {
+		scfg_writel((1 << i), T_SATA0_INDEX_OFFSET);
+
+		val = scfg_readl(T_SATA0_CHX_PHY_CTRL1_GEN1_OFFSET);
+		val &= ~SATA0_CHX_PHY_CTRL1_GEN1_TX_AMP_MASK;
+		val |= (sata_calib_pad_val[calib_val].gen1_tx_amp <<
+			SATA0_CHX_PHY_CTRL1_GEN1_TX_AMP_SHIFT);
+		scfg_writel(val, T_SATA0_CHX_PHY_CTRL1_GEN1_OFFSET);
+
+		val = scfg_readl(T_SATA0_CHX_PHY_CTRL1_GEN1_OFFSET);
+		val &= ~SATA0_CHX_PHY_CTRL1_GEN1_TX_PEAK_MASK;
+		val |= (sata_calib_pad_val[calib_val].gen1_tx_peak <<
+			SATA0_CHX_PHY_CTRL1_GEN1_TX_PEAK_SHIFT);
+		scfg_writel(val, T_SATA0_CHX_PHY_CTRL1_GEN1_OFFSET);
+
+		val = scfg_readl(T_SATA0_CHX_PHY_CTRL1_GEN2_OFFSET);
+		val &= ~SATA0_CHX_PHY_CTRL1_GEN2_TX_AMP_MASK;
+		val |= (sata_calib_pad_val[calib_val].gen2_tx_amp <<
+			SATA0_CHX_PHY_CTRL1_GEN2_TX_AMP_SHIFT);
+		scfg_writel(val, T_SATA0_CHX_PHY_CTRL1_GEN2_OFFSET);
+
+		val = scfg_readl(T_SATA0_CHX_PHY_CTRL1_GEN2_OFFSET);
+		val &= ~SATA0_CHX_PHY_CTRL1_GEN2_TX_PEAK_MASK;
+		val |= (sata_calib_pad_val[calib_val].gen2_tx_peak <<
+			SATA0_CHX_PHY_CTRL1_GEN2_TX_PEAK_SHIFT);
+		scfg_writel(val, T_SATA0_CHX_PHY_CTRL1_GEN2_OFFSET);
+
+		/* set 2 to SATA0_CHX_PHY_CTRL1_GEN2_RX_EQ field */
+		val = scfg_readl(T_SATA0_CHX_PHY_CTRL1_GEN2_OFFSET);
+		val &= ~SATA0_CHX_PHY_CTRL1_GEN2_RX_EQ_MASK;
+		val |= (2 << SATA0_CHX_PHY_CTRL1_GEN2_RX_EQ_SHIFT);
+		scfg_writel(val, T_SATA0_CHX_PHY_CTRL1_GEN2_OFFSET);
+	}
+	scfg_writel(SATA0_NONE_SELECTED, T_SATA0_INDEX_OFFSET);
+}
+
 static int tegra_ahci_controller_init(struct tegra_ahci_host_priv *tegra_hpriv)
 {
 	int err = 0;
@@ -569,10 +658,11 @@ static int tegra_ahci_controller_init(struct tegra_ahci_host_priv *tegra_hpriv)
 	val |= EN_FPCI;
 	sata_writel(val, SATA_CONFIGURATION_0_OFFSET);
 
-	/* bug 748271:
-	 * clear bit T_SATA0_CFG_PHY_0_USE_7BIT_ALIGN_DET_FOR_SPD of
-	 * T_SATA0_CFG_PHY_0
-	 */
+	/* program sata pad control based on the fuse */
+	tegra_ahci_set_pad_cntrl_regs();
+
+	/* clear bit T_SATA0_CFG_PHY_0_USE_7BIT_ALIGN_DET_FOR_SPD of
+	 * T_SATA0_CFG_PHY_0 */
 	val = scfg_readl(T_SATA0_CFG_PHY_REG);
 	val &= ~PHY_USE_7BIT_ALIGN_DET_FOR_SPD_MASK;
 	scfg_writel(val, T_SATA0_CFG_PHY_REG);
