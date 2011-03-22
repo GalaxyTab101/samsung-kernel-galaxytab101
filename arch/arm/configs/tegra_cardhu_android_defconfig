@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.36.3
-# Tue Mar 22 16:21:14 2011
+# Wed Mar 23 12:10:14 2011
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -2264,6 +2264,7 @@ CONFIG_IIO=y
 #
 # CONFIG_SENSORS_TSL2563 is not set
 # CONFIG_ISL29018 is not set
+CONFIG_ISL29028=y
 
 #
 # Magnetometer sensors
