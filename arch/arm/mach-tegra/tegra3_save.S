@@ -53,6 +53,7 @@
 #define PMC_CTRL_BFI_SHIFT		8
 #define PMC_CTRL_BFI_WIDTH		9
 #define PMC_SCRATCH1			0x54
+#define PMC_PLLP_WB0_OVERRIDE		0xf8
 #define PMC_SCRATCH38			0x134
 #define PMC_SCRATCH41			0x140
 
@@ -215,7 +216,12 @@ ENTRY(__tegra_lp1_reset)
 	str	r1, [r0, #CLK_RESET_SCLK_DIVIDER]
 	str	r1, [r0, #CLK_RESET_CCLK_DIVIDER]
 
-	pll_enable r1, r0, CLK_RESET_PLLM_BASE, CLK_RESET_PLLM_MISC
+	/* enable PLLM via PMC */
+	mov32	r2, TEGRA_PMC_BASE
+	ldr	r1, [r2, #PMC_PLLP_WB0_OVERRIDE]
+	orr	r1, r1, #(1<<12)
+	str	r1, [r2, #PMC_PLLP_WB0_OVERRIDE]
+
 	pll_enable r1, r0, CLK_RESET_PLLP_BASE, CLK_RESET_PLLP_MISC
 	pll_enable r1, r0, CLK_RESET_PLLC_BASE, CLK_RESET_PLLC_MISC
 	pll_enable r1, r0, CLK_RESET_PLLX_BASE, CLK_RESET_PLLX_MISC
@@ -374,10 +380,12 @@ __tear_down_master_pll_cpu:
 	mov	r0, #0	/* burst policy = 32KHz */
 	str	r0, [r5, #CLK_RESET_SCLK_BURST]
 
-	/* disable PLLP, PLLM, PLLC, and PLLX in LP0 and LP1 states */
-	ldr	r0, [r5, #CLK_RESET_PLLM_BASE]
-	bic	r0, r0, #(1<<30)
-	str	r0, [r5, #CLK_RESET_PLLM_BASE]
+	/* disable PLLM via PMC in LP0 and LP1 states */
+	ldr	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
+	bic	r0, r0, #(1<<12)
+	str	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
+
+	/* disable PLLP, PLLC, and PLLX in LP0 and LP1 states */
 	ldr	r0, [r5, #CLK_RESET_PLLP_BASE]
 	bic	r0, r0, #(1<<30)
 	str	r0, [r5, #CLK_RESET_PLLP_BASE]
