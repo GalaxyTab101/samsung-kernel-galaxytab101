@@ -122,6 +122,7 @@ int cardhu_keys_init(void);
 int cardhu_gpio_switch_regulator_init(void);
 int cardhu_pins_state_init(void);
 int cardhu_emc_init(void);
+int cardhu_power_off_init(void);
 
 /* Touchscreen GPIO addresses   */
 #ifdef CONFIG_TOUCHSCREEN_PANJIT_I2C
