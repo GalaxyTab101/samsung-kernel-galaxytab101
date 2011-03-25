@@ -876,6 +876,8 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 	(void)reg;
 	(void)mode;
 
+	preset_lpj = loops_per_jiffy;
+
 #ifdef CONFIG_PM
 	if (plat->suspend_mode == TEGRA_SUSPEND_LP0) {
 		if (tegra_lp0_vec_size)
