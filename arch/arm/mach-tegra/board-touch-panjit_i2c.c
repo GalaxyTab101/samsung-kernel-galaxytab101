@@ -36,20 +36,20 @@
 #include "touch.h"
 
 static struct panjit_i2c_ts_platform_data panjit_data = {
-	.gpio_reset = TOUCH_GPIO_RST,
+	.gpio_reset = TOUCH_GPIO_RST_PANJIT,
 };
 
 static const struct i2c_board_info panjit_i2c_info[] = {
 	{
 	 I2C_BOARD_INFO("panjit_touch", 0x3),
-	 .irq = TEGRA_GPIO_TO_IRQ(TOUCH_GPIO_IRQ),
+	 .irq = TEGRA_GPIO_TO_IRQ(TOUCH_GPIO_IRQ_PANJIT),
 	 .platform_data = &panjit_data,
 	 },
 };
 
 struct tegra_touchscreen_init panjit_init_data = {
-	.irq_gpio = TOUCH_GPIO_IRQ,		/* GPIO1 Value for IRQ */
-	.rst_gpio = TOUCH_GPIO_RST,		/* GPIO2 Value for RST */
+	.irq_gpio = TOUCH_GPIO_IRQ_PANJIT,	/* GPIO1 Value for IRQ */
+	.rst_gpio = TOUCH_GPIO_RST_PANJIT,	/* GPIO2 Value for RST */
 	.sv_gpio1 = {0},			/* Valid, GPIOx, Set value, Delay      */
 	.sv_gpio2 = {0},			/* Valid, GPIOx, Set value, Delay      */
 	.ts_boardinfo = {0, panjit_i2c_info, 1}	/* BusNum, BoardInfo, Value     */

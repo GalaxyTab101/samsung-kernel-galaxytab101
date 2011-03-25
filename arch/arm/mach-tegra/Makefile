@@ -97,7 +97,7 @@ obj-${CONFIG_MACH_VENTANA}              += board-ventana-jack.o
 obj-${CONFIG_MACH_VENTANA}              += board-ventana-sensors.o
 obj-${CONFIG_MACH_VENTANA}              += board-ventana-kbc.o
 obj-${CONFIG_MACH_VENTANA}              += board-ventana-memory.o
-obj-${CONFIG_MACH_VENTANA}              += board-ventana-touch.o
+obj-${CONFIG_MACH_VENTANA}              += board-touch.o
 
 obj-${CONFIG_MACH_ARUBA}                += board-aruba.o
 obj-${CONFIG_MACH_ARUBA}                += board-aruba-panel.o
@@ -123,5 +123,5 @@ obj-${CONFIG_MACH_CARDHU}               += board-cardhu-pinmux.o
 obj-${CONFIG_MACH_CARDHU}               += board-cardhu-power.o
 obj-${CONFIG_MACH_CARDHU}               += board-cardhu-sdhci.o
 obj-${CONFIG_MACH_CARDHU}               += board-cardhu-sensors.o
-obj-${CONFIG_MACH_CARDHU}               += board-cardhu-touch.o
+obj-${CONFIG_MACH_CARDHU}               += board-touch.o
 obj-${CONFIG_MACH_CARDHU}               += board-cardhu-memory.o

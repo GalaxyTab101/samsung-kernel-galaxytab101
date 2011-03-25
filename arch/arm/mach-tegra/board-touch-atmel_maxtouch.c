@@ -44,7 +44,7 @@
  */
 static u8 read_chg(void)
 {
-	return gpio_get_value(TOUCH_GPIO_IRQ);
+	return gpio_get_value(TOUCH_GPIO_IRQ_ATMEL_T9);
 }
 
 static u8 valid_interrupt(void)
@@ -68,16 +68,16 @@ static struct mxt_platform_data atmel_mxt_info = {
 static struct i2c_board_info __initdata atmxt_i2c_info[] = {
 	{
 	 I2C_BOARD_INFO("maXTouch", MXT_I2C_ADDRESS),
-	 .irq = TEGRA_GPIO_TO_IRQ(TOUCH_GPIO_IRQ),
+	 .irq = TEGRA_GPIO_TO_IRQ(TOUCH_GPIO_IRQ_ATMEL_T9),
 	 .platform_data = &atmel_mxt_info,
 	 },
 };
 
 struct tegra_touchscreen_init atmel_mxt_init_data = {
-	.irq_gpio = TOUCH_GPIO_IRQ,			/* GPIO1 Value for IRQ */
-	.rst_gpio = TOUCH_GPIO_RST,			/* GPIO2 Value for RST */
-	.sv_gpio1 = {1, TOUCH_GPIO_RST, 0, 1},		/* Valid, GPIOx, Set value, Delay      */
-	.sv_gpio2 = {1, TOUCH_GPIO_RST, 1, 100},	/* Valid, GPIOx, Set value, Delay      */
+	.irq_gpio = TOUCH_GPIO_IRQ_ATMEL_T9,			/* GPIO1 Value for IRQ */
+	.rst_gpio = TOUCH_GPIO_RST_ATMEL_T9,			/* GPIO2 Value for RST */
+	.sv_gpio1 = {1, TOUCH_GPIO_RST_ATMEL_T9, 0, 1},		/* Valid, GPIOx, Set value, Delay      */
+	.sv_gpio2 = {1, TOUCH_GPIO_RST_ATMEL_T9, 1, 100},	/* Valid, GPIOx, Set value, Delay      */
 	.ts_boardinfo = {1, atmxt_i2c_info, 1}		/* BusNum, BoardInfo, Value     */
 };
 
