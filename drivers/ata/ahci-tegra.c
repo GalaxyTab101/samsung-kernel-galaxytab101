@@ -1280,26 +1280,10 @@ static bool tegra_ahci_power_gate(struct ata_host *host)
 	val |= (PADPLL_IDDQ_SWCTL_ON | PADPLL_IDDQ_OVERRIDE_VALUE_ON);
 	pmc_writel(val, APB_PMC_SATA_PWRGT_0_REG);
 
-	clk_disable(tegra_hpriv->clk_cml1);
-
-	/* PLLE_ENABLE_SWCTL=1 (PLLE enable by SW)
-	 * CLK_RST_CONTROLLER_PLLE_BASE_0.PLLE_ENABLE=0
-	 * PLLE_IDDQ_SWCTL=1
-	 * PLLE_IDDQ_OVERRIDE_VALUE=1
+	/* Disable cml1 clock.
+	 * The clock logic will determine whether to put PLLE in IDDQ mode.
 	 */
-	val = clk_readl(CLK_RST_CONTROLLER_PLLE_AUX_REG);
-	val &= ~PLLE_ENABLE_SWCTL_MASK;
-	val |= PLLE_ENABLE_SWCTL_SW;
-	clk_writel(val, CLK_RST_CONTROLLER_PLLE_AUX_REG);
-	val = clk_readl(CLK_RST_CONTROLLER_PLLE_BASE);
-	val &= PLLE_ENABLE_MASK;
-	val |= PLLE_ENABLE_DISABLE;
-	clk_writel(val, CLK_RST_CONTROLLER_PLLE_BASE);
-
-	val = pmc_readl(APB_PMC_SATA_PWRGT_0_REG);
-	val &= ~(PLLE_IDDQ_SWCTL_MASK | PADPHY_IDDQ_OVERRIDE_VALUE_MASK);
-	val |= (PLLE_IDDQ_SWCTL_ON | PADPHY_IDDQ_OVERRIDE_VALUE_ON);
-	pmc_writel(val, APB_PMC_SATA_PWRGT_0_REG);
+	clk_disable(tegra_hpriv->clk_cml1);
 
 	/* power off the sata */
 	status = tegra_powergate_power_off(TEGRA_POWERGATE_SATA);
