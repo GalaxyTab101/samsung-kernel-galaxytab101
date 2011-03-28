@@ -405,6 +405,8 @@ ENTRY(__cortex_a9_restore)
 
 	mcr	p15, 2, r0, c0, c0, 0	@ csselr
 	mcr	p15, 0, r1, c1, c0, 0	@ sctlr
+	tst	r2, #(0x1 << 6)
+	orrne	r2, r2, #(1 << 0)	@ sync FW bit with SMP state
 	mcr	p15, 0, r2, c1, c0, 1	@ actlr
 #ifndef CONFIG_TRUSTED_FOUNDATIONS
 	//TL : moved to secure 
