@@ -4,7 +4,7 @@
  * Keyboard class input driver for the NVIDIA Tegra SoC internal matrix
  * keyboard controller
  *
- * Copyright (c) 2009-2010, NVIDIA Corporation.
+ * Copyright (c) 2009-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
