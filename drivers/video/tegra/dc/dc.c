@@ -877,6 +877,21 @@ static inline void print_mode(struct tegra_dc *dc,
 			const struct tegra_dc_mode *mode, const char *note) { }
 #endif
 
+static inline void enable_dc_irq(unsigned int irq)
+{
+#ifdef CONFIG_TEGRA_FPGA_PLATFORM
+	/* Always disable DC interrupts on FPGA. */
+	disable_irq(irq);
+#else
+	enable_irq(irq);
+#endif
+}
+
+static inline void disable_dc_irq(unsigned int irq)
+{
+	disable_irq(irq);
+}
+
 static int tegra_dc_program_mode(struct tegra_dc *dc, struct tegra_dc_mode *mode)
 {
 	unsigned long val;
@@ -1390,9 +1405,7 @@ static bool _tegra_dc_controller_enable(struct tegra_dc *dc)
 	tegra_periph_reset_deassert(dc->clk);
 	msleep(10);
 
-#ifndef CONFIG_TEGRA_FPGA_PLATFORM
-	enable_irq(dc->irq);
-#endif
+	enable_dc_irq(dc->irq);
 
 	tegra_dc_init(dc);
 
@@ -1528,10 +1541,10 @@ static void tegra_dc_reset_worker(struct work_struct *work)
 	msleep(2);
 
 	if (dc->ndev->id == 0 && tegra_dcs[1] != NULL) {
-		enable_irq(tegra_dcs[1]->irq);
+		enable_dc_irq(tegra_dcs[1]->irq);
 		mutex_unlock(&tegra_dcs[1]->lock);
 	} else if (dc->ndev->id == 1 && tegra_dcs[0] != NULL) {
-		enable_irq(tegra_dcs[0]->irq);
+		enable_dc_irq(tegra_dcs[0]->irq);
 		mutex_unlock(&tegra_dcs[0]->lock);
 	}
 
@@ -1659,8 +1672,8 @@ static int tegra_dc_probe(struct nvhost_device *ndev)
 		goto err_put_emc_clk;
 	}
 
-	/* hack to ballence enable_irq calls in _tegra_dc_enable() */
-	disable_irq(dc->irq);
+	/* hack to balance enable_irq calls in _tegra_dc_enable() */
+	disable_dc_irq(dc->irq);
 
 	ret = tegra_dc_add(dc, ndev->id);
 	if (ret < 0) {
