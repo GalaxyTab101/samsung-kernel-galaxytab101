@@ -1333,28 +1333,6 @@ void azx_stop_chip(struct azx *chip)
 	chip->initialized = 0;
 }
 
-#ifdef CONFIG_SND_HDA_POWER_SAVE
-/* power-up/down the controller */
-void azx_power_notify(struct hda_bus *bus)
-{
-	struct azx *chip = bus->private_data;
-	struct hda_codec *c;
-	int power_on = 0;
-
-	list_for_each_entry(c, &bus->codec_list, list) {
-		if (c->power_on) {
-			power_on = 1;
-			break;
-		}
-	}
-	if (power_on)
-		azx_init_chip(chip, 1);
-	else if (chip->running && power_save_controller &&
-		 !bus->power_keep_link_on)
-		azx_stop_chip(chip);
-}
-#endif /* CONFIG_SND_HDA_POWER_SAVE */
-
 #ifdef CONFIG_PM
 /*
  * power management

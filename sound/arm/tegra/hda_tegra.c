@@ -448,6 +448,27 @@ azx_attach_pcm_stream(struct hda_bus *bus, struct hda_codec *codec,
 	return 0;
 }
 
+#ifdef CONFIG_SND_HDA_POWER_SAVE
+/* power-up/down the controller */
+void azx_power_notify(struct hda_bus *bus)
+{
+	struct azx *chip = bus->private_data;
+	struct hda_codec *c;
+	int power_on = 0;
+
+	list_for_each_entry(c, &bus->codec_list, list) {
+		if (c->power_on) {
+			power_on = 1;
+			break;
+		}
+	}
+	if (power_on)
+		azx_init_chip(chip, 1);
+	else if (chip->running && power_save_controller &&
+		 !bus->power_keep_link_on)
+		azx_stop_chip(chip);
+}
+#endif /* CONFIG_SND_HDA_POWER_SAVE */
 
 
 #ifdef CONFIG_PM
@@ -456,22 +477,11 @@ azx_attach_pcm_stream(struct hda_bus *bus, struct hda_codec *codec,
  */
 static int nv_tegra_hda_controller_suspend(struct platform_device *pdev)
 {
-#if 0
-	struct snd_card *card = dev_get_drvdata(&pdev->dev);
-	struct azx *chip = card->private_data;
-	clk_disable(chip->clk);
-#endif
-	return 0;
-}
+	clk_disable(clk_hda2hdmicodec);
+	clk_disable(clk_hda2codec);
+	clk_disable(clk_hda);
 
-static int nv_tegra_hda_controller_resume(struct platform_device *pdev)
-{
-#if 0
-	struct snd_card *card = dev_get_drvdata(&pdev->dev);
-	struct azx *chip = card->private_data;
-	clk_enable(chip->clk);
-#endif
-    return 0;
+	return 0;
 }
 
 static int nv_tegra_azx_suspend(struct platform_device *pdev,
@@ -494,6 +504,15 @@ static int nv_tegra_azx_suspend(struct platform_device *pdev,
 	}
 
 	return nv_tegra_hda_controller_suspend(pdev);
+}
+
+static int nv_tegra_hda_controller_resume(struct platform_device *pdev)
+{
+	clk_enable(clk_hda);
+	clk_enable(clk_hda2codec);
+	clk_enable(clk_hda2hdmicodec);
+
+	return 0;
 }
 
 static int nv_tegra_azx_resume(struct platform_device *pdev)
