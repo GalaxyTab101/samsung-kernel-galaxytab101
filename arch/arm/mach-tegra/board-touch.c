@@ -139,10 +139,11 @@ int __init touch_init(void)
 	if (VERBOSE_DEBUG >= 1)
 		pr_info("### BoardInfo.sku = %04X\n", BoardInfo.sku);
 
-	if (MULTI_SKU)
-		sku = BoardInfo.sku & SKU_MASK;
-	else
-		sku = DEFAULT_SKU;
+#if MULTI_SKU
+	sku = BoardInfo.sku & SKU_MASK;
+#else
+	sku = DEFAULT_SKU;
+#endif
 
 	if (VERBOSE_DEBUG >= 1)
 		pr_info("### sku = %04X\n", sku);
