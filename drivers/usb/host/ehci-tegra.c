@@ -271,7 +271,6 @@ done:
 	return retval;
 }
 
-#ifdef CONFIG_PM
 static void tegra_ehci_restart(struct usb_hcd *hcd)
 {
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
@@ -294,6 +293,7 @@ static void tegra_ehci_restart(struct usb_hcd *hcd)
 	}
 
 	down_write(&ehci_cf_port_reset_rwsem);
+	hcd->state = HC_STATE_RUNNING;
 	ehci_writel(ehci, FLAG_CF, &ehci->regs->configured_flag);
 	/* flush posted writes */
 	ehci_readl(ehci, &ehci->regs->command);
@@ -442,7 +442,6 @@ restart:
 
 	return 0;
 }
-#endif
 
 static void tegra_ehci_shutdown(struct usb_hcd *hcd)
 {
