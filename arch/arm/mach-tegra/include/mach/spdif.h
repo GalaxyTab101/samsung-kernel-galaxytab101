@@ -487,7 +487,7 @@ int spdif_fifo_set_attention_level(unsigned long base,
 					int mode,
 					unsigned int level);
 void spdif_fifo_clear(unsigned long base, int mode);
-u32 spdif_get_status(unsigned long base);
+u32 spdif_get_status(unsigned long base, int mode);
 u32 spdif_get_control(unsigned long base);
 void spdif_ack_status(unsigned long base);
 u32 spdif_get_fifo_scr(unsigned long base);
@@ -496,6 +496,6 @@ u32 spdif_get_fifo_full_empty_count(unsigned long base, int mode);
 int spdif_initialize(unsigned long base, int mode);
 void spdif_get_all_regs(unsigned long base, struct spdif_regs_cache* regs);
 void spdif_set_all_regs(unsigned long base, struct spdif_regs_cache* regs);
-int spdif_get_dma_requestor(int ifc);
+int spdif_get_dma_requestor(int ifc, int mode);
 
 #endif /* __ARCH_ARM_MACH_TEGRA_SPDIF_H */

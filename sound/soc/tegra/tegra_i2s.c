@@ -43,6 +43,19 @@ struct tegra_i2s_info {
 	struct das_regs_cache das_regs;
 };
 
+void free_dma_request(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
+
+	int fifo_mode = I2S_FIFO_RX;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		fifo_mode = I2S_FIFO_TX;
+
+	i2s_free_dma_requestor(cpu_dai->id, fifo_mode);
+}
+
 void setup_i2s_dma_request(struct snd_pcm_substream *substream,
 			struct tegra_dma_req *req,
 			void (*dma_callback)(struct tegra_dma_req *req),
@@ -52,10 +65,17 @@ void setup_i2s_dma_request(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
 	struct tegra_i2s_info *info = cpu_dai->private_data;
 
+	int fifo_mode = I2S_FIFO_RX;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		fifo_mode = I2S_FIFO_TX;
+
+	req->req_sel = i2s_get_dma_requestor(cpu_dai->id, fifo_mode);
+
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		req->to_memory = false;
 		req->dest_addr =
-			i2s_get_fifo_phy_base(cpu_dai->id, I2S_FIFO_TX);
+			i2s_get_fifo_phy_base(cpu_dai->id, fifo_mode);
 		req->dest_wrap = 4;
 		req->source_wrap = 0;
 		if (info->bit_format == TEGRA_AUDIO_BIT_FORMAT_DSP)
@@ -66,7 +86,7 @@ void setup_i2s_dma_request(struct snd_pcm_substream *substream,
 	} else {
 		req->to_memory = true;
 		req->source_addr =
-			i2s_get_fifo_phy_base(cpu_dai->id, I2S_FIFO_RX);
+			i2s_get_fifo_phy_base(cpu_dai->id, fifo_mode);
 		req->dest_wrap = 0;
 		req->source_wrap = 4;
 		if (info->bit_format == TEGRA_AUDIO_BIT_FORMAT_DSP)
@@ -78,7 +98,6 @@ void setup_i2s_dma_request(struct snd_pcm_substream *substream,
 
 	req->complete = dma_callback;
 	req->dev = dma_data;
-	req->req_sel = info->dma_req_sel;
 
 	return;
 }
@@ -121,7 +140,7 @@ static inline void stop_i2s_playback(struct snd_soc_dai *cpu_dai)
 	i2s_set_fifo_irq_on_err(cpu_dai->id, I2S_FIFO_TX, 0);
 	i2s_set_fifo_irq_on_qe(cpu_dai->id, I2S_FIFO_TX, 0);
 	i2s_fifo_enable(cpu_dai->id, I2S_FIFO_TX, 0);
-	while (i2s_get_status(cpu_dai->id) & I2S_I2S_FIFO_TX_BUSY);
+	while (i2s_get_status(cpu_dai->id, I2S_FIFO_TX) & I2S_I2S_FIFO_TX_BUSY);
 }
 
 /* recording */
@@ -139,7 +158,7 @@ static inline void stop_i2s_capture(struct snd_soc_dai *cpu_dai)
 	i2s_set_fifo_irq_on_err(cpu_dai->id, I2S_FIFO_RX, 0);
 	i2s_set_fifo_irq_on_qe(cpu_dai->id, I2S_FIFO_RX, 0);
 	i2s_fifo_enable(cpu_dai->id, I2S_FIFO_RX, 0);
-	while (i2s_get_status(cpu_dai->id) & I2S_I2S_FIFO_RX_BUSY);
+	while (i2s_get_status(cpu_dai->id, I2S_FIFO_RX) & I2S_I2S_FIFO_RX_BUSY);
 }
 
 

@@ -51,33 +51,6 @@ static inline u32 spdif_readl(unsigned long base, u32 reg)
 	return val;
 }
 
-void spdif_fifo_enable(unsigned long base, int mode, int on)
-{
-	u32 val = 0;
-
-	/*FIXME: change the fixed channel index later  */
-#if !defined(CONFIG_ARCH_TEGRA_2x_SOC)
-
-	int ifc = 3;
-	apbif_channel_enable(ifc, mode, on);
-
-#endif
-	val = spdif_readl(base, SPDIF_CTRL_0);
-	if (mode == AUDIO_TX_MODE)
-	{
-		val &= ~(SPDIF_CTRL_0_TU_EN | SPDIF_CTRL_0_TC_EN | SPDIF_CTRL_0_TX_EN);
-		val |= on ? (SPDIF_CTRL_0_TX_EN) : 0;
-		val |= on ? (SPDIF_CTRL_0_TC_EN) : 0;
-	}
-	if (mode == AUDIO_RX_MODE)
-	{
-		val &= ~SPDIF_CTRL_0_RX_EN;
-		val |= on ? (SPDIF_CTRL_0_RX_EN) : 0;
-	}
-
-	spdif_writel(base, val, SPDIF_CTRL_0);
-}
-
 int spdif_set_bit_mode(unsigned long base, unsigned mode)
 {
 	u32 val = spdif_readl(base, SPDIF_CTRL_0);
@@ -147,18 +120,14 @@ u32 spdif_get_control(unsigned long base)
 
 void spdif_fifo_write(unsigned long base, int mode, u32 data)
 {
-	if (mode == AUDIO_TX_MODE)
-	{
+	if (mode == AUDIO_TX_MODE) {
 		spdif_writel(base, data, SPDIF_DATA_OUT_0);
-	}
-	if (mode == AUDIO_RX_MODE)
-	{
+	} else {
 		spdif_writel(base, data, SPDIF_DATA_IN_0);
 	}
 }
 
-int spdif_fifo_set_attention_level(unsigned long base, int mode,
-					unsigned level)
+int spdif_fifo_set_attention_level(unsigned long base, int mode, unsigned level)
 {
 	u32 val;
 
@@ -170,8 +139,7 @@ int spdif_fifo_set_attention_level(unsigned long base, int mode,
 
 	val = spdif_readl(base, SPDIF_DATA_FIFO_CSR_0);
 
-	if (mode == AUDIO_TX_MODE)
-	{
+	if (mode == AUDIO_TX_MODE) {
 		val &= ~SPDIF_DATA_FIFO_CSR_0_TX_ATN_LVL_MASK;
 		val |= level << SPDIF_DATA_FIFO_CSR_0_TX_ATN_LVL_SHIFT;
 	}
@@ -183,10 +151,12 @@ int spdif_fifo_set_attention_level(unsigned long base, int mode,
 void spdif_fifo_clear(unsigned long base, int mode)
 {
 	u32 val = spdif_readl(base, SPDIF_DATA_FIFO_CSR_0);
-	if (mode == AUDIO_TX_MODE)
-	{
-		val &= ~(SPDIF_DATA_FIFO_CSR_0_TX_CLR | SPDIF_DATA_FIFO_CSR_0_TU_CLR);
-		val |= SPDIF_DATA_FIFO_CSR_0_TX_CLR | SPDIF_DATA_FIFO_CSR_0_TU_CLR;
+
+	if (mode == AUDIO_TX_MODE) {
+		val &= ~(SPDIF_DATA_FIFO_CSR_0_TX_CLR |
+			SPDIF_DATA_FIFO_CSR_0_TU_CLR);
+		val |= SPDIF_DATA_FIFO_CSR_0_TX_CLR |
+			SPDIF_DATA_FIFO_CSR_0_TU_CLR;
 	}
 	spdif_writel(base, val, SPDIF_DATA_FIFO_CSR_0);
 }
@@ -201,7 +171,7 @@ int spdif_set_fifo_packed(unsigned long base, unsigned on)
 	return 0;
 }
 
-u32 spdif_get_status(unsigned long base)
+u32 spdif_get_status(unsigned long base, int mode)
 {
 	return spdif_readl(base, SPDIF_STATUS_0);
 }
@@ -231,8 +201,7 @@ u32 spdif_get_fifo_full_empty_count(unsigned long base, int mode)
 {
 	u32 val = spdif_readl(base, SPDIF_DATA_FIFO_CSR_0);
 
-	if (mode == AUDIO_TX_MODE)
-	{
+	if (mode == AUDIO_TX_MODE) {
 		val = val >> SPDIF_DATA_FIFO_CSR_0_TD_EMPTY_COUNT_SHIFT;
 		return val & SPDIF_DATA_FIFO_CSR_0_TD_EMPTY_COUNT_MASK;
 	}
@@ -240,7 +209,7 @@ u32 spdif_get_fifo_full_empty_count(unsigned long base, int mode)
 	return 0;
 }
 
-int spdif_get_dma_requestor(int ifc)
+int spdif_get_dma_requestor(int ifc, int fifo_mode)
 {
 	return TEGRA_DMA_REQ_SEL_SPD_I;
 }
@@ -305,6 +274,20 @@ void spdif_set_all_regs(unsigned long base, struct spdif_regs_cache* regs)
 }
 #else
 
+struct spdif_controller_info {
+/*FIXME: add clock here or move the struct to common place */
+	int	dma_ch[AUDIO_FIFO_CNT];
+	int	stream_index[AUDIO_FIFO_CNT];
+	unsigned int base;
+};
+
+static struct spdif_controller_info spdif_cont_info;
+
+static int spdif_get_apbif_channel(int fifo_mode)
+{
+	return spdif_cont_info.dma_ch[fifo_mode];
+}
+
 int spdif_set_fifo_packed(unsigned long base, unsigned on)
 {
 	/* This register is obsolete after T20 */
@@ -313,29 +296,43 @@ int spdif_set_fifo_packed(unsigned long base, unsigned on)
 
 void spdif_fifo_write(unsigned long base, int mode, u32 data)
 {
-	/*FIXME: add apbif call here */
+	int apbif_ifc = spdif_get_apbif_channel(mode);
+
+	if (apbif_ifc != -ENOENT)
+		apbif_fifo_write(apbif_ifc, mode, data);
 }
 
 int spdif_fifo_set_attention_level(unsigned long base, int mode,
 			unsigned level)
 {
-	/*FIXME: currently used apbif channel 4 for spdif*/
-	int ifc = 3;
+	int apbif_ifc = spdif_get_apbif_channel(mode);
+
 	/* expected the level as four slots now */
 	level = SPDIF_FIFO_ATN_LVL_FOUR_SLOTS;
-	return apbif_fifo_set_attention_level(ifc, mode, level);
+
+	if (apbif_ifc != -ENOENT)
+		return apbif_fifo_set_attention_level(apbif_ifc,
+					 mode, (level - 1));
+
+	return 0;
 }
 
 void spdif_fifo_clear(unsigned long base, int mode)
 {
-	/*FIXME: add apbif call here */
+	int apbif_ifc = spdif_get_apbif_channel(mode);
+
+	if (apbif_ifc != -ENOENT)
+		apbif_soft_reset(apbif_ifc, mode, 1);
 }
 
-u32 spdif_get_status(unsigned long base)
+u32 spdif_get_status(unsigned long base, int mode)
 {
-	/*FIXME: currently used apbif channel 4 for spdif*/
-	int ifc = 3;
-	return apbif_get_fifo_mode(ifc, AUDIO_TX_MODE);;
+	int apbif_ifc = spdif_get_apbif_channel(mode);
+
+	if (apbif_ifc != -ENOENT)
+		return apbif_get_fifo_mode(apbif_ifc, mode);
+
+	return 0;
 }
 
 void spdif_ack_status(unsigned long base)
@@ -351,29 +348,88 @@ u32 spdif_get_fifo_scr(unsigned long base)
 
 phys_addr_t spdif_get_fifo_phy_base(phys_addr_t phy_base, int mode)
 {
-	/*FIXME: currently used apbif channel 4 for spdif*/
-	int ifc = 3;
-	return apbif_get_fifo_phy_base(ifc, mode);
+	int apbif_ifc = spdif_get_apbif_channel(mode);
+
+	if (apbif_ifc != -ENOENT)
+		return apbif_get_fifo_phy_base(apbif_ifc, mode);
+
+	return 0;
 }
 
 u32 spdif_get_fifo_full_empty_count(unsigned long base, int mode)
 {
-	/*FIXME: add apbif call here */
+	int apbif_ifc = spdif_get_apbif_channel(mode);
+
+	if (apbif_ifc != -ENOENT)
+		return apbif_get_fifo_freecount(apbif_ifc, mode);
+
 	return 0;
 }
 
-int spdif_get_dma_requestor(int ifc)
+int spdif_free_dma_requestor(int ifc, int fifo_mode)
 {
-	/*FIXME: currently used apbif channel 4 for spdif*/
-	ifc = 3;
-	return apbif_get_channel(ifc);
+	int apbif_ifc = spdif_get_apbif_channel(fifo_mode);
+
+	if (apbif_ifc != -ENOENT)
+		audio_apbif_free_channel(apbif_ifc, fifo_mode);
+
+	return 0;
 }
 
 static  struct audio_cif  spdif_audiocif;
-int spdif_initialize(unsigned long base, int mode)
+
+int spdif_set_acif(int fifo_mode, struct audio_cif *cifInfo)
 {
 	struct audio_cif  *tx_audio_cif = &spdif_audiocif;
-	int ifc = 3, err = 0;
+
+	/* set spdif audiocif */
+	/* setting base value for acif */
+	memset(tx_audio_cif, 0 , sizeof(struct audio_cif));
+	tx_audio_cif->audio_channels	= AUDIO_CHANNEL_2;
+	tx_audio_cif->client_channels	= AUDIO_CHANNEL_2;
+	tx_audio_cif->audio_bits	= AUDIO_BIT_SIZE_16;
+	tx_audio_cif->client_bits	= AUDIO_BIT_SIZE_16;
+
+	if (fifo_mode == AUDIO_TX_MODE)
+		audio_switch_set_acif(spdif_cont_info.base +
+			 SPDIF_AUDIOCIF_TXDATA_CTRL_0, tx_audio_cif);
+	else
+		audio_switch_set_acif(spdif_cont_info.base +
+			 SPDIF_AUDIOCIF_RXDATA_CTRL_0, tx_audio_cif);
+
+	audio_apbif_set_acif(spdif_get_apbif_channel(fifo_mode),
+		fifo_mode, tx_audio_cif);
+
+	return 0;
+}
+
+int spdif_get_dma_requestor(int ifc, int fifo_mode)
+{
+	int dma_index =	0;
+	int apbif_ifc = ahubtx0_spdif;
+
+	if (fifo_mode == AUDIO_RX_MODE)
+		apbif_ifc = ahubrx0_spdif;
+
+	dma_index = apbif_get_channel(apbif_ifc, fifo_mode);
+
+	if (dma_index != -ENOENT) {
+		spdif_cont_info.dma_ch[fifo_mode] = dma_index - 1;
+		/* FIXME : this need to be called on connection request
+		*/
+		spdif_set_acif(fifo_mode, 0);
+	}
+
+	return dma_index;
+}
+
+int spdif_initialize(unsigned long base, int mode)
+{
+	int err = 0;
+
+	spdif_cont_info.dma_ch[0] = -ENOENT;
+	spdif_cont_info.dma_ch[1] = -ENOENT;
+	spdif_cont_info.base = base;
 
 	err = audio_switch_open();
 	if (err)
@@ -382,25 +438,6 @@ int spdif_initialize(unsigned long base, int mode)
 	/* disable interrupts from SPDIF */
 	spdif_writel(base, 0x0, SPDIF_CTRL_0);
 	spdif_fifo_clear(base, mode);
-
-	/* FIXME: move all the apbif call to a generic function
-	    inside audio_switch code - temporarily added here to
-	    get minimum audio function working
-	*/
-
-	/* set spdif audiocif */
-	/* setting base value for acif */
-	memset(tx_audio_cif, 0 , sizeof(struct audio_cif));
-	tx_audio_cif->audio_channels  = AUDIO_CHANNEL_2;
-	tx_audio_cif->client_channels = AUDIO_CHANNEL_2;
-	tx_audio_cif->audio_bits	  = AUDIO_BIT_SIZE_16;
-	tx_audio_cif->client_bits	  = AUDIO_BIT_SIZE_16;
-	audio_switch_set_acif(base +
-		 SPDIF_AUDIOCIF_TXDATA_CTRL_0,	tx_audio_cif);
-	audio_switch_set_acif(base +
-		 SPDIF_AUDIOCIF_RXDATA_CTRL_0,	tx_audio_cif);
-
-	apbif_initialize(ifc, tx_audio_cif);
 
 	spdif_fifo_enable(base, mode, 0);
 
@@ -411,5 +448,31 @@ int spdif_initialize(unsigned long base, int mode)
 
 	return 0;
 }
-
 #endif
+
+void spdif_fifo_enable(unsigned long base, int mode, int on)
+{
+	u32 val = 0;
+
+#if !defined(CONFIG_ARCH_TEGRA_2x_SOC)
+
+	int apbif_ifc = spdif_get_apbif_channel(mode);
+
+	if (apbif_ifc == -ENOENT)
+		return;
+
+	apbif_channel_enable(apbif_ifc, mode, on);
+#endif
+
+	val = spdif_readl(base, SPDIF_CTRL_0);
+
+	if (mode == AUDIO_TX_MODE) {
+		val &= ~(SPDIF_CTRL_0_TU_EN);
+		set_reg_mode(val, SPDIF_CTRL_0_TC_EN, on);
+		set_reg_mode(val, SPDIF_CTRL_0_TX_EN, on);
+	} else {
+		set_reg_mode(val, SPDIF_CTRL_0_RX_EN, on);
+	}
+
+	spdif_writel(base, val, SPDIF_CTRL_0);
+}

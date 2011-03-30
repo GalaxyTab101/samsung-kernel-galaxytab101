@@ -38,6 +38,17 @@
 #define I2S_DEBUG_PRINT(fmt, arg...) do {} while (0)
 #endif
 
+struct i2s_controller_info {
+/*FIXME: add clock here or move the struct to common place
+	Make use of tegra_i2s_channel_property & tegra_i2s_property
+	struct defined in the i2s header
+*/
+	int	dma_ch[AUDIO_FIFO_CNT];
+	int	stream_index[AUDIO_FIFO_CNT];
+};
+
+static struct i2s_controller_info i2s_cont_info[NR_I2S_IFC];
+
 static void *i2s_base[NR_I2S_IFC] = {
 	IO_ADDRESS(TEGRA_I2S0_BASE),
 	IO_ADDRESS(TEGRA_I2S1_BASE),
@@ -50,15 +61,23 @@ static inline void i2s_writel(int ifc, u32 val, u32 reg)
 {
 	I2S_DEBUG_PRINT("i2s Write 0x%x : %08x\n",
 		(unsigned int)i2s_base[ifc] + reg, val);
+
 	__raw_writel(val, i2s_base[ifc] + reg);
 }
 
 static inline u32 i2s_readl(int ifc, u32 reg)
 {
 	u32 val = __raw_readl(i2s_base[ifc] + reg);
+
 	I2S_DEBUG_PRINT("i2s Read 0x%x : %08x\n",
 		(unsigned int) i2s_base[ifc] + reg, val);
+
 	return val;
+}
+
+static int i2s_get_apbif_channel(int ifc, int fifo_mode)
+{
+	return i2s_cont_info[ifc].dma_ch[fifo_mode];
 }
 
 void i2s_dump_registers(int ifc)
@@ -88,21 +107,22 @@ void i2s_set_all_regs(int ifc, struct i2s_runtime_data* ird)
 void i2s_fifo_enable(int ifc, int tx, int enable)
 {
 	u32 val;
+	int apbif_ifc = 0;
 
 	check_i2s_ifc(ifc);
 
-	/* FIXME : this is to moved to a common
-	 place in the audio_switch call
-	*/
-	apbif_channel_enable(ifc, tx, enable);
+	apbif_ifc = i2s_get_apbif_channel(ifc, tx);
+
+	apbif_channel_enable(apbif_ifc, tx, enable);
 
 	val = i2s_readl(ifc, I2S_CTRL_0);
-	if (tx != I2S_FIFO_TX) {   /* receive */
+
+	if (tx != I2S_FIFO_TX) {
 		set_reg_mode(val, I2S_CTRL_XFER_EN_RX, enable);
-	}
-	else { /* transmit */
+	} else  {
 		set_reg_mode(val, I2S_CTRL_XFER_EN_TX, enable);
 	}
+
 	i2s_writel(ifc, val, I2S_CTRL_0);
 }
 
@@ -215,12 +235,9 @@ int i2s_set_bit_format(int ifc, unsigned fmt)
 
 	if ((fmt == AUDIO_FRAME_FORMAT_I2S) ||
 		(fmt == AUDIO_FRAME_FORMAT_RJM) ||
-		(fmt == AUDIO_FRAME_FORMAT_LJM))
-	{
+		(fmt == AUDIO_FRAME_FORMAT_LJM)) {
 		val |= I2S_CTRL_FRAME_FORMAT_LRCK;
-	}
-	else /*Dsp,Pcm,Tdm,Nw*/
-	{
+	} else { /*Dsp,Pcm,Tdm,Nw*/
 		val |= I2S_CTRL_FRAME_FORMAT_FSYNC;
 	}
 
@@ -295,13 +312,10 @@ int i2s_set_data_offset(int ifc, int tx, int dataoffset)
 
 	val = i2s_readl(ifc, I2S_OFFSET_0);
 
-	if (tx != AUDIO_TX_MODE)
-	{
+	if (tx != AUDIO_TX_MODE) {
 		val &= ~I2S_OFFSET_RX_DATA_OFFSET_MASK;
 		val |= (dataoffset << I2S_OFFSET_RX_DATA_OFFSET_SHIFT);
-	}
-	else
-	{
+	} else {
 		val &= ~I2S_OFFSET_TX_DATA_OFFSET_MASK;
 		val |= (dataoffset << I2S_OFFSET_TX_DATA_OFFSET_SHIFT);
 	}
@@ -376,13 +390,10 @@ int i2s_set_slot_control(int ifc, int tx, int totalslot, int numslots)
 	val &= ~I2S_SLOT_CTRL_TOTAL_SLOT_MASK;
 	val |= (totalslot << I2S_CH_CTRL_FSYNC_WIDTH_SHIFT);
 
-	if (tx != AUDIO_TX_MODE)
-	{
+	if (tx != AUDIO_TX_MODE) {
 		val &= ~I2S_SLOT_CTRL_RX_SLOT_MASK;
 		val |= (numslots << I2S_SLOT_CTRL_RX_SLOT_SHIFT);
-	}
-	else
-	{
+	} else {
 		val &= ~I2S_SLOT_CTRL_TX_SLOT_MASK;
 		val |= (numslots << I2S_SLOT_CTRL_TX_SLOT_SHIFT);
 	}
@@ -402,12 +413,9 @@ int i2s_set_bit_order(int ifc, int tx, int bitorder)
 
 	val = i2s_readl(ifc, I2S_CH_CTRL_0);
 
-	if (tx != AUDIO_TX_MODE)
-	{
+	if (tx != AUDIO_TX_MODE) {
 		set_reg_mode(val,I2S_CH_CTRL_RX_BIT_LSB_FIRST, bitorder);
-	}
-	else
-	{
+	} else {
 		set_reg_mode(val, I2S_CH_CTRL_TX_BIT_LSB_FIRST, bitorder);
 	}
 
@@ -428,13 +436,10 @@ int i2s_set_bit_mask(int ifc, int tx, int maskbit)
 
 	val = i2s_readl(ifc, I2S_CH_CTRL_0);
 
-	if (tx != AUDIO_TX_MODE)
-	{
+	if (tx != AUDIO_TX_MODE) {
 		val &= ~I2S_CH_CTRL_RX_MASK_BITS_MASK;
 		val |= (maskbit << I2S_CH_CTRL_RX_MASK_BITS_SHIFT);
-	}
-	else
-	{
+	} else {
 		val &= ~I2S_CH_CTRL_TX_MASK_BITS_MASK;
 		val |= (maskbit << I2S_CH_CTRL_TX_MASK_BITS_SHIFT);
 	}
@@ -473,14 +478,20 @@ int i2s_set_flow_control(int ifc, int enable, int filtertype, int stepsize)
 
 int i2s_fifo_set_attention_level(int ifc, int fifo, unsigned level)
 {
-	return apbif_fifo_set_attention_level(ifc, fifo, (level - 1));
+	int apbif_ifc = i2s_get_apbif_channel(ifc, fifo);
+
+	if (apbif_ifc != -ENOENT)
+		return apbif_fifo_set_attention_level(apbif_ifc,
+							 fifo, (level - 1));
+	return 0;
 }
 
 void i2s_fifo_clear(int ifc, int fifo)
 {
-/* FIXME: fifo are part of apbif channel, so pass call to apbif
-*  or provide generic call to apbif to handle this
-*/
+	int apbif_ifc = i2s_get_apbif_channel(ifc, fifo);
+
+	if (apbif_ifc != -ENOENT)
+		apbif_soft_reset(apbif_ifc, fifo, 1);
 }
 
 
@@ -506,25 +517,29 @@ void i2s_enable_fifos(int ifc, int on)
 
 void i2s_fifo_write(int ifc, int fifo, u32 data)
 {
-/* FIXME: fifo are part of apbif channel, so pass call to apbif
-*  or provide generic call to apbif to handle this
-*/
+	int apbif_ifc = i2s_get_apbif_channel(ifc, fifo);
+
+	if (apbif_ifc != -ENOENT)
+		apbif_fifo_write(apbif_ifc, fifo, data);
 }
 
 u32 i2s_fifo_read(int ifc, int fifo)
 {
-/* FIXME: fifo are part of apbif channel, so pass call to apbif
-*  or provide generic call to apbif to handle this
-*/
+	int apbif_ifc = i2s_get_apbif_channel(ifc, fifo);
+
+	if (apbif_ifc != -ENOENT)
+		return apbif_fifo_read(apbif_ifc, fifo);
 	return 0;
 }
 
-u32 i2s_get_status(int ifc)
+u32 i2s_get_status(int ifc, int fifo)
 {
-/* FIXME: fifo are part of apbif channel, so pass call to apbif
-*  or provide generic call to apbif to handle this
-*/
-	return apbif_get_fifo_mode(ifc, AUDIO_TX_MODE);
+	int apbif_ifc = i2s_get_apbif_channel(ifc, fifo);
+
+	if (apbif_ifc != -ENOENT)
+		return apbif_get_fifo_mode(apbif_ifc, fifo);
+
+	return 0;
 }
 
 u32 i2s_get_control(int ifc)
@@ -548,22 +563,56 @@ u32 i2s_get_fifo_scr(int ifc)
     return 0;
 }
 
-phys_addr_t i2s_get_fifo_phy_base(int ifc, int fifo)
+phys_addr_t i2s_get_fifo_phy_base(int ifc, int fifo_mode)
 {
-	return apbif_get_fifo_phy_base(ifc, fifo);
+	int apbif_ifc = i2s_get_apbif_channel(ifc, fifo_mode);
+
+	if (apbif_ifc == -ENOENT) {
+		pr_err("%s: dma not assigned \n", __func__);
+		return -EINVAL;
+	}
+
+	return apbif_get_fifo_phy_base(apbif_ifc, fifo_mode);
 }
 
 u32 i2s_get_fifo_full_empty_count(int ifc, int fifo)
 {
-/* FIXME: fifo are part of apbif channel, so pass call to apbif
-*  or provide generic call to apbif to handle this
-*/
+	int apbif_ifc = i2s_get_apbif_channel(ifc, fifo);
+
+	if (apbif_ifc != -ENOENT)
+		return apbif_get_fifo_freecount(apbif_ifc, fifo);
+
 	return 0;
 }
 
-int i2s_get_dma_requestor(int ifc)
+int i2s_get_dma_requestor(int ifc, int fifo_mode)
 {
-	return apbif_get_channel(ifc);
+	int dma_index = 0;
+	int regIndex  = ifc + ahubrx_i2s0;
+
+	if (fifo_mode == AUDIO_TX_MODE)
+		regIndex = ifc + ahubtx_i2s0;
+
+	dma_index = apbif_get_channel(regIndex, fifo_mode);
+
+	if (dma_index != -ENOENT) {
+		i2s_cont_info[ifc].dma_ch[fifo_mode] = dma_index - 1;
+		/* FIXME : this need to be called on connection request
+		*/
+		i2s_set_acif(ifc, fifo_mode, 0);
+	}
+
+	return dma_index;
+}
+
+int i2s_free_dma_requestor(int ifc, int fifo_mode)
+{
+	int apbif_ifc = i2s_get_apbif_channel(ifc, fifo_mode);
+
+	if (apbif_ifc != -ENOENT)
+		audio_apbif_free_channel(apbif_ifc, fifo_mode);
+
+	return 0;
 }
 
 struct clk *i2s_get_clock_by_name(const char *name)
@@ -572,10 +621,39 @@ struct clk *i2s_get_clock_by_name(const char *name)
 }
 
 static	struct audio_cif  audiocif;
+
+int i2s_set_acif(int ifc, int fifo_mode, struct audio_cif *cifInfo)
+{
+	struct audio_cif  *tx_audio_cif = &audiocif;
+
+	/* set i2s audiocif */
+	/* setting base value for acif */
+	memset(tx_audio_cif, 0 , sizeof(struct audio_cif));
+	tx_audio_cif->audio_channels	= AUDIO_CHANNEL_2;
+	tx_audio_cif->client_channels	= AUDIO_CHANNEL_2;
+	tx_audio_cif->audio_bits	= AUDIO_BIT_SIZE_16;
+	tx_audio_cif->client_bits	= AUDIO_BIT_SIZE_16;
+
+	if (fifo_mode == AUDIO_TX_MODE)
+		audio_switch_set_acif((unsigned int)i2s_base[ifc] +
+			 I2S_AUDIOCIF_I2STX_CTRL_0, tx_audio_cif);
+	else
+		audio_switch_set_acif((unsigned int)i2s_base[ifc] +
+			 I2S_AUDIOCIF_I2SRX_CTRL_0, tx_audio_cif);
+
+	audio_apbif_set_acif(i2s_get_apbif_channel(ifc, fifo_mode),
+		fifo_mode, tx_audio_cif);
+
+	return 0;
+}
+
 int i2s_initialize(int ifc)
 {
 	int err = 0;
-	struct audio_cif  *tx_audio_cif = &audiocif;
+
+
+	i2s_cont_info[ifc].dma_ch[0] = -ENOENT;
+	i2s_cont_info[ifc].dma_ch[1] = -ENOENT;
 
 	/* open audio_switch first */
 	err = audio_switch_open();
@@ -591,24 +669,6 @@ int i2s_initialize(int ifc)
 	i2s_set_data_offset(ifc, AUDIO_TX_MODE, 1);
 	i2s_set_data_offset(ifc, AUDIO_RX_MODE, 1);
 
-	/* FIXME: move all the apbif call to a generic function
-	    inside audio_switch code - temporarily added here to
-	    get minimum audio function working
-	*/
-
-	/* set i2s audiocif */
-	/* setting base value for acif */
-	memset(tx_audio_cif, 0 , sizeof(struct audio_cif));
-	tx_audio_cif->audio_channels  = AUDIO_CHANNEL_2;
-	tx_audio_cif->client_channels = AUDIO_CHANNEL_2;
-	tx_audio_cif->audio_bits	 = AUDIO_BIT_SIZE_16;
-	tx_audio_cif->client_bits	 = AUDIO_BIT_SIZE_16;
-	audio_switch_set_acif((unsigned int)i2s_base[ifc] +
-		 I2S_AUDIOCIF_I2STX_CTRL_0,	tx_audio_cif);
-	audio_switch_set_acif((unsigned int)i2s_base[ifc] +
-		 I2S_AUDIOCIF_I2SRX_CTRL_0,	tx_audio_cif);
-
-	apbif_initialize(ifc, tx_audio_cif);
 	return 0;
 }
 

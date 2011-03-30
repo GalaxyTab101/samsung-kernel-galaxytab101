@@ -37,6 +37,7 @@
 
 #define TEGRA_AUDIO_ENABLE_TX	1
 #define TEGRA_AUDIO_ENABLE_RX	2
+#define AUDIO_FIFO_CNT		2
 
 /*
 * Audio format modes
@@ -53,16 +54,16 @@
 /*
 *
 */
-#define AUDIO_LRCK_LEFT_LOW		0
+#define AUDIO_LRCK_LEFT_LOW	0
 #define AUDIO_LRCK_RIGHT_LOW	1
 
 /*
 * Audio Bit code - based on compression/decompression
 */
 #define AUDIO_BIT_CODE_LINEAR	0
-#define AUDIO_BIT_CODE_ULAW		1
-#define AUDIO_BIT_CODE_ALAW		2
-#define AUDIO_BIT_CODE_RSVD		3
+#define AUDIO_BIT_CODE_ULAW	1
+#define AUDIO_BIT_CODE_ALAW	2
+#define AUDIO_BIT_CODE_RSVD	3
 
 /*
 * Audio channels
@@ -109,19 +110,19 @@
 * Audio Mask Bits
 */
 #define AUDIO_MASK_BITS_ZERO		0
-#define AUDIO_MASK_BITS_ONE			1
-#define AUDIO_MASK_BITS_TWO			2
+#define AUDIO_MASK_BITS_ONE		1
+#define AUDIO_MASK_BITS_TWO		2
 #define AUDIO_MASK_BITS_THREE		3
 #define AUDIO_MASK_BITS_FOUR		4
 #define AUDIO_MASK_BITS_FIVE		5
-#define AUDIO_MASK_BITS_SIX			6
+#define AUDIO_MASK_BITS_SIX		6
 #define AUDIO_MASK_BITS_SEVEN		7
 
 /*
 * Audio Highz control
 */
-#define AUDIO_NO_HIGHZ				0
-#define AUDIO_HIGHZ					1
+#define AUDIO_NO_HIGHZ			0
+#define AUDIO_HIGHZ			1
 #define AUDIO_HIGHZ_HALF_BIT_CLK	2
 
 /*

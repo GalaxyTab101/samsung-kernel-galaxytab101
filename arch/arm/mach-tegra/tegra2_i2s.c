@@ -450,7 +450,7 @@ u32 i2s_fifo_read(int ifc, int fifo)
 	return i2s_readl(ifc, fifo ? I2S_I2S_FIFO2_0 : I2S_I2S_FIFO1_0);
 }
 
-u32 i2s_get_status(int ifc)
+u32 i2s_get_status(int ifc, int fifo)
 {
 	check_ifc(ifc, 0);
 	return i2s_readl(ifc, I2S_I2S_STATUS_0);
@@ -515,7 +515,13 @@ int i2s_initialize(int ifc)
 	return 0;
 }
 
-int i2s_get_dma_requestor(int ifc)
+int i2s_free_dma_requestor(int ifc, int  fifo)
+{
+	/* NULL function */
+	return 0;
+}
+
+int i2s_get_dma_requestor(int ifc, int  fifo)
 {
 	return ((ifc)? 1 : 2); /* 1 = I2S2, 2 = I2S1 */
 }

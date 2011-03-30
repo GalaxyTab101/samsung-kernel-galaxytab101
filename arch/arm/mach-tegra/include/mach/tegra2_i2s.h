@@ -302,7 +302,7 @@ void i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on);
 void i2s_enable_fifos(int ifc, int on);
 void i2s_fifo_write(int ifc, int fifo, u32 data);
 u32 i2s_fifo_read(int ifc, int fifo);
-u32 i2s_get_status(int ifc);
+u32 i2s_get_status(int ifc, int fifo);
 u32 i2s_get_control(int ifc);
 void i2s_ack_status(int ifc);
 u32 i2s_get_fifo_scr(int ifc);
@@ -310,6 +310,7 @@ u32 i2s_get_fifo_full_empty_count(int ifc, int fifo);
 phys_addr_t i2s_get_fifo_phy_base(int ifc, int fifo);
 struct clk *i2s_get_clock_by_name(const char *name);
 int i2s_initialize(int ifc);
-int i2s_get_dma_requestor(int ifc);
+int i2s_get_dma_requestor(int ifc, int fifo_mode);
+int i2s_free_dma_requestor(int ifc, int fifo_mode);
 
 #endif /* __ARCH_ARM_MACH_TEGRA_I2S_H */

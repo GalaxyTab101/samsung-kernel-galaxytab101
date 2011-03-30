@@ -304,8 +304,10 @@ static int tegra_pcm_close(struct snd_pcm_substream *substream)
 
 	if (prtd->dma_chan) {
 		prtd->dma_state = STATE_EXIT;
-		for (i = 0; i < DMA_REQ_QCOUNT; i++)
+		for (i = 0; i < DMA_REQ_QCOUNT; i++) {
 			tegra_dma_dequeue_req(prtd->dma_chan, &prtd->dma_req[i]);
+			free_dma_request(substream);
+		}
 		tegra_dma_flush(prtd->dma_chan);
 		tegra_dma_free_channel(prtd->dma_chan);
 		prtd->dma_chan = NULL;

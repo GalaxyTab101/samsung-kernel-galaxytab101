@@ -40,13 +40,13 @@
 
 /* Register Offsets from TEGRA_I2S_BASE */
 
-#define I2S_CTRL_0					0x0
+#define I2S_CTRL_0				0x0
 #define I2S_TIMING_0				0x4
 #define I2S_OFFSET_0				0x08
 #define I2S_CH_CTRL_0				0x0c
 #define I2S_SLOT_CTRL_0				0x10
-#define I2S_AUDIOCIF_I2STX_CTRL_0	0x14
-#define I2S_AUDIOCIF_I2SRX_CTRL_0	0x18
+#define I2S_AUDIOCIF_I2STX_CTRL_0		0x14
+#define I2S_AUDIOCIF_I2SRX_CTRL_0		0x18
 #define I2S_FLOWCTL_0				0x1c
 #define I2S_TX_STEP_0				0x20
 #define I2S_FLOW_STATUS_0			0x24
@@ -70,11 +70,11 @@
 #define I2S_CTRL_XFER_EN_RX			(1<<30)
 #define I2S_CTRL_CG_EN				(1<<29)
 #define I2S_CTRL_SOFT_RESET			(1<<28)
-#define I2S_CTRL_TX_FLOWCTL_EN		(1<<27)
+#define I2S_CTRL_TX_FLOWCTL_EN			(1<<27)
 #define I2S_CTRL_OBS_SEL			(1<<24)
 
-#define I2S_CTRL_FRAME_FORMAT_SHIFT		12
-#define I2S_CTRL_FRAME_FORMAT_MASK		\
+#define I2S_CTRL_FRAME_FORMAT_SHIFT	12
+#define I2S_CTRL_FRAME_FORMAT_MASK	\
 		(0x3<<I2S_CTRL_FRAME_FORMAT_SHIFT);
 #define I2S_CTRL_FRAME_FORMAT_LRCK	\
 		(0<<I2S_CTRL_FRAME_FORMAT_SHIFT) /* BASIC/LJM/RJM */
@@ -89,9 +89,9 @@
 */
 #define I2S_LRCK_SHIFT		9
 
-#define I2S_CTRL_LRCK_MASK		(1<<I2S_LRCK_SHIFT)
-#define I2S_CTRL_LRCK_L_LOW		(AUDIO_LRCK_LEFT_LOW << I2S_LRCK_SHIFT)
-#define I2S_CTRL_LRCK_R_LOW		(AUDIO_LRCK_RIGHT_LOW << I2S_LRCK_SHIFT)
+#define I2S_CTRL_LRCK_MASK	(1<<I2S_LRCK_SHIFT)
+#define I2S_CTRL_LRCK_L_LOW	(AUDIO_LRCK_LEFT_LOW << I2S_LRCK_SHIFT)
+#define I2S_CTRL_LRCK_R_LOW	(AUDIO_LRCK_RIGHT_LOW << I2S_LRCK_SHIFT)
 
 #define I2S_CTRL_LPBK_ENABLE	(1<<8)
 
@@ -107,10 +107,10 @@
 #define I2S_CTRL_BIT_CODE_RSVD		\
 		(AUDIO_BIT_CODE_RSVD<<I2S_CTRL_BIT_CODE_SHIFT)
 
-#define I2S_CTRL_BIT_SIZE_SHIFT		0
+#define I2S_CTRL_BIT_SIZE_SHIFT	0
 
 #define I2S_CTRL_BIT_SIZE_MASK	(0x7 << I2S_CTRL_BIT_SIZE_SHIFT)
-#define I2S_CTRL_BIT_SIZE_8		\
+#define I2S_CTRL_BIT_SIZE_8	\
 		(AUDIO_BIT_SIZE_8 << I2S_CTRL_BIT_SIZE_SHIFT)
 #define I2S_CTRL_BIT_SIZE_12	\
 		(AUDIO_BIT_SIZE_12 << I2S_CTRL_BIT_SIZE_SHIFT)
@@ -130,7 +130,7 @@
  * I2S_TIMING_0
  */
 
-#define I2S_TIMING_NON_SYM_ENABLE			(1<<12)
+#define I2S_TIMING_NON_SYM_ENABLE		(1<<12)
 #define I2S_TIMING_CHANNEL_BIT_COUNT_MASK	0x7ff
 #define I2S_TIMING_CHANNEL_BIT_COUNT		(1<<0)
 
@@ -167,15 +167,15 @@
 /*
 * Highz control
 */
-#define I2S_CH_CTRL_HIGHZ_CTRL_SHIFT		12
+#define I2S_CH_CTRL_HIGHZ_CTRL_SHIFT	12
 #define I2S_CH_CTRL_HIGHZ_CTRL_MASK	\
 		(3 << I2S_CH_CTRL_HIGHZ_CTRL_SHIFT)
 
 /*
 *  BIT_ORDER
 */
-#define I2S_CH_CTRL_RX_BIT_ORDER_SHIFT		10
-#define I2S_CH_CTRL_TX_BIT_ORDER_SHIFT		9
+#define I2S_CH_CTRL_RX_BIT_ORDER_SHIFT	10
+#define I2S_CH_CTRL_TX_BIT_ORDER_SHIFT	9
 #define I2S_CH_CTRL_RX_BIT_MSB_FIRST	\
 		(AUDIO_BIT_ORDER_MSB_FIRST << I2S_CH_CTRL_RX_BIT_ORDER_SHIFT)
 #define I2S_CH_CTRL_TX_BIT_MSB_FIRST	\
@@ -201,15 +201,15 @@
 #define I2S_CH_CTRL_TX_MASK_BITS_SHIFT		0
 
 
-#define I2S_CH_CTRL_RX_MASK_BITS_MASK		\
+#define I2S_CH_CTRL_RX_MASK_BITS_MASK	\
 		(7 << I2S_CH_CTRL_RX_MASK_BITS_SHIFT)
-#define I2S_CH_CTRL_RX_MASK_BITS_ZERO		\
+#define I2S_CH_CTRL_RX_MASK_BITS_ZERO	\
 		(AUDIO_MASK_BITS_ZERO << I2S_CH_CTRL_RX_MASK_BITS_SHIFT)
-#define I2S_CH_CTRL_RX_MASK_BITS_ONE		\
+#define I2S_CH_CTRL_RX_MASK_BITS_ONE	\
 		(AUDIO_MASK_BITS_ONE << I2S_CH_CTRL_RX_MASK_BITS_SHIFT)
-#define I2S_CH_CTRL_RX_MASK_BITS_TWO		\
+#define I2S_CH_CTRL_RX_MASK_BITS_TWO	\
 		(AUDIO_MASK_BITS_TWO << I2S_CH_CTRL_RX_MASK_BITS_SHIFT)
-#define I2S_CH_CTRL_RX_MASK_BITS_THREE		\
+#define I2S_CH_CTRL_RX_MASK_BITS_THREE	\
 		(AUDIO_MASK_BITS_THREE << I2S_CH_CTRL_RX_MASK_BITS_SHIFT)
 #define I2S_CH_CTRL_RX_MASK_BITS_FOUR	\
 		(AUDIO_MASK_BITS_FOUR << I2S_CH_CTRL_RX_MASK_BITS_SHIFT)
@@ -220,15 +220,15 @@
 #define I2S_CH_CTRL_RX_MASK_BITS_SEVEN	\
 		(AUDIO_MASK_BITS_SEVEN << I2S_CH_CTRL_RX_MASK_BITS_SHIFT)
 
-#define I2S_CH_CTRL_TX_MASK_BITS_MASK		\
+#define I2S_CH_CTRL_TX_MASK_BITS_MASK	\
 		(7 << I2S_CH_CTRL_TX_MASK_BITS_SHIFT)
-#define I2S_CH_CTRL_TX_MASK_BITS_ZERO		\
+#define I2S_CH_CTRL_TX_MASK_BITS_ZERO	\
 		(AUDIO_MASK_BITS_ZERO << I2S_CH_CTRL_TX_MASK_BITS_SHIFT)
-#define I2S_CH_CTRL_TX_MASK_BITS_ONE		\
+#define I2S_CH_CTRL_TX_MASK_BITS_ONE	\
 		(AUDIO_MASK_BITS_ONE << I2S_CH_CTRL_TX_MASK_BITS_SHIFT)
-#define I2S_CH_CTRL_TX_MASK_BITS_TWO		\
+#define I2S_CH_CTRL_TX_MASK_BITS_TWO	\
 		(AUDIO_MASK_BITS_TWO << I2S_CH_CTRL_TX_MASK_BITS_SHIFT)
-#define I2S_CH_CTRL_TX_MASK_BITS_THREE		\
+#define I2S_CH_CTRL_TX_MASK_BITS_THREE	\
 		(AUDIO_MASK_BITS_THREE << I2S_CH_CTRL_TX_MASK_BITS_SHIFT)
 #define I2S_CH_CTRL_TX_MASK_BITS_FOUR	\
 		(AUDIO_MASK_BITS_FOUR << I2S_CH_CTRL_TX_MASK_BITS_SHIFT)
@@ -245,9 +245,9 @@
 *  1 - frame with 2 slot
 *  n - frame with n+1 slot
 */
-#define I2S_SLOT_CTRL_TOTAL_SLOT_SHIFT		16
-#define I2S_SLOT_CTRL_RX_SLOT_SHIFT			8
-#define I2S_SLOT_CTRL_TX_SLOT_SHIFT			0
+#define I2S_SLOT_CTRL_TOTAL_SLOT_SHIFT	16
+#define I2S_SLOT_CTRL_RX_SLOT_SHIFT	8
+#define I2S_SLOT_CTRL_TX_SLOT_SHIFT	0
 
 #define I2S_SLOT_CTRL_TOTAL_SLOT_MASK	\
 		(7 << I2S_SLOT_CTRL_TOTAL_SLOT_SHIFT)
@@ -271,8 +271,8 @@
 /*
 * Flow control
 */
-#define I2S_FLOWCTL_FILTER_SHIFT		31
-#define I2S_FLOWCTL_FILTER_LINEAR		\
+#define I2S_FLOWCTL_FILTER_SHIFT	31
+#define I2S_FLOWCTL_FILTER_LINEAR	\
 		(0 << I2S_FLOWCTL_FILTER_SHIFT)
 #define I2S_FLOWCTL_FILTER_QUAD		\
 		(1 << I2S_FLOWCTL_FILTER_SHIFT)
@@ -280,7 +280,7 @@
 /*
 * Tx Step
 */
-#define I2S_TX_STEP_SHIFT		0
+#define I2S_TX_STEP_SHIFT	0
 #define I2S_TX_STEP_MASK	\
 		(0xffff << I2S_TX_STEP_SHIFT)
 
@@ -289,18 +289,15 @@
 */
 #define I2S_FLOW_STATUS_UNDERFLOW_UNDER		(1<<31)
 #define I2S_FLOW_STATUS_OVERFLOW_OVER		(1<<30)
-#define I2S_FLOW_MONITOR_INT_EN				(1<<4)
-#define I2S_FLOW_COUNTER_EN					(1<<1)
-#define I2S_FLOW_MONITOR_EN					(1<<0)
+#define I2S_FLOW_MONITOR_INT_EN			(1<<4)
+#define I2S_FLOW_COUNTER_EN			(1<<1)
+#define I2S_FLOW_MONITOR_EN			(1<<0)
 
 /*
 * coefficients
 */
 #define I2S_LCOEF_COEF_MASK		(0xffff<<0)
 
-/* FIXME: temporarily added attn level
-*  this will be part of apbif fifo
-*/
 #define I2S_FIFO_ATN_LVL_FOUR_SLOTS		4
 #define I2S_FIFO_ATN_LVL_EIGHT_SLOTS		8
 #define I2S_FIFO_ATN_LVL_ONE_SLOT		1
@@ -357,18 +354,19 @@ int  i2s_set_bit_code(int ifc, unsigned bitcode);
 int  i2s_set_bit_format(int ifc, unsigned fmt);
 int  i2s_set_bit_size(int ifc, unsigned bit_size);
 int  i2s_set_channel_bit_count(int ifc, int sampling, int bitclk);
-int	 i2s_set_data_offset(int ifc, int tx, int dataoffset);
-int	 i2s_set_edge_control(int ifc, int edgectrl);
-int	 i2s_set_highz_control(int ifc, int highzvalue);
-int	 i2s_set_fsync_width(int ifc, int fifo, int fsyncwidth);
-int	 i2s_set_slot_control(int ifc, int tx, int totalslot, int numslots);
-int	 i2s_set_bit_order(int ifc, int tx, int bitorder);
-int	 i2s_set_bit_mask(int ifc, int tx, int maskbit);
-int	 i2s_set_flow_control(int ifc, int enable, int filtertype, int stepsize);
-int	 i2s_initialize(int ifc);
+int  i2s_set_data_offset(int ifc, int tx, int dataoffset);
+int  i2s_set_edge_control(int ifc, int edgectrl);
+int  i2s_set_highz_control(int ifc, int highzvalue);
+int  i2s_set_fsync_width(int ifc, int fifo, int fsyncwidth);
+int  i2s_set_slot_control(int ifc, int tx, int totalslot, int numslots);
+int  i2s_set_bit_order(int ifc, int tx, int bitorder);
+int  i2s_set_bit_mask(int ifc, int tx, int maskbit);
+int  i2s_set_flow_control(int ifc, int enable, int filtertype, int stepsize);
+int  i2s_initialize(int ifc);
 phys_addr_t i2s_get_fifo_phy_base(int ifc, int fifo);
 struct clk *i2s_get_clock_by_name(const char *name);
-int i2s_get_dma_requestor(int ifc);
+int i2s_get_dma_requestor(int ifc, int fifo_mode);
+int i2s_free_dma_requestor(int ifc, int fifo_mode);
 /*
 * FIXME: recheck how much of these apis needed, need to check with
 * audio switch apbif apis.
@@ -380,11 +378,12 @@ void i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on);
 void i2s_enable_fifos(int ifc, int on);
 void i2s_fifo_write(int ifc, int fifo, u32 data);
 u32 i2s_fifo_read(int ifc, int fifo);
-u32 i2s_get_status(int ifc);
+u32 i2s_get_status(int ifc, int fifo);
 u32 i2s_get_control(int ifc);
 void i2s_ack_status(int ifc);
 u32 i2s_get_fifo_scr(int ifc);
 u32 i2s_get_fifo_full_empty_count(int ifc, int fifo);
+int i2s_set_acif(int ifc, int fifo_mode, struct audio_cif *cifInfo);
 
 #endif /* __ARCH_ARM_MACH_TEGRA3_I2S_H */
 

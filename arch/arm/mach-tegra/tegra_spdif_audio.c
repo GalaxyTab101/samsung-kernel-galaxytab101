@@ -472,8 +472,8 @@ static void stop_dma_playback(struct audio_stream *aos)
 	struct audio_driver_state *ads = ads_from_out(aos);
 	pr_debug("%s\n", __func__);
 	spdif_fifo_enable(ads->spdif_base, AUDIO_TX_MODE, 0);
-	while ((spdif_get_status(ads->spdif_base) & SPDIF_STATUS_0_TX_BSY) &&
-			spin < 100) {
+	while ((spdif_get_status(ads->spdif_base, AUDIO_TX_MODE) &
+				 SPDIF_STATUS_0_TX_BSY) && spin < 100) {
 		udelay(10);
 		if (spin++ > 50)
 			pr_info("%s: spin %d\n", __func__, spin);
@@ -488,7 +488,7 @@ static void stop_dma_playback(struct audio_stream *aos)
 static irqreturn_t spdif_interrupt(int irq, void *data)
 {
 	struct audio_driver_state *ads = data;
-	u32 status = spdif_get_status(ads->spdif_base);
+	u32 status = spdif_get_status(ads->spdif_base, AUDIO_TX_MODE);
 
 	pr_debug("%s: %08x\n", __func__, status);
 
@@ -496,7 +496,7 @@ static irqreturn_t spdif_interrupt(int irq, void *data)
 		spdif_ack_status(ads->spdif_base);
 
 	pr_debug("%s: done %08x\n", __func__,
-			spdif_get_status(ads->spdif_base));
+			spdif_get_status(ads->spdif_base, AUDIO_TX_MODE));
 	return IRQ_HANDLED;
 }
 #endif

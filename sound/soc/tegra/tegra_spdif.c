@@ -83,7 +83,7 @@ static inline void stop_spdif_playback(struct snd_soc_dai *dai)
 	struct tegra_spdif_info *info = dai->private_data;
 
 	spdif_fifo_enable(info->spdif_base, AUDIO_TX_MODE, false);
-	while (spdif_get_status(info->spdif_base) & SPDIF_STATUS_0_TX_BSY);
+	while (spdif_get_status(info->spdif_base, AUDIO_TX_MODE) & SPDIF_STATUS_0_TX_BSY);
 }
 
 /* capture */
@@ -101,7 +101,7 @@ static inline void stop_spdif_capture(struct snd_soc_dai *dai)
 	struct tegra_spdif_info *info = dai->private_data;
 
 	spdif_fifo_enable(info->spdif_base, AUDIO_RX_MODE, false);
-	while (spdif_get_status(info->spdif_base) & SPDIF_STATUS_0_RX_BSY);
+	while (spdif_get_status(info->spdif_base, AUDIO_RX_MODE) & SPDIF_STATUS_0_RX_BSY);
 }
 
 static int tegra_spdif_hw_params(struct snd_pcm_substream *substream,
