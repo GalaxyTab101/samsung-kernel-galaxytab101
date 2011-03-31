@@ -147,11 +147,11 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
 
 #if defined(CONFIG_TEGRA_AUTO_HOTPLUG) && !defined(CONFIG_ARCH_TEGRA_2x_SOC)
-int tegra_auto_hotplug_init(void);
+int tegra_auto_hotplug_init(struct mutex *cpu_lock);
 void tegra_auto_hotplug_exit(void);
 void tegra_auto_hotplug_governor(unsigned int cpu_freq);
 #else
-static inline int tegra_auto_hotplug_init(void)
+static inline int tegra_auto_hotplug_init(struct mutex *cpu_lock)
 { return 0; }
 static inline void tegra_auto_hotplug_exit(void)
 { }
