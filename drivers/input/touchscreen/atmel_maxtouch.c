@@ -4,6 +4,7 @@
  *
  *  Copyright (C) 2010 Atmel Corporation
  *  Copyright (C) 2009 Raphael Derosso Pereira <raphaelpereira@gmail.com>
+ *  Copyright (C) 2011 NVIDIA Corporation
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,6 +28,7 @@
 #include <linux/cdev.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
+#include <linux/earlysuspend.h>
 
 #include <linux/uaccess.h>
 
@@ -213,6 +215,7 @@ struct mxt_data {
 	/* Put only non-touch messages to buffer if this is set */
 	char nontouch_msg_only;
 	struct mutex msg_mutex;
+	struct early_suspend early_suspend;
 };
 
 #define I2C_RETRY_COUNT 5
@@ -309,7 +312,6 @@ static u8 mxt_valid_interrupt_dummy(void)
 {
 	return 1;
 }
-
 
 ssize_t debug_data_read(struct mxt_data *mxt, char *buf, size_t count,
 			loff_t *ppos, u8 debug_command)
@@ -583,7 +585,7 @@ ssize_t mxt_memory_write(struct file *file, const char *buf, size_t count,
 	return count;
 }
 
-	long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
+long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
 static long mxt_ioctl(struct file *file,
 		     unsigned int cmd, unsigned long arg)
 {
@@ -1674,6 +1676,71 @@ static int __devinit mxt_read_object_table(struct i2c_client *client,
 	return error;
 }
 
+#if defined(CONFIG_PM)
+static void mxt_start(struct mxt_data *mxt)
+{
+	mxt_write_byte(mxt->client,
+		MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt), 0x83);
+}
+
+static void mxt_stop(struct mxt_data *mxt)
+{
+	mxt_write_byte(mxt->client,
+		MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt), 0x0);
+}
+
+static int mxt_suspend(struct i2c_client *client, pm_message_t mesg)
+{
+	struct mxt_data *mxt = i2c_get_clientdata(client);
+
+	if (device_may_wakeup(&client->dev))
+		enable_irq_wake(mxt->irq);
+	else
+		mxt_stop(mxt);
+
+	return 0;
+}
+
+static int mxt_resume(struct i2c_client *client)
+{
+	struct mxt_data *mxt = i2c_get_clientdata(client);
+
+	if (device_may_wakeup(&client->dev))
+		disable_irq_wake(mxt->irq);
+	else
+		mxt_start(mxt);
+
+	return 0;
+}
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void mxt_early_suspend(struct early_suspend *es)
+{
+	struct mxt_data *mxt;
+	mxt = container_of(es, struct mxt_data, early_suspend);
+
+	if (mxt_suspend(mxt->client, PMSG_SUSPEND) != 0)
+		dev_err(&mxt->client->dev, "%s: failed\n", __func__);
+	printk(KERN_WARNING "MXT Early Suspended\n");
+}
+
+static void mxt_early_resume(struct early_suspend *es)
+{
+	struct mxt_data *mxt;
+	mxt = container_of(es, struct mxt_data, early_suspend);
+
+	if (mxt_resume(mxt->client) != 0)
+		dev_err(&mxt->client->dev, "%s: failed\n", __func__);
+	printk(KERN_WARNING "MXT Early Resumed\n");
+}
+#endif
+
+#else
+#define mxt_suspend NULL
+#define mxt_resume NULL
+#endif
+
+
 static int __devinit mxt_probe(struct i2c_client *client,
 			       const struct i2c_device_id *id)
 {
@@ -1929,6 +1996,13 @@ static int __devinit mxt_probe(struct i2c_client *client,
 			goto err_irq;
 		}
 	}
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	mxt->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
+	mxt->early_suspend.suspend = mxt_early_suspend;
+	mxt->early_suspend.resume = mxt_early_resume;
+	register_early_suspend(&mxt->early_suspend);
+#endif
+
 
 	if (debug > DEBUG_INFO)
 		dev_info(&client->dev, "touchscreen, irq %d\n", mxt->irq);
@@ -2007,47 +2081,6 @@ static int __devexit mxt_remove(struct i2c_client *client)
 
 	return 0;
 }
-
-#if defined(CONFIG_PM)
-static void mxt_start(struct mxt_data *mxt)
-{
-	mxt_write_byte(mxt->client,
-		MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt), 0x83);
-}
-
-static void mxt_stop(struct mxt_data *mxt)
-{
-	mxt_write_byte(mxt->client,
-		MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt), 0x0);
-}
-
-static int mxt_suspend(struct i2c_client *client, pm_message_t mesg)
-{
-	struct mxt_data *mxt = i2c_get_clientdata(client);
-
-	if (device_may_wakeup(&client->dev))
-		enable_irq_wake(mxt->irq);
-	else
-		mxt_stop(mxt);
-
-	return 0;
-}
-
-static int mxt_resume(struct i2c_client *client)
-{
-	struct mxt_data *mxt = i2c_get_clientdata(client);
-
-	if (device_may_wakeup(&client->dev))
-		disable_irq_wake(mxt->irq);
-	else
-		mxt_start(mxt);
-
-	return 0;
-}
-#else
-#define mxt_suspend NULL
-#define mxt_resume NULL
-#endif
 
 static const struct i2c_device_id mxt_idtable[] = {
 	{"maXTouch", 0,},
