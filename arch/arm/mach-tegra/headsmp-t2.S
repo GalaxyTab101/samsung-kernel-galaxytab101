@@ -3,7 +3,7 @@
  *
  * SMP initialization routines for Tegra2 SoCs
  *
- * Copyright (c) 2009-2010, NVIDIA Corporation.
+ * Copyright (c) 2009-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -170,3 +170,19 @@ __tegra_hotplug_data:
 	.long	__cortex_a9_restore
 	.size	__tegra_hotplug_data, . - __tegra_hotplug_data
 #endif
+
+/*
+ *	tegra_cpu_dynamic_power_init
+ *
+ *	  Confirgure tegra-specific CPU power-gating.
+ */
+
+	.align L1_CACHE_SHIFT
+ENTRY(tegra_cpu_dynamic_power_init)
+	mrc	p15, 0, r0, c15, c0, 0	@ power control
+	bic	r0, r0, #(7<<8)		@ clear MAXCLKLATENCY field
+	orr	r0, r0, #1		@ enable dynamic clock gating
+	orr	r0, r0, #(3<<8)		@ set MAXCLKLATENCY to 3
+	mcr	p15, 0, r0, c15, c0, 0	@ power control
+	bx	lr
+ENDPROC(tegra_cpu_dynamic_power_init)

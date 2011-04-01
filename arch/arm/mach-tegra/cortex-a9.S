@@ -3,7 +3,7 @@
  *
  * CPU state save & restore routines for CPU hotplug
  *
- * Copyright (c) 2010, NVIDIA Corporation.
+ * Copyright (c) 2010-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -408,6 +408,13 @@ ENTRY(__cortex_a9_restore)
 	tst	r2, #(0x1 << 6)
 	orrne	r2, r2, #(1 << 0)	@ sync FW bit with SMP state
 	mcr	p15, 0, r2, c1, c0, 1	@ actlr
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
+	mrc	p15, 0, r0, c0, c0, 5	@ MPIDR
+	tst	r0, #(0xF<<8)		@ cluster mask
+	bic	r3, r3, #(7<<8)		@ clear MAXCLKLATENCY field
+	orreq	r3, r3, #(3<<8)		@ set MAXCLKLATENCY to 3 on G
+	orrne	r3, r3, #(2<<8)		@ set MAXCLKLATENCY to 2 on LP
+#endif
 #ifndef CONFIG_TRUSTED_FOUNDATIONS
 	//TL : moved to secure 
 	mcr	p15, 0, r3, c15, c0, 0	@ pctlr

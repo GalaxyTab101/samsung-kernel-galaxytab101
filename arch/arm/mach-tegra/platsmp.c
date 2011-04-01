@@ -79,6 +79,10 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 {
 	trace_hardirqs_off();
 	gic_cpu_init(0, IO_ADDRESS(TEGRA_ARM_PERIF_BASE) + 0x100);
+
+	/* Initialize CPU0 dynamic power gating (n > 0). */
+	tegra_cpu_dynamic_power_init();
+
 	/*
 	 * Synchronise with the boot thread.
 	 */
@@ -221,6 +225,9 @@ void __init smp_init_cpus(void)
 
 	/* Initialize the reset dispatcher. */
 	tegra_cpu_reset_handler_init();
+
+	/* Initialize CPU0 dynamic power gating. */
+	tegra_cpu_dynamic_power_init();
 }
 
 void __init smp_prepare_cpus(unsigned int max_cpus)

@@ -284,6 +284,11 @@ void __init tegra_common_init(void)
 	   late. For non-SMP systems, the function that initializes the
 	   reset dispatcher is not called, so do it here for non-SMP. */
 	tegra_cpu_reset_handler_init();
+
+	/* The same goes for initialization of CPU dynamic power gating.
+	   For SMP systems it's done in SMP initialization. For non-SMP
+	   systems it's done here. */
+	tegra_cpu_dynamic_power_init();
 #endif
 	tegra_init_fuse();
 	tegra_init_clock();

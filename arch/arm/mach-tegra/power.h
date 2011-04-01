@@ -145,6 +145,7 @@ void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
 void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
+void tegra_cpu_dynamic_power_init(void);
 
 #if defined(CONFIG_TEGRA_AUTO_HOTPLUG) && !defined(CONFIG_ARCH_TEGRA_2x_SOC)
 int tegra_auto_hotplug_init(struct mutex *cpu_lock);
