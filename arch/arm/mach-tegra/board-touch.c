@@ -107,10 +107,31 @@ Check your _defconfig file and remove all but one touch screen driver instances.
 
 int generic_touch_init(struct tegra_touchscreen_init *tsdata)
 {
+	int ret;
 	if (VERBOSE_DEBUG >= 1)
 		pr_info("### TOUCHSCREEN:  Inside generic_touch_init()\n");
+
+	ret = gpio_request(tsdata->rst_gpio, "touch-reset");
+	if (ret < 0) {
+		pr_err("%s(): gpio_request() fails for gpio %d (touch-reset)\n",
+			__func__, tsdata->rst_gpio);
+		return ret;
+	}
+
+	ret = gpio_request(tsdata->irq_gpio, "touch-irq");
+	if (ret < 0) {
+		pr_err("%s(): gpio_request() fails for gpio %d (touch-irq)\n",
+			__func__, tsdata->irq_gpio);
+		gpio_free(tsdata->rst_gpio);
+		return ret;
+	}
+
+	gpio_direction_output(tsdata->rst_gpio, 0);
+	gpio_direction_input(tsdata->irq_gpio);
+
 	tegra_gpio_enable(tsdata->irq_gpio);
 	tegra_gpio_enable(tsdata->rst_gpio);
+
 	if (tsdata->sv_gpio1.valid)
 		gpio_set_value(tsdata->sv_gpio1.gpio, tsdata->sv_gpio1.value);
 	if (tsdata->sv_gpio1.delay)
@@ -119,6 +140,7 @@ int generic_touch_init(struct tegra_touchscreen_init *tsdata)
 		gpio_set_value(tsdata->sv_gpio2.gpio, tsdata->sv_gpio2.value);
 	if (tsdata->sv_gpio2.delay)
 		msleep(tsdata->sv_gpio2.delay);
+
 	i2c_register_board_info(tsdata->ts_boardinfo.busnum,
 		tsdata->ts_boardinfo.info,
 		tsdata->ts_boardinfo.n);
