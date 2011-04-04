@@ -198,8 +198,7 @@ static inline unsigned int is_lp_cluster(void)
 	reg = readl(FLOW_CTRL_CLUSTER_CONTROL);
 	return (reg & 1); /* 0 == G, 1 == LP*/
 }
-static inline int tegra_cpudile_init_soc(void)
-{ return 0; }
+int tegra_cpudile_init_soc(void);
 bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
 void tegra_lp0_suspend_mc(void);

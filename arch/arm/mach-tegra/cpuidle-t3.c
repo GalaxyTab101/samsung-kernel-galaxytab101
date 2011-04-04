@@ -49,11 +49,15 @@
 
 #include "power.h"
 #include "reset.h"
+#include "clock.h"
+#include "dvfs.h"
 
 #ifdef CONFIG_SMP
 static s64 tegra_cpu_wake_by_time[4] = {LLONG_MAX, LLONG_MAX, LLONG_MAX, LLONG_MAX};
 #endif
 extern int tegra_lp2_exit_latency;
+
+static struct clk *cpu_clk_for_dvfs;
 
 static struct {
 	unsigned int cpu_ready_count[5];
@@ -122,6 +126,9 @@ bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 		if ((reg & 0xE) != 0xE) {
 			return false;
 		}
+
+		if (tegra_dvfs_rail_updating(cpu_clk_for_dvfs))
+			return false;
 	}
 	return true;
 }
@@ -312,6 +319,12 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	return;
 }
 #endif
+
+int tegra_cpudile_init_soc(void)
+{
+	cpu_clk_for_dvfs = tegra_get_clock_by_name("cpu_g");
+	return 0;
+}
 
 #ifdef CONFIG_DEBUG_FS
 static int tegra_lp2_debug_show(struct seq_file *s, void *data)
