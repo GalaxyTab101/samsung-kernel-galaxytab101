@@ -29,6 +29,7 @@ obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += dam.o
 obj-y                                   += spdif.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += audio_jack.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra_das.o
+obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += audio_manager.o
 obj-y                                   += mc.o
 obj-$(CONFIG_USB_SUPPORT)               += usb_phy.o
 obj-$(CONFIG_FIQ)                       += fiq.o

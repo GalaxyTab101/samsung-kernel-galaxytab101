@@ -36,9 +36,8 @@ struct tegra_i2s_info {
 	/* Control for whole I2S (Data format, etc.) */
 	unsigned int bit_format;
 	bool i2s_master;
+	int fifo_attn[AUDIO_FIFO_CNT];
 	int ref_count;
-	int fifo_tx_attn;
-	int fifo_rx_attn;
 	struct i2s_runtime_data i2s_regs;
 	struct das_regs_cache das_regs;
 };
@@ -120,9 +119,9 @@ void set_fifo_attention(struct snd_pcm_substream *substream,
 #endif
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		info->fifo_tx_attn = fifoattn;
+		info->fifo_attn[I2S_FIFO_TX] = fifoattn;
 	else
-		info->fifo_rx_attn = fifoattn;
+		info->fifo_attn[I2S_FIFO_RX] = fifoattn;
 }
 
 /* playback */
@@ -131,7 +130,7 @@ static inline void start_i2s_playback(struct snd_soc_dai *cpu_dai)
 	struct tegra_i2s_info *info = cpu_dai->private_data;
 
 	i2s_fifo_set_attention_level(cpu_dai->id, I2S_FIFO_TX,
-					info->fifo_tx_attn);
+					info->fifo_attn[I2S_FIFO_TX]);
 	i2s_fifo_enable(cpu_dai->id, I2S_FIFO_TX, 1);
 }
 
@@ -149,7 +148,7 @@ static inline void start_i2s_capture(struct snd_soc_dai *cpu_dai)
 	struct tegra_i2s_info *info = cpu_dai->private_data;
 
 	i2s_fifo_set_attention_level(cpu_dai->id, I2S_FIFO_RX,
-					info->fifo_rx_attn);
+					info->fifo_attn[I2S_FIFO_RX]);
 	i2s_fifo_enable(cpu_dai->id, I2S_FIFO_RX, 1);
 }
 
@@ -550,6 +549,12 @@ static int tegra_i2s_driver_probe(struct platform_device *pdev)
 				goto fail_unmap_mem;
 		}
 	}
+	return 0;
+
+fail_clock:
+
+	if (info->dap_mclk)
+		clk_disable(info->dap_mclk);
 
 	/* Disable i2s clk to save power */
 	clk_disable(info->i2s_clk);
