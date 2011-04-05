@@ -318,8 +318,6 @@ static struct platform_device tegra_camera = {
 };
 
 static struct platform_device *cardhu_devices[] __initdata = {
-	&tegra_usb_fsg_device,
-	&androidusb_device,
 	&debug_uart,
 	&tegra_uartb_device,
 	&tegra_uartc_device,
@@ -328,6 +326,8 @@ static struct platform_device *cardhu_devices[] __initdata = {
 	&pmu_device,
 	&tegra_rtc_device,
 	&tegra_udc_device,
+	&tegra_usb_fsg_device,
+	&androidusb_device,
 #if defined(CONFIG_SND_HDA_TEGRA)
 	&tegra_hda_device,
 #endif
@@ -477,6 +477,7 @@ static void __init tegra_cardhu_init(void)
 	tegra_clk_init_from_table(cardhu_clk_init_table);
 	cardhu_pinmux_init();
 	cardhu_i2c_init();
+	cardhu_usb_init();
 	snprintf(serial, sizeof(serial), "%llx", tegra_chip_uid());
 	andusb_plat.serial_number = kstrdup(serial, GFP_KERNEL);
 	tegra_audio_device.dev.platform_data = &tegra_audio_pdata[0];
@@ -488,7 +489,6 @@ static void __init tegra_cardhu_init(void)
 	cardhu_suspend_init();
 	cardhu_power_off_init();
 	touch_init();
-	cardhu_usb_init();
 	cardhu_gps_init();
 	cardhu_modem_init();
 	cardhu_kbc_init();
