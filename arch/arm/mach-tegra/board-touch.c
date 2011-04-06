@@ -32,6 +32,8 @@
 #include "board-ventana.h"
 #elif CONFIG_MACH_CARDHU
 #include "board-cardhu.h"
+#elif CONFIG_MACH_TEGRA_ENTERPRISE
+#include "board-enterprise.h"
 #endif
 #include "gpio-names.h"
 #include "touch.h"

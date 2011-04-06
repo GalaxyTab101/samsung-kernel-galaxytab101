@@ -28,6 +28,10 @@
 #include "board-cardhu.h"
 #endif
 
+#if defined (CONFIG_MACH_TEGRA_ENTERPRISE)
+#include "board-enterprise.h"
+#endif
+
 #if defined (CONFIG_MACH_VENTANA)
 #include "board-ventana.h"
 #endif
