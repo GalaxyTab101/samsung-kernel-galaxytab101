@@ -284,6 +284,32 @@ static int mxt_write_ap(struct mxt_data *mxt, u16 ap);
 
 static int mxt_read_block_wo_addr(struct i2c_client *client,
 				  u16 length, u8 *value);
+/* Routines for memory access within a 16 bit address space */
+
+static int mxt_read_block(struct i2c_client *client, u16 addr, u16 length,
+			  u8 *value);
+static int mxt_write_byte(struct i2c_client *client, u16 addr, u8 value);
+static int mxt_write_block(struct i2c_client *client, u16 addr, u16 length,
+			   u8 *value);
+
+/* TODO: */
+/* Bootloader specific function prototypes. */
+/*
+static int mxt_read_byte_bl(struct i2c_client *client, u8 * value)
+	{ return 0; }
+static int mxt_read_block_bl(struct i2c_client *client, u16 length,
+		u8 * value) { return 0; }
+static int mxt_write_byte_bl(struct i2c_client *client, u8 value)
+	{ return 0; }
+static int mxt_write_block_bl(struct i2c_client *client, u16 length,
+		u8 *value) { return 0; }
+*/
+
+static u8 mxt_valid_interrupt_dummy(void)
+{
+	return 1;
+}
+
 
 ssize_t debug_data_read(struct mxt_data *mxt, char *buf, size_t count,
 			loff_t *ppos, u8 debug_command)
@@ -557,7 +583,8 @@ ssize_t mxt_memory_write(struct file *file, const char *buf, size_t count,
 	return count;
 }
 
-static int mxt_ioctl(struct file *file,
+	long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
+static long mxt_ioctl(struct file *file,
 		     unsigned int cmd, unsigned long arg)
 {
 	int retval;
@@ -601,10 +628,10 @@ static int mxt_ioctl(struct file *file,
 		mxt->nontouch_msg_only = 0;
 		break;
 	default:
-		return -EIO;
+		return (long)(-EIO);
 	}
 
-	return retval;
+	return (long)retval;
 }
 
 /*
@@ -1208,8 +1235,6 @@ static void mxt_worker(struct work_struct *work)
 	char *message_string;
 	char *message_start;
 
-	int n = 0;
-
 	message = NULL;
 	mxt = container_of(work, struct mxt_data, dwork.work);
 	disable_irq(mxt->irq);
@@ -1229,7 +1254,7 @@ static void mxt_worker(struct work_struct *work)
 		return;
 	}
 
-	mxt_debug("maXTouch worker active: \n");
+	mxt_debug(DEBUG_TRACE, "maXTouch worker active: \n");
 	do {
 		/* Read next message, reread on failure. */
 		/* -1 TO WORK AROUND A BUG ON 0.9 FW MESSAGING, needs */
@@ -1830,7 +1855,7 @@ static int __devinit mxt_probe(struct i2c_client *client,
 
 	/* Create debugfs entries. */
 	mxt->debug_dir = debugfs_create_dir("maXTouch", NULL);
-	if (mxt->debug_dir == -ENODEV) {
+	if (mxt->debug_dir == ERR_PTR(-ENODEV)) {
 		/* debugfs is not enabled. */
 		printk(KERN_WARNING "debugfs not enabled in kernel\n");
 	} else if (mxt->debug_dir == NULL) {
