@@ -51,6 +51,10 @@ extern void __tegra_cpu_reset_handler_start(void);
 #define tegra_cpu_lp1_map (*(unsigned long *)(IO_ADDRESS(TEGRA_RESET_HANDLER_BASE + \
 		((unsigned long)&__tegra_cpu_reset_handler_data[TEGRA_RESET_MASK_LP1] - \
 		 (unsigned long)__tegra_cpu_reset_handler_start))))
+
+#define tegra_cpu_reset_handler_ptr ((unsigned long *)(IO_ADDRESS(TEGRA_RESET_HANDLER_BASE + \
+		((unsigned long)__tegra_cpu_reset_handler_data - \
+		 (unsigned long)__tegra_cpu_reset_handler_start))))
 #endif
 
 #define tegra_cpu_lp2_map (*(unsigned long *)(IO_ADDRESS(TEGRA_RESET_HANDLER_BASE + \
@@ -74,6 +78,12 @@ static inline bool suspend_wfi_failed(void)
 
 void tegra_cpu_reset_handler_enable(void);
 void tegra_cpu_reset_handler_flush(bool l1cache);
+
+#ifdef CONFIG_PM
+void tegra_cpu_reset_handler_save(void);
+void tegra_cpu_reset_handler_restore(void);
+#endif
+
 void __init tegra_cpu_reset_handler_init(void);
 
 #endif

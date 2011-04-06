@@ -251,6 +251,26 @@ void tegra_cpu_reset_handler_flush(bool l1cache)
 			  __pa(&__tegra_cpu_reset_handler_data[TEGRA_RESET_DATA_SIZE]));
 }
 
+static unsigned long tegra_cpu_reset_handler_bckup[TEGRA_RESET_DATA_SIZE];
+
+#ifdef CONFIG_PM
+void tegra_cpu_reset_handler_save(void)
+{
+	unsigned int i;
+	for (i = 0; i < TEGRA_RESET_DATA_SIZE; i++)
+		tegra_cpu_reset_handler_bckup[i] =
+					tegra_cpu_reset_handler_ptr[i];
+}
+
+void tegra_cpu_reset_handler_restore(void)
+{
+	unsigned int i;
+	for (i = 0; i < TEGRA_RESET_DATA_SIZE; i++)
+		tegra_cpu_reset_handler_ptr[i] =
+					tegra_cpu_reset_handler_bckup[i];
+}
+#endif
+
 void __init tegra_cpu_reset_handler_init(void)
 {
 #ifdef CONFIG_SMP

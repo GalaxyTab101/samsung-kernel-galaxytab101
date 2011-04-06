@@ -130,6 +130,7 @@ unsigned long tegra_wfi_fail_count[CONFIG_NR_CPUS];
 #define PMC_COREPWRGOOD_TIMER	0x3c
 #define PMC_SCRATCH0		0x50
 #define PMC_SCRATCH1		0x54
+#define PMC_SCRATCH4		0x60
 #define PMC_CPUPWRGOOD_TIMER	0xc8
 #define PMC_CPUPWROFF_TIMER	0xcc
 #define PMC_COREPWROFF_TIMER	PMC_WAKE_DELAY
@@ -160,6 +161,10 @@ unsigned long tegra_wfi_fail_count[CONFIG_NR_CPUS];
 #else
 #define FLOW_CTRL_BITMAP_MASK	((0xF<<4) | (0xF<<8))
 #define FLOW_CTRL_BITMAP_CPU0	(1<<8)	/* CPU0 WFI bitmap */
+#endif
+
+#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+#define PMC_SCRATCH4_WAKE_CLUSTER_MASK	(1<<31)
 #endif
 
 #define EMC_MRW_0		0x0e8
@@ -634,6 +639,18 @@ void tegra_suspend_dram(bool do_lp0)
 	suspend_cpu_complex();
 	if (!do_lp0)
 		tegra_cpu_lp1_map = 1;
+	else {
+#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+		reg = readl(pmc + PMC_SCRATCH4);
+		if (is_lp_cluster())
+			reg |= PMC_SCRATCH4_WAKE_CLUSTER_MASK;
+		else
+			reg &= (~PMC_SCRATCH4_WAKE_CLUSTER_MASK);
+		pmc_32kwritel(reg, PMC_SCRATCH4);
+#endif
+		tegra_cpu_reset_handler_save();
+	}
+
 	flush_cache_all();
 	tegra_cpu_reset_handler_flush(false);
 #ifdef CONFIG_CACHE_L2X0
@@ -656,6 +673,7 @@ void tegra_suspend_dram(bool do_lp0)
 	}
 	else {
 		tegra_cpu_reset_handler_enable();
+		tegra_cpu_reset_handler_restore();
 		tegra_lp0_resume_mc();
 	}
 
