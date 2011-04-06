@@ -771,7 +771,9 @@ static int tegra_suspend_enter(suspend_state_t state)
 {
 	struct irq_desc *desc;
 	void __iomem *mc = IO_ADDRESS(TEGRA_MC_BASE);
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	void __iomem *emc = IO_ADDRESS(TEGRA_EMC_BASE);
+#endif
 	unsigned long flags;
 	u32 mc_data[3] = {0, 0, 0};
 	int irq;
@@ -840,10 +842,10 @@ static int tegra_suspend_enter(suspend_state_t state)
 		writel(mc_data[0], mc + MC_SECURITY_START);
 		writel(mc_data[1], mc + MC_SECURITY_SIZE);
 		writel(mc_data[2], mc + MC_SECURITY_CFG2);
-
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 		/* trigger emc mode write */
 		writel(EMC_MRW_DEV_NONE, emc + EMC_MRW_0);
-
+#endif
 		tegra_clk_resume();
 		tegra_gpio_resume();
 		tegra_timer_resume();
