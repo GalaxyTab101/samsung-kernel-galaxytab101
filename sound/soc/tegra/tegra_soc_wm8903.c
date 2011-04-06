@@ -34,27 +34,37 @@ extern struct snd_soc_platform tegra_soc_platform;
 extern struct wired_jack_conf tegra_wired_jack_conf;
 
 /* codec register values */
-#define B00_IN_VOL		0
-#define B00_INR_ENA		0
-#define B01_INL_ENA		1
-#define B01_MICDET_ENA		1
-#define B00_MICBIAS_ENA		0
-#define B15_DRC_ENA		15
-#define B01_ADCL_ENA		1
-#define B00_ADCR_ENA		0
-#define B06_IN_CM_ENA		6
-#define B04_IP_SEL_N		4
-#define B02_IP_SEL_P		2
-#define B00_MODE 		0
+#define INR_ENA		(1 << 0)
+#define INL_ENA		(1 << 1)
+#define MICDET_ENA		(1 << 1)
+#define MICBIAS_ENA		(1 << 0)
+
+#define B03_DACL_ENA		3
+#define B02_DACR_ENA		2
+#define ADCL_ENA		(1 << 1)
+#define ADCR_ENA		(1 << 0)
+#define CM_DISABLED		(0 << WM8903_INR_CM_ENA_SHIFT)
+#define IN1L_SEL_N		(0 << WM8903_R_IP_SEL_N_SHIFT)
+#define IN2L_SEL_P		(1 << WM8903_R_IP_SEL_P_SHIFT)
+#define SINGLE_ENDED_MODE	(0 << WM8903_L_MODE_SHIFT)
 #define B06_AIF_ADCL		7
 #define B06_AIF_ADCR		6
-#define B04_ADC_HPF_ENA		4
-#define R20_SIDETONE_CTRL	32
-#define R29_DRC_1		41
-#define B08_GP1_FN		8
-#define B07_GP1_DIR		7
-#define B08_GP2_FN 		8
-#define B07_GP2_DIR		7
+#define ADCL_TO_DACL		(0x01 << WM8903_ADC_TO_DACL_SHIFT)
+#define ADCR_TO_DACR		(0x02 << WM8903_ADC_TO_DACR_SHIFT)
+
+#define B08_GPx_FN		8
+#define B07_GPx_DIR		7
+
+#define DMIC_CLK_OUT		(0x6 << B08_GPx_FN)
+#define DMIC_DAT_DATA_IN	(0x6 << B08_GPx_FN)
+#define GPIO_DIR_OUT		(0x0 << B07_GPx_DIR)
+#define GPIO_DIR_IN		(0x1 << B07_GPx_DIR)
+
+#define ADC_DIGITAL_VOL_9DB		0x1D8
+#define ADC_DIGITAL_VOL_12DB		0x1E0
+#define ADC_ANALOG_VOLUME		0x1C
+#define DRC_MAX_36DB			0x03
+
 #define SET_REG_VAL(r,m,l,v) (((r)&(~((m)<<(l))))|(((v)&(m))<<(l)))
 
 
@@ -115,14 +125,14 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 		int SideToneAtenuation = 0;
 
 		/* Mic Bias enable */
-		CtrlReg = (0x1<<B00_MICBIAS_ENA) | (0x1<<B01_MICDET_ENA);
+		CtrlReg = MICBIAS_ENA | MICDET_ENA;
 		snd_soc_write(codec, WM8903_MIC_BIAS_CONTROL_0, CtrlReg);
 		/* Enable DRC */
 		CtrlReg = snd_soc_read(codec, WM8903_DRC_0);
-		CtrlReg |= (1<<B15_DRC_ENA);
+		CtrlReg |= WM8903_DRC_ENA;
 		snd_soc_write(codec, WM8903_DRC_0, CtrlReg);
 
-		VolumeCtrlReg = (0x1C << B00_IN_VOL);
+		VolumeCtrlReg = ADC_ANALOG_VOLUME;
 
 		/* voulme for single ended mic */
 		snd_soc_write(codec, WM8903_ANALOGUE_LEFT_INPUT_0,
@@ -132,13 +142,17 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 
 		/* ADC Settings */
 		CtrlReg = snd_soc_read(codec, WM8903_ADC_DIGITAL_0);
-		CtrlReg |= (0x1<<B04_ADC_HPF_ENA);
+		CtrlReg |= WM8903_ADC_HPF_ENA;
 		snd_soc_write(codec, WM8903_ADC_DIGITAL_0, CtrlReg);
 
 		SidetoneCtrlReg = 0;
-		snd_soc_write(codec, R20_SIDETONE_CTRL, SidetoneCtrlReg);
+		snd_soc_write(codec, WM8903_DAC_DIGITAL_0, SidetoneCtrlReg);
 
-		SideToneAtenuation = 12 ; /* sidetone 0 db */
+		SideToneAtenuation = 12 ;
+
+		CtrlReg = snd_soc_read(codec, WM8903_DRC_1);
+		CtrlReg |= DRC_MAX_36DB;
+		snd_soc_write(codec, WM8903_DRC_1, CtrlReg);
 
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 
@@ -146,9 +160,8 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 		snd_soc_write(codec, WM8903_ANALOGUE_RIGHT_INPUT_0, 0X7);
 
 		/* Single Ended Mic */
-		CtrlReg = (0x0<<B06_IN_CM_ENA) |
-			(0x0<<B00_MODE) | (0x0<<B04_IP_SEL_N)
-					| (0x1<<B02_IP_SEL_P);
+		CtrlReg = CM_DISABLED |
+			SINGLE_ENDED_MODE | IN1L_SEL_N | IN2L_SEL_P;
 		/* Mic Setting */
 		snd_soc_write(codec, WM8903_ANALOGUE_LEFT_INPUT_1, CtrlReg);
 		snd_soc_write(codec, WM8903_ANALOGUE_RIGHT_INPUT_1, CtrlReg);
@@ -159,31 +172,35 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 		CtrlReg  = SET_REG_VAL(CtrlReg, 0x1, B06_AIF_ADCL, 0x0);
 		snd_soc_write(codec, WM8903_AUDIO_INTERFACE_0, CtrlReg);
 		/* Enable analog inputs */
-		CtrlReg = (0x1<<B01_INL_ENA) | (0x1<<B00_INR_ENA);
+		CtrlReg = INL_ENA | INR_ENA;
 		snd_soc_write(codec, WM8903_POWER_MANAGEMENT_0, CtrlReg);
 
 		/* Enable ADC */
 		CtrlReg = snd_soc_read(codec, WM8903_POWER_MANAGEMENT_6);
-		CtrlReg |= (0x1<<B00_ADCR_ENA)|(0x1<<B01_ADCL_ENA);
+		CtrlReg |= ADCR_ENA| ADCL_ENA;
 		snd_soc_write(codec, WM8903_POWER_MANAGEMENT_6, CtrlReg);
-		CtrlReg = snd_soc_read(codec, R29_DRC_1);
-		CtrlReg |= 0x3; /*mic volume 18 db */
-		snd_soc_write(codec, R29_DRC_1, CtrlReg);
 #else
+
 
 		/* Enabling Digital mic as default*/
 		/* Set GP1_FN as DMIC_LR */
-		CtrlReg = snd_soc_read(codec, WM8903_GPIO_CONTROL_1);
-		CtrlReg = (0x06 << B08_GP1_FN) | (0x0 << B07_GP1_DIR);
+		CtrlReg = DMIC_CLK_OUT | GPIO_DIR_OUT;
 		snd_soc_write(codec, WM8903_GPIO_CONTROL_1, CtrlReg);
 
 		/* Set GP2_FN as DMIC_DAT */
-		CtrlReg = snd_soc_read(codec, WM8903_GPIO_CONTROL_2);
-		CtrlReg = (0x06 << B08_GP2_FN) | (0x1 << B07_GP2_DIR);
+		CtrlReg = DMIC_DAT_DATA_IN | GPIO_DIR_IN;
 		snd_soc_write(codec, WM8903_GPIO_CONTROL_2, CtrlReg);
 
+		/* Enable ADC Digital volumes */
+		VolumeCtrlReg = ADC_DIGITAL_VOL_9DB;
+
+		// voulme for single ended mic
+		snd_soc_write(codec, WM8903_ADC_DIGITAL_VOLUME_LEFT,
+				VolumeCtrlReg);
+		snd_soc_write(codec, WM8903_ADC_DIGITAL_VOLUME_RIGHT,
+				VolumeCtrlReg);
+
 		/* Enable DIG_MIC */
-		CtrlReg = snd_soc_read(codec, WM8903_CLOCK_RATE_TEST_4);
 		CtrlReg = WM8903_ADC_DIG_MIC;
 		snd_soc_write(codec, WM8903_CLOCK_RATE_TEST_4, CtrlReg);
 #endif
