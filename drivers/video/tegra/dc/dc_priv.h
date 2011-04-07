@@ -96,7 +96,9 @@ struct tegra_dc {
 
 	struct switch_dev		modeset_switch;
 
-	struct completion		v_blank_complete;
+	struct completion		vblank_complete;
+
+	struct work_struct		vblank_work;
 };
 
 static inline void tegra_dc_io_start(struct tegra_dc *dc)
@@ -151,4 +153,7 @@ extern struct tegra_dc_out_ops tegra_dc_rgb_ops;
 extern struct tegra_dc_out_ops tegra_dc_hdmi_ops;
 extern struct tegra_dc_out_ops tegra_dc_dsi_ops;
 
+void __devexit tegra_dc_remove_sysfs(struct device *dev);
+void tegra_dc_create_sysfs(struct device *dev);
 #endif
+
