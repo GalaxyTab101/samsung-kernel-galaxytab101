@@ -381,6 +381,8 @@ __tear_down_master_pll_cpu:
 	beq	__do_halt
 
 #if defined (CONFIG_CACHE_L2X0)
+	tst	sp, #TEGRA_POWER_EFFECT_LP0
+	bne	powerdown_l2_done
 	/* power down L2 */
 	ldr	r0, [r4, #PMC_PWRGATE_STATUS]
 	tst	r0, #(1<<PMC_PWRGATE_PARTID_L2C)
@@ -415,9 +417,12 @@ powerdown_l2_done:
 	str	r0, [r5, #CLK_RESET_SCLK_BURST]
 
 	/* disable PLLM via PMC in LP0 and LP1 states */
+	tst	sp, #TEGRA_POWER_EFFECT_LP0
+	bne	powerdown_pll_pcx
 	ldr	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
 	bic	r0, r0, #(1<<12)
 	str	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
+powerdown_pll_pcx:
 
 	/* disable PLLP, PLLC, and PLLX in LP0 and LP1 states */
 	ldr	r0, [r5, #CLK_RESET_PLLP_BASE]
