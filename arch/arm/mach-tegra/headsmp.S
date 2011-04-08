@@ -281,11 +281,16 @@ ENDPROC(tegra_secondary_startup)
 /*
  *	__enable_coresite_access
  *
- *	  Called only on CPU0 to take the CoreSight debug interface out of
- *	  reset. Called with MMU disabled.
+ *	  Called to take the CoreSight debug interface out of reset.
+ *	  Called with MMU disabled.
  */
 	.align L1_CACHE_SHIFT
 ENTRY(__enable_coresite_access)
+	/* Only assert CoreSight reset when CPU0 comes up. */
+	cpu_id	r0
+	cmp	r0, #0
+	bne	no_coresight_reset
+
 	mov32	r0, (TEGRA_CLK_RESET_BASE + RST_DEVICES_U)
 	mov32	r2, (TEGRA_TMRUS_BASE)
 
@@ -300,6 +305,8 @@ ENTRY(__enable_coresite_access)
 	bic	r1, r1, #(1<<9)
 	wait_until r3, r2, r4
 	str	r1, [r0]
+
+no_coresight_reset:
 	/* Enable CoreSight */
 	enable_coresite r3
 	bx	lr
