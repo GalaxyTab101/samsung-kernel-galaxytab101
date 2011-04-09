@@ -19,11 +19,12 @@
  *
  */
 
-#ifndef __ARCH_ARM_MACH_TEGRA_I2S_H
-#define __ARCH_ARM_MACH_TEGRA_I2S_H
+#ifndef __ARCH_ARM_MACH_TEGRA2_I2S_H
+#define __ARCH_ARM_MACH_TEGRA2_I2S_H
 
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <mach/tegra_i2s.h>
 
 
 /* Offsets from TEGRA_I2S1_BASE and TEGRA_I2S2_BASE */
@@ -128,6 +129,11 @@
 #define I2S_I2S_STATUS_FIFO2_ERR		(1<<2)
 #define I2S_I2S_STATUS_QS_FIFO1			(1<<1)
 #define I2S_I2S_STATUS_QS_FIFO2			(1<<0)
+
+#define I2S_I2S_FIFO_TX_BUSY	I2S_I2S_STATUS_FIFO1_BSY
+#define I2S_I2S_FIFO_TX_QS	I2S_I2S_STATUS_QS_FIFO1
+#define I2S_I2S_FIFO_RX_BUSY	I2S_I2S_STATUS_FIFO2_BSY
+#define I2S_I2S_FIFO_RX_QS	I2S_I2S_STATUS_QS_FIFO2
 
 /*
  * I2S_I2S_TIMING_0
@@ -283,55 +289,15 @@
 
 #define I2S_I2S_PCM_CTRL_RCV_MODE			(1<<0)
 
-struct i2s_runtime_data {
-	int i2s_ctrl_0;
-	int i2s_status_0;
-	int i2s_timing_0;
-	int i2s__fifo_scr_0;
-	int i2s_pcm_ctrl_0;
-	int i2s_nw_ctrl_0;
-	int i2s_tdm_ctrl_0;
-	int i2s_tdm_tx_rx_ctrl_0;
-	int i2s_fifo1_0;
-	int i2s_fifo2_0;
-};
 
 /*
  * API
  */
-
-void i2s_dump_registers(int ifc);
-void i2s_get_all_regs(int ifc, struct i2s_runtime_data* ird);
-void i2s_set_all_regs(int ifc, struct i2s_runtime_data* ird);
-int i2s_set_channel_bit_count(int ifc, int sampling, int bitclk);
 void i2s_set_fifo_mode(int ifc, int fifo, int tx);
-void i2s_set_loopback(int ifc, int on);
-int i2s_fifo_set_attention_level(int ifc, int fifo, unsigned level);
-void i2s_fifo_enable(int ifc, int fifo, int on);
-void i2s_fifo_clear(int ifc, int fifo);
-void i2s_set_master(int ifc, int master);
-int i2s_set_bit_format(int ifc, unsigned format);
-int i2s_set_bit_size(int ifc, unsigned bit_size);
 int i2s_set_fifo_format(int ifc, unsigned fmt);
-void i2s_set_left_right_control_polarity(int ifc, int high_low);
 int i2s_set_pcm_edge_mode(int ifc, unsigned edge_mode);
 int i2s_set_pcm_mask_bits(int ifc, unsigned mask_bits, int tx);
 void i2s_set_pcm_fsync_width(int ifc, int fsync_long);
 void i2s_enable_pcm_mode(int ifc, int enable);
-void i2s_set_fifo_irq_on_err(int ifc, int fifo, int on);
-void i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on);
 void i2s_enable_fifos(int ifc, int on);
-void i2s_fifo_write(int ifc, int fifo, u32 data);
-u32 i2s_fifo_read(int ifc, int fifo);
-u32 i2s_get_status(int ifc, int fifo);
-u32 i2s_get_control(int ifc);
-void i2s_ack_status(int ifc);
-u32 i2s_get_fifo_scr(int ifc);
-u32 i2s_get_fifo_full_empty_count(int ifc, int fifo);
-phys_addr_t i2s_get_fifo_phy_base(int ifc, int fifo);
-struct clk *i2s_get_clock_by_name(const char *name);
-int i2s_initialize(int ifc);
-int i2s_get_dma_requestor(int ifc, int fifo_mode);
-int i2s_free_dma_requestor(int ifc, int fifo_mode);
-
 #endif /* __ARCH_ARM_MACH_TEGRA_I2S_H */

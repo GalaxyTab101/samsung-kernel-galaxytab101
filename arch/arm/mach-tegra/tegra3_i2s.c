@@ -21,6 +21,7 @@
 #include <linux/kernel.h>
 #include <linux/err.h>
 #include <linux/module.h>
+#include <linux/clk.h>
 #include "clock.h"
 #include <asm/io.h>
 #include <mach/iomap.h>
@@ -39,12 +40,10 @@
 #endif
 
 struct i2s_controller_info {
-/*FIXME: add clock here or move the struct to common place
-	Make use of tegra_i2s_channel_property & tegra_i2s_property
-	struct defined in the i2s header
-*/
-	int	dma_ch[AUDIO_FIFO_CNT];
-	int	stream_index[AUDIO_FIFO_CNT];
+	struct tegra_i2s_channel_property i2s_ch_prop[AUDIO_FIFO_CNT];
+	struct tegra_i2s_property i2sprop;
+	int	clk_refs;
+	int	i2s_regcache[I2S_REG_MAXINDEX];
 };
 
 static struct i2s_controller_info i2s_cont_info[NR_I2S_IFC];
@@ -55,6 +54,21 @@ static void *i2s_base[NR_I2S_IFC] = {
 	IO_ADDRESS(TEGRA_I2S2_BASE),
 	IO_ADDRESS(TEGRA_I2S3_BASE),
 	IO_ADDRESS(TEGRA_I2S4_BASE),
+};
+
+struct i2s_clk_info {
+	char *clk_name;
+	char *sync_clk_name;
+	char *audio_clk_name;
+	char *audio2x_clk_name;
+};
+
+static struct i2s_clk_info i2sclk_info[NR_I2S_IFC] = {
+	{"i2s0", "i2s0_sync", "audio0", "audio0_2x"},
+	{"i2s1", "i2s1_sync", "audio1", "audio1_2x"},
+	{"i2s2", "i2s2_sync", "audio2", "audio2_2x"},
+	{"i2s3", "i2s3_sync", "audio3", "audio3_2x"},
+	{"i2s4", "i2s4_sync", "audio4", "audio4_2x"}
 };
 
 static inline void i2s_writel(int ifc, u32 val, u32 reg)
@@ -77,7 +91,7 @@ static inline u32 i2s_readl(int ifc, u32 reg)
 
 static int i2s_get_apbif_channel(int ifc, int fifo_mode)
 {
-	return i2s_cont_info[ifc].dma_ch[fifo_mode];
+	return i2s_cont_info[ifc].i2s_ch_prop[fifo_mode].dma_ch;
 }
 
 void i2s_dump_registers(int ifc)
@@ -97,16 +111,60 @@ void i2s_dump_registers(int ifc)
 	i2s_readl(ifc, I2S_FLOW_OVER_0);
 }
 
-void i2s_get_all_regs(int ifc, struct i2s_runtime_data* ird)
-{}
-void i2s_set_all_regs(int ifc, struct i2s_runtime_data* ird)
-{}
+struct i2s_controller_info * i2s_get_cont_info(int ifc)
+{
+	return &i2s_cont_info[ifc];
+}
+
+struct tegra_i2s_channel_property* i2s_get_channel_prop(int ifc, int mode)
+{
+	return &i2s_cont_info[ifc].i2s_ch_prop[mode];
+}
+
+struct tegra_i2s_property* i2s_get_prop(int ifc)
+{
+	return &i2s_cont_info[ifc].i2sprop;
+}
+
+static void i2s_save_registers(int ifc)
+{
+	int i = 0;
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	for (i = 0; i <= I2S_REG_MAXINDEX; i++)
+		info->i2s_regcache[i] = i2s_readl(ifc, (i << 2));
+
+}
+
+static void i2s_restore_registers(int ifc)
+{
+	int i = 0;
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	for (i = 0; i <= I2S_REG_MAXINDEX; i++)
+		i2s_writel(ifc, info->i2s_regcache[i], (i << 2));
+
+}
+
+void i2s_suspend(int ifc)
+{
+	i2s_save_registers(ifc);
+	i2s_clock_disable(ifc);
+}
+
+void i2s_resume(int ifc)
+{
+	i2s_clock_enable(ifc);
+	i2s_restore_registers(ifc);
+}
+
 /*
 *   Set the fifo mode as Tx or Rx or both
 */
 void i2s_fifo_enable(int ifc, int tx, int enable)
 {
 	u32 val;
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
 	int apbif_ifc = 0;
 
 	check_i2s_ifc(ifc);
@@ -117,11 +175,15 @@ void i2s_fifo_enable(int ifc, int tx, int enable)
 
 	val = i2s_readl(ifc, I2S_CTRL_0);
 
-	if (tx != I2S_FIFO_TX) {
+	if (tx != AUDIO_TX_MODE) {
 		set_reg_mode(val, I2S_CTRL_XFER_EN_RX, enable);
 	} else  {
 		set_reg_mode(val, I2S_CTRL_XFER_EN_TX, enable);
 	}
+
+	if (enable)
+		i2s_fifo_set_attention_level(ifc, tx,
+				info->i2s_ch_prop[tx].fifo_attn);
 
 	i2s_writel(ifc, val, I2S_CTRL_0);
 }
@@ -298,6 +360,24 @@ int i2s_set_channel_bit_count(int ifc, int sampling, int bitclk)
 	*/
 
 	i2s_writel(ifc, val, I2S_TIMING_0);
+	return 0;
+}
+
+int i2s_set_samplerate(int ifc, int samplerate)
+{
+	int rate = 0;
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	if (info->i2sprop.master_mode && info->i2sprop.i2s_clk)
+	{
+		rate = clk_get_rate(info->i2sprop.i2s_clk);
+
+		if (info->i2sprop.audio_mode == AUDIO_FRAME_FORMAT_DSP)
+			rate *= 2;
+
+		i2s_set_channel_bit_count(ifc, samplerate, rate);
+	}
+
 	return 0;
 }
 
@@ -494,6 +574,21 @@ void i2s_fifo_clear(int ifc, int fifo)
 		apbif_soft_reset(apbif_ifc, fifo, 1);
 }
 
+void i2s_set_fifo_attention(int ifc, int buffersize, int fifo_mode)
+{
+	int fifoattn = I2S_FIFO_ATN_LVL_FOUR_SLOTS;
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	if (buffersize & 0xF)
+		fifoattn = I2S_FIFO_ATN_LVL_ONE_SLOT;
+	else if ((buffersize >> 4) & 0x1)
+		fifoattn = I2S_FIFO_ATN_LVL_FOUR_SLOTS;
+	else
+		fifoattn = I2S_FIFO_ATN_LVL_EIGHT_SLOTS;
+
+	info->i2s_ch_prop[fifo_mode].fifo_attn = fifoattn;
+}
+
 
 void i2s_set_fifo_irq_on_err(int ifc, int fifo, int on)
 {
@@ -508,11 +603,6 @@ void i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on)
 /* FIXME: fifo are part of apbif channel, so pass call to apbif
 *  or provide generic call to apbif to handle this
 */
-}
-
-void i2s_enable_fifos(int ifc, int on)
-{
-/* no support needed */
 }
 
 void i2s_fifo_write(int ifc, int fifo, u32 data)
@@ -535,11 +625,17 @@ u32 i2s_fifo_read(int ifc, int fifo)
 u32 i2s_get_status(int ifc, int fifo)
 {
 	int apbif_ifc = i2s_get_apbif_channel(ifc, fifo);
+	int regval = 0;
 
 	if (apbif_ifc != -ENOENT)
-		return apbif_get_fifo_mode(apbif_ifc, fifo);
+		regval = apbif_get_fifo_mode(apbif_ifc, fifo);
 
-	return 0;
+	if (fifo == AUDIO_TX_MODE)
+		regval &= I2S_FIFO_TX_BUSY;
+	else
+		regval &= I2S_FIFO_RX_BUSY;
+
+	return regval;
 }
 
 u32 i2s_get_control(int ifc)
@@ -596,9 +692,8 @@ int i2s_get_dma_requestor(int ifc, int fifo_mode)
 	dma_index = apbif_get_channel(regIndex, fifo_mode);
 
 	if (dma_index != -ENOENT) {
-		i2s_cont_info[ifc].dma_ch[fifo_mode] = dma_index - 1;
-		/* FIXME : this need to be called on connection request
-		*/
+		i2s_cont_info[ifc].i2s_ch_prop[fifo_mode].dma_ch = dma_index-1;
+		/* FIXME : this need to be called on connection request	*/
 		i2s_set_acif(ifc, fifo_mode, 0);
 	}
 
@@ -647,28 +742,191 @@ int i2s_set_acif(int ifc, int fifo_mode, struct audio_cif *cifInfo)
 	return 0;
 }
 
-int i2s_initialize(int ifc)
+int i2s_close(int ifc)
+{
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	if (info->i2sprop.i2s_clk)
+		clk_put(info->i2sprop.i2s_clk);
+
+	if (info->i2sprop.i2s_sync_clk)
+		clk_put(info->i2sprop.i2s_sync_clk);
+
+	if (info->i2sprop.audio_clk)
+		clk_put(info->i2sprop.audio_clk);
+
+	if (info->i2sprop.audio2x_clk)
+		clk_put(info->i2sprop.audio2x_clk);
+
+	return 0;
+}
+
+static int i2s_open(int ifc)
 {
 	int err = 0;
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
 
+	info->i2sprop.i2s_clk = tegra_get_clock_by_name(
+					i2sclk_info[ifc].clk_name);
+	if (!info->i2sprop.i2s_clk) {
 
-	i2s_cont_info[ifc].dma_ch[0] = -ENOENT;
-	i2s_cont_info[ifc].dma_ch[1] = -ENOENT;
+		pr_err("can't get i2s clock\n");
+		err = -ENODEV;
+		goto clk_err;
+	}
+
+	info->i2sprop.i2s_sync_clk = tegra_get_clock_by_name(
+				i2sclk_info[ifc].sync_clk_name);
+	if (!info->i2sprop.i2s_sync_clk) {
+
+		pr_err("can't get i2s sync clock\n");
+		err = -ENODEV;
+		goto clk_err;
+	}
+
+	info->i2sprop.audio_clk = tegra_get_clock_by_name(
+				i2sclk_info[ifc].audio_clk_name);
+	if (!info->i2sprop.audio_clk) {
+
+		pr_err("can't get audio clock\n");
+		err = -ENODEV;
+		goto clk_err;
+	}
+
+	info->i2sprop.audio2x_clk = tegra_get_clock_by_name(
+				i2sclk_info[ifc].audio2x_clk_name);
+	if (!info->i2sprop.audio2x_clk) {
+
+		pr_err("can't get audio2x clock\n");
+		err = -ENODEV;
+		goto clk_err;
+	}
+
+	return err;
+
+clk_err:
+
+	i2s_close(ifc);
+
+	return err;
+}
+
+int i2s_init(int ifc,  struct tegra_i2s_property* pi2sprop)
+{
+	int err = 0;
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	memset(info, 0 , sizeof(struct i2s_controller_info));
+
+	i2s_cont_info[ifc].i2s_ch_prop[0].dma_ch = -ENOENT;
+	i2s_cont_info[ifc].i2s_ch_prop[1].dma_ch = -ENOENT;
+
+	memcpy(&info->i2sprop,pi2sprop,sizeof(struct tegra_i2s_property));
+
+	if (i2s_open(ifc))
+		return err;
 
 	/* open audio_switch first */
 	err = audio_switch_open();
-	if (err)
+	if (err) {
+		i2s_close(ifc);
 		return err;
+	}
 
-	i2s_enable_fifos(ifc, 0);
-	i2s_set_left_right_control_polarity(ifc, AUDIO_LRCK_LEFT_LOW); /* low */
-	i2s_set_master(ifc, AUDIO_MASTER_MODE); /* set as master */
-	i2s_set_bit_format(ifc, AUDIO_FRAME_FORMAT_I2S);
-	i2s_set_bit_size(ifc, AUDIO_BIT_SIZE_16);
+	err = i2s_clock_enable(ifc);
+
+	if (err) {
+		audio_switch_close();
+		i2s_close(ifc);
+		return err;
+	}
+
+	i2s_set_left_right_control_polarity(ifc, AUDIO_LRCK_LEFT_LOW);
+	i2s_set_master(ifc, pi2sprop->master_mode);
+
+	i2s_set_bit_format(ifc, pi2sprop->audio_mode);
+	i2s_set_bit_size(ifc, pi2sprop->bit_size);
 	i2s_set_bit_code(ifc, AUDIO_BIT_CODE_LINEAR);
+
 	i2s_set_data_offset(ifc, AUDIO_TX_MODE, 1);
 	i2s_set_data_offset(ifc, AUDIO_RX_MODE, 1);
 
+	i2s_clock_disable(ifc);
+
+	return 0;
+}
+
+
+int i2s_clock_enable(int ifc)
+{
+	int err = 0;
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	if (info->i2sprop.i2s_clk && (info->i2sprop.master_mode == true)) {
+		clk_set_rate(info->i2sprop.i2s_clk, info->i2sprop.clk_rate);
+
+		if (!info->clk_refs) {
+			if (clk_enable(info->i2sprop.i2s_clk))
+			{
+				err = PTR_ERR(info->i2sprop.i2s_clk);
+				return err;
+			}
+		}
+		info->clk_refs++;
+	} else {
+
+		info->clk_refs++;
+	}
+
+	I2S_DEBUG_PRINT(" enable clock count 0x%x \n", info->clk_refs);
+	return err;
+}
+
+int i2s_clock_disable(int ifc)
+{
+
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	if (info->i2sprop.i2s_clk &&
+		(info->i2sprop.master_mode == true)) {
+
+		if(info->clk_refs > 0) {
+			info->clk_refs--;
+			if (info->clk_refs == 0) {
+				clk_disable(info->i2sprop.i2s_clk);
+				info->clk_refs = 0;
+			}
+		}
+	} else {
+
+		if (info->clk_refs > 0) {
+			info->clk_refs--;
+
+			if (info->clk_refs == 0) {
+
+				if (info->i2sprop.i2s_sync_clk) {
+					clk_disable(info->i2sprop.i2s_sync_clk);
+				}
+
+				if (info->i2sprop.audio_clk) {
+					clk_disable(info->i2sprop.audio_clk);
+				}
+
+				if (info->i2sprop.audio2x_clk) {
+					clk_disable(info->i2sprop.audio2x_clk);
+				}
+			}
+		}
+	}
+
+	I2S_DEBUG_PRINT(" disable clock count 0x%x \n", info->clk_refs);
+	return 0;
+}
+
+int i2s_clock_rate(int ifc, int rate)
+{
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+	info->i2sprop.clk_rate = rate;
 	return 0;
 }
 

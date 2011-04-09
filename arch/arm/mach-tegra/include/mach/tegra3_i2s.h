@@ -25,6 +25,7 @@
 #include <linux/types.h>
 #include <mach/audio.h>
 #include <mach/audio_switch.h>
+#include <mach/tegra_i2s.h>
 
 #define NR_I2S_IFC	5
 
@@ -62,6 +63,7 @@
 #define I2S_LCOEF_2_4_1_0			0x50
 #define I2S_LCOEF_2_4_2_0			0x54
 
+#define I2S_REG_MAXINDEX	(I2S_LCOEF_2_4_2_0 >> 2)
 /*
  * I2S_CTRL_0
  */
@@ -301,59 +303,18 @@
 #define I2S_FIFO_ATN_LVL_FOUR_SLOTS		4
 #define I2S_FIFO_ATN_LVL_EIGHT_SLOTS		8
 #define I2S_FIFO_ATN_LVL_ONE_SLOT		1
-#define I2S_I2S_STATUS_FIFO1_BSY		(1<<1)
-#define I2S_I2S_STATUS_FIFO2_BSY		(1<<0)
+#define I2S_FIFO_TX_BUSY			(1<<1)
+#define I2S_FIFO_RX_BUSY			(1<<0)
 
-struct i2s_runtime_data {
-	int i2s_ctrl_0;
-	int i2s_timing_0;
-};
-
-/*
-* Struct defined to set all the needed i2s format informations
-*/
-struct tegra_i2s_channel_property {
-	int channletype;	/* tx or rx */
-	int dataoffset;		/* Data offset to Fsync */
-	int bit_order;		/* MSB/LSB first */
-	int bit_mask;		/* mask bits to get exact bit size in PCM */
-	int num_slot;		/* no of slots in the channel in TDM mode */
-};
-
-struct tegra_i2s_property {
-
-	int audio_mode;		/* I2S,LJM,RJM,DSP,PCM,NW,TDM*/
-	int master_mode;	/* master/slave */
-	int lrck_polarity;	/* low on left/ high on left */
-	int bit_code;		/* linear/uLaw/alaw */
-	int bit_size;		/* 8/12/16/20/24/28/32 */
-
-	int sample_rate;	/* Sample rate */
-	unsigned long clk_rate; /* clock rate */
-
-	int total_slots;	/* no of slots per fsync */
-	int fsync_width;	/* Fsync width in terms of bit clocks */
-	int highz_control;	/* Highz control */
-	int edge_control;	/* sample data on edge */
-};
 
 /*
  * API
  */
 
-void i2s_dump_registers(int ifc);
-void i2s_get_all_regs(int ifc, struct i2s_runtime_data* ird);
-void i2s_set_all_regs(int ifc, struct i2s_runtime_data* ird);
-void i2s_fifo_enable(int ifc, int tx, int enable);
 void i2s_set_clock_gating(int ifc, int enable);
 void i2s_set_soft_reset(int ifc, int enable);
-void i2s_set_loopback(int ifc, int on);
-void i2s_set_master(int ifc, int master);
-void i2s_set_left_right_control_polarity(int ifc, int left_low);
+
 int  i2s_set_bit_code(int ifc, unsigned bitcode);
-int  i2s_set_bit_format(int ifc, unsigned fmt);
-int  i2s_set_bit_size(int ifc, unsigned bit_size);
-int  i2s_set_channel_bit_count(int ifc, int sampling, int bitclk);
 int  i2s_set_data_offset(int ifc, int tx, int dataoffset);
 int  i2s_set_edge_control(int ifc, int edgectrl);
 int  i2s_set_highz_control(int ifc, int highzvalue);
@@ -362,27 +323,7 @@ int  i2s_set_slot_control(int ifc, int tx, int totalslot, int numslots);
 int  i2s_set_bit_order(int ifc, int tx, int bitorder);
 int  i2s_set_bit_mask(int ifc, int tx, int maskbit);
 int  i2s_set_flow_control(int ifc, int enable, int filtertype, int stepsize);
-int  i2s_initialize(int ifc);
-phys_addr_t i2s_get_fifo_phy_base(int ifc, int fifo);
-struct clk *i2s_get_clock_by_name(const char *name);
-int i2s_get_dma_requestor(int ifc, int fifo_mode);
-int i2s_free_dma_requestor(int ifc, int fifo_mode);
-/*
-* FIXME: recheck how much of these apis needed, need to check with
-* audio switch apbif apis.
-*/
-int i2s_fifo_set_attention_level(int ifc, int fifo, unsigned level);
-void i2s_fifo_clear(int ifc, int fifo);
-void i2s_set_fifo_irq_on_err(int ifc, int fifo, int on);
-void i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on);
-void i2s_enable_fifos(int ifc, int on);
-void i2s_fifo_write(int ifc, int fifo, u32 data);
-u32 i2s_fifo_read(int ifc, int fifo);
-u32 i2s_get_status(int ifc, int fifo);
-u32 i2s_get_control(int ifc);
-void i2s_ack_status(int ifc);
-u32 i2s_get_fifo_scr(int ifc);
-u32 i2s_get_fifo_full_empty_count(int ifc, int fifo);
+
 int i2s_set_acif(int ifc, int fifo_mode, struct audio_cif *cifInfo);
 
 #endif /* __ARCH_ARM_MACH_TEGRA3_I2S_H */

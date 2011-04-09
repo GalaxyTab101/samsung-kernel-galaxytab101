@@ -39,12 +39,8 @@
 #include <linux/tegra_audio.h>
 #include <linux/regulator/consumer.h>
 #include <mach/iomap.h>
-#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
-#include <mach/tegra2_i2s.h>
-#elif defined(CONFIG_ARCH_TEGRA_3x_SOC)
-#include <mach/tegra3_i2s.h>
-#endif
 #include <mach/spdif.h>
+#include <mach/tegra_i2s.h>
 #include <mach/irqs.h>
 #include <mach/pinmux.h>
 #include <mach/audio.h>
@@ -69,11 +65,6 @@
 #define STATE_EXIT	2
 #define STATE_EXITED	3
 #define STATE_INVALID	4
-
-#define I2S_I2S_FIFO_TX_BUSY	I2S_I2S_STATUS_FIFO1_BSY
-#define I2S_I2S_FIFO_TX_QS	I2S_I2S_STATUS_QS_FIFO1
-#define I2S_I2S_FIFO_RX_BUSY	I2S_I2S_STATUS_FIFO2_BSY
-#define I2S_I2S_FIFO_RX_QS	I2S_I2S_STATUS_QS_FIFO2
 
 #define I2S1_CLK 		11289600
 #define I2S2_CLK 		2000000

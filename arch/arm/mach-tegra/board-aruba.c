@@ -256,13 +256,14 @@ static struct tegra_i2c_platform_data aruba_i2c5_platform_data = {
 
 static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 	[0] = {
+		.i2s_master	= true,
 		.dma_on		= true,  /* use dma by default */
-		.i2s_clk_rate	= 240000000,
+		.i2s_master_clk = 44100,
+		.i2s_clk_rate	= 11289600,
 		.dap_clk	= "extern1",
-		.audio_sync_clk = "audio_2x",
-		.mode		= I2S_BIT_FORMAT_I2S,
-		.fifo_fmt	= I2S_FIFO_16_LSB,
-		.bit_size	= I2S_BIT_SIZE_16,
+		.mode		= AUDIO_FRAME_FORMAT_I2S,
+		.fifo_fmt	= AUDIO_FIFO_PACK_16,
+		.bit_size	= AUDIO_BIT_SIZE_16,
 		.i2s_bus_width = 32,
 		.dsp_bus_width = 16,
 	}

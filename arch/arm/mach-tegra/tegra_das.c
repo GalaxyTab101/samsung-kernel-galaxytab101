@@ -27,6 +27,8 @@
 #include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/mutex.h>
+#include <linux/clk.h>
+#include <linux/err.h>
 
 #include "clock.h"
 #include <mach/iomap.h>
@@ -50,6 +52,10 @@ struct das_driver_context {
 	tegra_das_port bb_port_idx;
 	tegra_das_port bt_port_idx;
 	tegra_das_port fm_radio_port_idx;
+	struct clk *mclk;
+	int mclk_refcnt;
+	int mclk_rate;
+	int mclk_parent;
 };
 
 struct das_driver_context *das_drv_data;
@@ -498,15 +504,76 @@ EXPORT_SYMBOL_GPL(tegra_das_power_mode);
 
 int tegra_das_open(void)
 {
-	return 0;
+	int err = 0;
+
+	das_drv_data->mclk = tegra_get_clock_by_name("cdev1");
+
+	if (!das_drv_data->mclk)
+		err = -ENODEV;
+
+	return err;
 }
 EXPORT_SYMBOL_GPL(tegra_das_open);
 
 int tegra_das_close(void)
 {
+	if (das_drv_data->mclk)
+		clk_put(das_drv_data->mclk);
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tegra_das_close);
+
+int tegra_das_set_mclk_parent(int parent)
+{
+	/* FIXME ; set parent based on need */
+	struct clk *mclk_source = clk_get_sys(NULL, "pll_a_out0");
+
+	clk_set_parent(das_drv_data->mclk, mclk_source);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_das_set_mclk_parent);
+
+int tegra_das_enable_mclk(void)
+{
+	int err = 0;
+
+	if (!das_drv_data->mclk_refcnt && das_drv_data->mclk) {
+		tegra_das_set_mclk_parent(0);
+		if (clk_enable(das_drv_data->mclk)) {
+			err = PTR_ERR(das_drv_data->mclk);
+			return err;
+		}
+	}
+
+	das_drv_data->mclk_refcnt++;
+	return err;
+}
+EXPORT_SYMBOL_GPL(tegra_das_enable_mclk);
+
+int tegra_das_disable_mclk(void)
+{
+	int err = 0;
+
+	if (das_drv_data->mclk_refcnt > 0) {
+		das_drv_data->mclk_refcnt--;
+		if (das_drv_data->mclk_refcnt == 0) {
+			if (das_drv_data->mclk)
+				clk_disable(das_drv_data->mclk);
+		}
+	}
+	return err;
+}
+EXPORT_SYMBOL_GPL(tegra_das_disable_mclk);
+
+int tegra_das_set_mclk_rate(int rate)
+{
+	/* FIXME: change the clock after disabling it if needed */
+	das_drv_data->mclk_rate = rate;
+	clk_set_rate(das_drv_data->mclk, rate);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(tegra_das_set_mclk_rate);
 
 static int tegra_das_probe(struct platform_device *pdev)
 {

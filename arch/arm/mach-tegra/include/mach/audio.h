@@ -26,14 +26,8 @@
 #include <linux/types.h>
 #include <linux/regulator/consumer.h>
 
-#define FIFO1		0
-#define FIFO2		1
-
-/* FIXME: this is not enforced by the hardware. */
-#define I2S_FIFO_TX		FIFO1
-#define I2S_FIFO_RX		FIFO2
-#define AUDIO_TX_MODE		I2S_FIFO_TX
-#define AUDIO_RX_MODE		I2S_FIFO_RX
+#define AUDIO_TX_MODE		0
+#define AUDIO_RX_MODE		1
 
 #define TEGRA_AUDIO_ENABLE_TX	1
 #define TEGRA_AUDIO_ENABLE_RX	2
@@ -87,6 +81,12 @@
 #define AUDIO_BIT_SIZE_24	2
 #define AUDIO_BIT_SIZE_32	3
 
+#define AUDIO_FIFO_16_LSB 0
+#define AUDIO_FIFO_20_LSB 1
+#define AUDIO_FIFO_24_LSB 2
+#define AUDIO_FIFO_32     3
+#define AUDIO_FIFO_PACKED 7
+
 #elif defined(CONFIG_ARCH_TEGRA_3x_SOC)
 
 #define AUDIO_BIT_SIZE_4		0
@@ -97,6 +97,11 @@
 #define AUDIO_BIT_SIZE_24		5
 #define AUDIO_BIT_SIZE_28		6
 #define AUDIO_BIT_SIZE_32		7
+
+#define AUDIO_FIFO_NOP			0
+#define AUDIO_FIFO_RSVD			1
+#define AUDIO_FIFO_PACK_8_4		2
+#define AUDIO_FIFO_PACK_16		3
 
 #endif
 

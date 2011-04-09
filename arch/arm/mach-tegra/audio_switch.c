@@ -488,16 +488,16 @@ void apbif_set_pack_mode(int ifc, int tx, int pack_mode)
 		val &= ~APBIF_CH_CTRL_TX_PACK_MASK;
 		val |= pack_mode << APBIF_CH_CTRL_TX_PACK_SHIFT;
 		val &= ~APBIF_CH_CTRL_TX_PACK_EN;
-		if ((pack_mode != AUDIO_PACK_NOP) &&
-			(pack_mode != AUDIO_PACK_RSVD)) {
+		if ((pack_mode != AUDIO_FIFO_NOP) &&
+			(pack_mode != AUDIO_FIFO_RSVD)) {
 			val |= APBIF_CH_CTRL_TX_PACK_EN;
 		}
 	} else {
 		val &= ~APBIF_CH_CTRL_RX_PACK_MASK;
 		val |= pack_mode << APBIF_CH_CTRL_RX_PACK_SHIFT;
 		val &= ~APBIF_CH_CTRL_RX_PACK_EN;
-		if ((pack_mode != AUDIO_PACK_NOP) &&
-			(pack_mode != AUDIO_PACK_RSVD))	{
+		if ((pack_mode != AUDIO_FIFO_NOP) &&
+			(pack_mode != AUDIO_FIFO_RSVD))	{
 			val |= APBIF_CH_CTRL_RX_PACK_EN;
 		}
 	}
@@ -687,14 +687,14 @@ int audio_apbif_set_acif(int ifc, int fifo_mode, struct audio_cif *cifInfo)
 		 APBIF_AUDIOCIF_TX0_CTRL_0, cifInfo);
 
 		/* FIXME: packed mode as default */
-		apbif_set_pack_mode(ifc, AUDIO_TX_MODE, AUDIO_PACK_16);
+		apbif_set_pack_mode(ifc, AUDIO_TX_MODE, AUDIO_FIFO_PACK_16);
 
 	} else {
 		audio_switch_set_acif((unsigned int)ch->virt_base +
 		 APBIF_AUDIOCIF_RX0_CTRL_0, cifInfo);
 
 		/* FIXME: packed mode as default */
-		apbif_set_pack_mode(ifc, AUDIO_RX_MODE, AUDIO_PACK_16);
+		apbif_set_pack_mode(ifc, AUDIO_RX_MODE, AUDIO_FIFO_PACK_16);
 	}
 	return 0;
 }

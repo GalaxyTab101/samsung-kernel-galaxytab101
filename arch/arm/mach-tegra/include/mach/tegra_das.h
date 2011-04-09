@@ -243,4 +243,24 @@ void tegra_das_get_all_regs(struct das_regs_cache* regs);
  */
 void tegra_das_set_all_regs(struct das_regs_cache* regs);
 
+/*
+ * Function to set parent for mclk
+ */
+int tegra_das_set_mclk_parent(int parent);
+
+/*
+ * Function to enable the mclk
+ */
+int tegra_das_enable_mclk(void);
+
+/*
+ * Function to disble the mclk
+ */
+int tegra_das_disable_mclk(void);
+
+/*
+ * Function to set the mclk rate
+ */
+int tegra_das_set_mclk_rate(int rate);
+
 #endif

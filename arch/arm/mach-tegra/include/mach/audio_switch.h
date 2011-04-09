@@ -31,11 +31,6 @@
 #define AUDIOCIF_EXPAND_ONE	1
 #define AUDIOCIF_EXPAND_LFSR	2
 
-#define AUDIO_PACK_NOP		0
-#define AUDIO_PACK_RSVD		1
-#define AUDIO_PACK_8_4		2
-#define AUDIO_PACK_16		3
-
 /* generic macro to set modes */
 #define set_reg_mode(r,m,v) {	\
 	((r) &= (~(m)));	\
