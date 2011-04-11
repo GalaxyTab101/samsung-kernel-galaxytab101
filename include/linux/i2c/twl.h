@@ -82,6 +82,10 @@
 #define TWL_MODULE_RTC		TWL4030_MODULE_RTC
 #define TWL_MODULE_PWM		TWL4030_MODULE_PWM0
 
+#define TWL6030_MODULE_CHARGER	TWL4030_MODULE_MAIN_CHARGE
+#define TWL6025_MODULE_CHARGER	0x18
+
+#define TWL6030_MODULE_GASGAUGE 0x0B
 #define TWL6030_MODULE_ID0	0x0D
 #define TWL6030_MODULE_ID1	0x0E
 #define TWL6030_MODULE_ID2	0x0F
@@ -91,6 +95,7 @@
 #define BCI_INTR_OFFSET		2
 #define MADC_INTR_OFFSET	3
 #define USB_INTR_OFFSET		4
+#define CHARGERFAULT_INTR_OFFSET 5
 #define BCI_PRES_INTR_OFFSET	9
 #define USB_PRES_INTR_OFFSET	10
 #define RTC_INTR_OFFSET		11
@@ -107,6 +112,7 @@
 #define GASGAUGE_INTR_OFFSET	17
 #define USBOTG_INTR_OFFSET	4
 #define CHARGER_INTR_OFFSET	2
+#define GPADCSW_INTR_OFFSET	1
 #define RSV_INTR_OFFSET		0
 
 /* INT register offsets */
@@ -141,6 +147,16 @@
 #define TWL6030_CHARGER_CTRL_INT_MASK 	0x10
 #define TWL6030_CHARGER_FAULT_INT_MASK 	0x60
 
+#define TWL6030_MMCCTRL			0xEE
+#define VMMC_AUTO_OFF			(0x1 << 3)
+#define SW_FC				(0x1 << 2)
+#define STS_MMC				0x1
+
+#define TWL6030_CFG_INPUT_PUPD3		0xF2
+#define MMC_PU				(0x1 << 3)
+#define MMC_PD				(0x1 << 2)
+
+
 
 #define TWL4030_CLASS_ID 		0x4030
 #define TWL6030_CLASS_ID 		0x6030
@@ -155,11 +171,22 @@ static inline int twl_class_is_ ##class(void)	\
 TWL_CLASS_IS(4030, TWL4030_CLASS_ID)
 TWL_CLASS_IS(6030, TWL6030_CLASS_ID)
 
+#define TWL6025_SUBCLASS	BIT(4)  /* TWL6025 has changed registers */
+
+/* So we can recover the features in other parts of twl stack */
+unsigned int twl_features(void);
+
+/* so we can get at the EPROM SMPS OFFSET/MULT stuff */
+u8 twl_get_smps_offset(void);
+u8 twl_get_smps_mult(void);
+
 /*
  * Read and write single 8-bit registers
  */
 int twl_i2c_write_u8(u8 mod_no, u8 val, u8 reg);
 int twl_i2c_read_u8(u8 mod_no, u8 *val, u8 reg);
+
+void twl_reg_dump(int module, int start, int end);
 
 /*
  * Read and write several 8-bit registers at once.
@@ -172,6 +199,31 @@ int twl_i2c_read(u8 mod_no, u8 *value, u8 reg, unsigned num_bytes);
 
 int twl6030_interrupt_unmask(u8 bit_mask, u8 offset);
 int twl6030_interrupt_mask(u8 bit_mask, u8 offset);
+
+/* Card detect Configuration for MMC1 Controller on OMAP4 */
+#ifdef CONFIG_TWL4030_CORE
+int twl6030_mmc_card_detect_config(void);
+#else
+static inline int twl6030_mmc_card_detect_config(void)
+{
+	pr_debug("twl6030_mmc_card_detect_config not supported\n");
+	return 0;
+}
+#endif
+
+/* MMC1 Controller on OMAP4 uses Phoenix irq for Card detect */
+#ifdef CONFIG_TWL4030_CORE
+int twl6030_mmc_card_detect(struct device *dev, int slot);
+#else
+static inline int twl6030_mmc_card_detect(struct device *dev, int slot)
+{
+	pr_debug("Call back twl6030_mmc_card_detect not supported\n");
+	return -EIO;
+}
+#endif
+
+int twl6030_set_usb_charge_enable(int enable);
+int twl6030_set_usb_in_current(int currentmA);
 
 /*----------------------------------------------------------------------*/
 
@@ -357,6 +409,52 @@ int twl6030_interrupt_mask(u8 bit_mask, u8 offset);
 
 /*----------------------------------------------------------------------*/
 
+/*
+ * PM Master module register offsets (use TWL4030_MODULE_PM_MASTER)
+ */
+
+#define TWL4030_PM_MASTER_CFG_P1_TRANSITION	0x00
+#define TWL4030_PM_MASTER_CFG_P2_TRANSITION	0x01
+#define TWL4030_PM_MASTER_CFG_P3_TRANSITION	0x02
+#define TWL4030_PM_MASTER_CFG_P123_TRANSITION	0x03
+#define TWL4030_PM_MASTER_STS_BOOT		0x04
+#define TWL4030_PM_MASTER_CFG_BOOT		0x05
+#define TWL4030_PM_MASTER_SHUNDAN		0x06
+#define TWL4030_PM_MASTER_BOOT_BCI		0x07
+#define TWL4030_PM_MASTER_CFG_PWRANA1		0x08
+#define TWL4030_PM_MASTER_CFG_PWRANA2		0x09
+#define TWL4030_PM_MASTER_BACKUP_MISC_STS	0x0b
+#define TWL4030_PM_MASTER_BACKUP_MISC_CFG	0x0c
+#define TWL4030_PM_MASTER_BACKUP_MISC_TST	0x0d
+#define TWL4030_PM_MASTER_PROTECT_KEY		0x0e
+#define TWL4030_PM_MASTER_STS_HW_CONDITIONS	0x0f
+#define TWL4030_PM_MASTER_P1_SW_EVENTS		0x10
+#define TWL4030_PM_MASTER_P2_SW_EVENTS		0x11
+#define TWL4030_PM_MASTER_P3_SW_EVENTS		0x12
+#define TWL4030_PM_MASTER_STS_P123_STATE	0x13
+#define TWL4030_PM_MASTER_PB_CFG		0x14
+#define TWL4030_PM_MASTER_PB_WORD_MSB		0x15
+#define TWL4030_PM_MASTER_PB_WORD_LSB		0x16
+#define TWL4030_PM_MASTER_SEQ_ADD_W2P		0x1c
+#define TWL4030_PM_MASTER_SEQ_ADD_P2A		0x1d
+#define TWL4030_PM_MASTER_SEQ_ADD_A2W		0x1e
+#define TWL4030_PM_MASTER_SEQ_ADD_A2S		0x1f
+#define TWL4030_PM_MASTER_SEQ_ADD_S2A12		0x20
+#define TWL4030_PM_MASTER_SEQ_ADD_S2A3		0x21
+#define TWL4030_PM_MASTER_SEQ_ADD_WARM		0x22
+#define TWL4030_PM_MASTER_MEMORY_ADDRESS	0x23
+#define TWL4030_PM_MASTER_MEMORY_DATA		0x24
+
+#define TWL4030_PM_MASTER_KEY_CFG1		0xc0
+#define TWL4030_PM_MASTER_KEY_CFG2		0x0c
+
+#define TWL4030_PM_MASTER_KEY_TST1		0xe0
+#define TWL4030_PM_MASTER_KEY_TST2		0x0e
+
+#define TWL4030_PM_MASTER_GLOBAL_TST		0xb6
+
+/*----------------------------------------------------------------------*/
+
 /* Power bus message definitions */
 
 /* The TWL4030/5030 splits its power-management resources (the various
@@ -461,7 +559,22 @@ struct twl4030_clock_init_data {
 
 struct twl4030_bci_platform_data {
 	int *battery_tmp_tbl;
-	unsigned int tblsize;
+	unsigned int battery_tmp_tblsize;
+	int *battery_volt_tbl;
+	unsigned int battery_volt_tblsize;
+	unsigned int monitoring_interval;
+
+	unsigned int max_charger_currentmA;
+	unsigned int max_charger_voltagemV;
+	unsigned int termination_currentmA;
+
+	unsigned int max_bat_voltagemV;
+	unsigned int low_bat_voltagemV;
+
+	/* twl6025 */
+	unsigned int use_hw_charger;
+	unsigned int use_eeprom_config;
+	unsigned int power_path;
 };
 
 /* TWL4030_GPIO_MAX (18) GPIOs, with interrupts */
@@ -516,6 +629,14 @@ enum twl4030_usb_mode {
 
 struct twl4030_usb_data {
 	enum twl4030_usb_mode	usb_mode;
+
+	int		(*phy_init)(struct device *dev);
+	int		(*phy_exit)(struct device *dev);
+	/* Power on/off the PHY */
+	int		(*phy_power)(struct device *dev, int iD, int on);
+	/* enable/disable  phy clocks */
+	int		(*phy_set_clock)(struct device *dev, int on);
+	int		(*board_control_power)(struct device *dev, int on);
 };
 
 struct twl4030_ins {
@@ -553,8 +674,12 @@ extern void twl4030_power_init(struct twl4030_power_data *triton2_scripts);
 extern int twl4030_remove_script(u8 flags);
 
 struct twl4030_codec_audio_data {
-	unsigned int	audio_mclk;
+	unsigned int audio_mclk; /* not used, will be removed */
+	unsigned int digimic_delay; /* in ms */
 	unsigned int ramp_delay_value;
+	unsigned int offset_cncl_path;
+	unsigned int check_defaults:1;
+	unsigned int reset_registers:1;
 	unsigned int hs_extmute:1;
 	void (*set_hs_extmute)(int mute);
 };
@@ -576,6 +701,10 @@ struct twl4030_codec_data {
 
 struct twl4030_platform_data {
 	unsigned				irq_base, irq_end;
+
+	/* Callback for boar regulator initialisation */
+	int (*init)(void);
+
 	struct twl4030_clock_init_data		*clock;
 	struct twl4030_bci_platform_data	*bci;
 	struct twl4030_gpio_platform_data	*gpio;
@@ -610,6 +739,20 @@ struct twl4030_platform_data {
 	struct regulator_init_data              *vana;
 	struct regulator_init_data              *vcxio;
 	struct regulator_init_data              *vusb;
+	/* TWL6025 LDO regulators */
+	struct regulator_init_data		*ldo1;
+	struct regulator_init_data		*ldo2;
+	struct regulator_init_data		*ldo3;
+	struct regulator_init_data		*ldo4;
+	struct regulator_init_data		*ldo5;
+	struct regulator_init_data		*ldo6;
+	struct regulator_init_data		*ldo7;
+	struct regulator_init_data		*ldoln;
+	struct regulator_init_data		*ldousb;
+	/* TWL6025 DCDC regulators */
+	struct regulator_init_data		*smps3;
+	struct regulator_init_data		*smps4;
+	struct regulator_init_data		*vio6025;
 };
 
 /*----------------------------------------------------------------------*/
@@ -686,6 +829,22 @@ static inline int twl4030charger_usb_en(int enable) { return 0; }
 #define TWL6030_REG_VCXIO	44
 #define TWL6030_REG_VDAC	45
 #define TWL6030_REG_VUSB	46
+
+/* These are renamed in 6025 but same registers */
+#define TWL6025_REG_LDO2	48
+#define TWL6025_REG_LDO4	49
+#define TWL6025_REG_LDO3	50
+#define TWL6025_REG_LDO5	51
+#define TWL6025_REG_LDO1	52
+#define TWL6025_REG_LDO7	53
+#define TWL6025_REG_LDO6	54
+#define TWL6025_REG_LDOLN	55
+#define TWL6025_REG_LDOUSB	56
+
+/* 6025 DCDC supplies */
+#define TWL6025_REG_SMPS3	57
+#define TWL6025_REG_SMPS4	58
+#define TWL6025_REG_VIO		59
 
 /* INTERNAL LDOs */
 #define TWL6030_REG_VRTC	47
