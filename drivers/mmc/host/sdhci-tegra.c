@@ -222,8 +222,10 @@ static int tegra_sdhci_get_ro(struct sdhci_host *sdhci)
 {
 	struct tegra_sdhci_host *host = sdhci_priv(sdhci);
 
-	BUG_ON(host->wp_gpio == -1);
-	return (gpio_get_value(host->wp_gpio) == host->wp_gpio_polarity);
+	if (gpio_is_valid(host->wp_gpio))
+		return (gpio_get_value(host->wp_gpio) == host->wp_gpio_polarity);
+	else
+		return 0;
 }
 
 static struct sdhci_ops tegra_sdhci_ops = {
@@ -234,6 +236,7 @@ static struct sdhci_ops tegra_sdhci_ops = {
 #ifdef CONFIG_MMC_TEGRA_TAP_DELAY
 	.configure_tap_value = tegra_sdhci_configure_tap_value,
 #endif
+	.get_ro = tegra_sdhci_get_ro,
 };
 
 static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
@@ -282,7 +285,6 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 #ifdef CONFIG_MMC_TEGRA_TAP_DELAY
 	host->sdhci->tap_value = plat->tap_delay;
 #endif
-
 	host->clk = clk_get(&pdev->dev, plat->clk_id);
 	if (IS_ERR(host->clk)) {
 		rc = PTR_ERR(host->clk);
@@ -398,9 +400,6 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 		plat->register_status_notify(
 			tegra_sdhci_status_notify_cb, sdhci);
 	}
-
-	if (plat->wp_gpio != -1)
-		tegra_sdhci_ops.get_ro = tegra_sdhci_get_ro;
 
 	rc = sdhci_add_host(sdhci);
 	if (rc)
