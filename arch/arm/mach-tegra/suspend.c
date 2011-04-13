@@ -171,7 +171,7 @@ unsigned long tegra_wfi_fail_count[CONFIG_NR_CPUS];
 #define EMC_MRW_DEV_SELECTN     30
 #define EMC_MRW_DEV_NONE	(3 << EMC_MRW_DEV_SELECTN)
 
-unsigned long tegra_pgd_phys;  /* pgd used by hotplug & LP2 bootup */
+phys_addr_t tegra_pgd_phys;  /* pgd used by hotplug & LP2 bootup */
 static pgd_t *tegra_pgd;
 void *tegra_context_area = NULL;
 
@@ -292,16 +292,16 @@ static int create_suspend_pgtable(void)
 		(unsigned long)virt_to_phys(__shut_off_mmu),
 		(unsigned long)virt_to_phys(__put_cpu_in_reset),
 	};
-	unsigned long addr_p[] = {
-		PHYS_OFFSET,
-		IO_IRAM_PHYS,
-		(unsigned long)virt_to_phys(tegra_context_area),
+	phys_addr_t addr_p[] = {
+		(phys_addr_t)PHYS_OFFSET,
+		(phys_addr_t)IO_IRAM_PHYS,
+		virt_to_phys(tegra_context_area),
 #ifdef CONFIG_HOTPLUG_CPU
-		(unsigned long)virt_to_phys(tegra_hotplug_startup),
+		virt_to_phys(tegra_hotplug_startup),
 #endif
-		(unsigned long)virt_to_phys(__cortex_a9_restore),
-		(unsigned long)virt_to_phys(__shut_off_mmu),
-		(unsigned long)virt_to_phys(__put_cpu_in_reset),
+		virt_to_phys(__cortex_a9_restore),
+		virt_to_phys(__shut_off_mmu),
+		virt_to_phys(__put_cpu_in_reset),
 	};
 	unsigned int flags = PMD_TYPE_SECT | PMD_SECT_AP_WRITE |
 		PMD_SECT_WBWA | PMD_SECT_S;
