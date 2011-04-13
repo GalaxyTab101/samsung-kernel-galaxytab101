@@ -242,3 +242,12 @@ config TEGRA_EDP_LIMITS
 	  Limit maximum CPU frequency based on temperature and number
 	  of on-line CPUs to keep CPU rail current within power supply
 	  capabilities.
+
+config TEGRA_REG_ACCESS
+	bool "Enable accessing Tegra Registers from user space"
+	default n
+	help
+	  When enabled, the /dev/tegra_reg_access node is created,
+	  which allows accessing Tegra Registers from user space.
+	  This is for test purpose only. This should not be enabled
+	  in production builds.
