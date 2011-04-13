@@ -305,6 +305,17 @@ config SPI_TEGRA
 	help
 	  SPI driver for NVidia Tegra SoCs
 
+config SPI_SLAVE_TEGRA
+	tristate "Nvidia Tegra SPI slave controller"
+	depends on ARCH_TEGRA
+	select TEGRA_SYSTEM_DMA
+	default n
+	help
+	  SPI Slave driver for NVidia Tegra SoCs.
+	  Say yes if slave spi functionality is required from the tegra spi controller.
+	  The interface is same as the master spi.
+
+
 config SPI_TXX9
 	tristate "Toshiba TXx9 SPI controller"
 	depends on GENERIC_GPIO && CPU_TX49XX
