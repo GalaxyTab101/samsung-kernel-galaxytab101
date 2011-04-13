@@ -150,6 +150,8 @@
 #define APBIF_SPDIF_INT_SET_0			0x100
 #define APBIF_APBIF_INT_SET_0			0x104
 
+#define APBIF_CHANNEL_MAXINDEX	\
+	((APBIF_CHANNEL1_CTRL_0 - APBIF_CHANNEL0_CTRL_0) >> 2)
 /*
 * APBIF Channel Control
 * Generic for all 4 apbif channels
@@ -222,6 +224,7 @@ struct apbif_channel_info {
 	bool		fifo_inuse[AUDIO_FIFO_CNT];
 	int		fifo_req[AUDIO_FIFO_CNT];
 	int		fifo_refcnt[AUDIO_FIFO_CNT];
+	int		reg_cache[APBIF_CHANNEL_MAXINDEX];
 };
 
 /* audio switch controller */
@@ -229,14 +232,21 @@ struct tegra_audiocont_info {
 	struct clk *apbif_clk;
 	struct clk *audiohub_clk;
 	int  refcnt;
+	int  clk_refcnt;
 };
 
 static struct tegra_audiocont_info *acinfo = NULL;
-static int enable_audioswitch = 0;
+static bool enable_audioswitch = false;
 
 static struct apbif_channel_info apbif_channels[NR_APBIF_CHANNELS];
 
-static void *ahub_reg_base[ahubrx_maxnum];
+struct tegra_ahub_info {
+	u32 regbase;
+	int regcache;
+};
+
+struct tegra_ahub_info ahub_reginfo[ahubrx_maxnum];
+
 
 static inline void audio_switch_writel(u32 reg, u32 val)
 {
@@ -254,22 +264,39 @@ static inline u32 audio_switch_readl(u32 reg)
 void audio_switch_dump_registers(int ifc)
 {
 	int i = 0;
-	check_apbif_ifc(ifc);
 	pr_info("%s: \n",__func__);
 	for (i = 0; i < ahubrx_maxnum; i++)
-		audio_switch_readl((u32)ahub_reg_base[i]);
+		audio_switch_readl(ahub_reginfo[i].regbase);
 }
 
 void audio_switch_set_rx_port(int rxport, int txport)
 {
 	/*Get audioswitch base address*/
-	audio_switch_writel((u32)ahub_reg_base[rxport], (1 << txport));
+	audio_switch_writel(ahub_reginfo[rxport].regbase, (1 << txport));
 }
 
 int audio_switch_get_rx_port(int rxport)
 {
 	/*Get audioswitch base address*/
 	return audio_switch_readl(rxport);
+}
+
+void ahub_save_registers(void)
+{
+	int i = 0;
+
+	for (i = 0; i < ahubrx_maxnum; i++)
+		ahub_reginfo[i].regcache = audio_switch_readl(
+						ahub_reginfo[i].regbase);
+}
+
+void ahub_restore_registers(void)
+{
+	int i = 0;
+
+	for (i = 0; i < ahubrx_maxnum; i++)
+		audio_switch_writel(ahub_reginfo[i].regbase,
+				ahub_reginfo[i].regcache);
 }
 
 /* audiocif control */
@@ -371,6 +398,24 @@ void apbif_dump_registers(int ifc)
 	apbif_readl(0, APBIF_DAM_INT_SET_0);
 	apbif_readl(0, APBIF_SPDIF_INT_SET_0);
 	apbif_readl(0, APBIF_APBIF_INT_SET_0);
+}
+
+void apbif_save_registers(int ifc)
+{
+	int i = 0;
+	struct apbif_channel_info *ch = &apbif_channels[ifc];
+
+	for(i = 0; i < APBIF_CHANNEL_MAXINDEX; i++)
+		ch->reg_cache[i] = apbif_readl(ifc, (i << 2));
+}
+
+void apbif_restore_registers(int ifc)
+{
+	int i = 0;
+	struct apbif_channel_info *ch = &apbif_channels[ifc];
+
+	for(i = 0; i < APBIF_CHANNEL_MAXINDEX; i++)
+		apbif_writel(ifc, ch->reg_cache[i], (i << 2));
 }
 
 int audio_apbif_free_channel(int ifc, int fifo_mode)
@@ -637,19 +682,38 @@ int apbif_get_channel(int regindex, int fifo_mode)
 	return get_apbif_channel(regindex, fifo_mode);
 }
 
-static void apbif_disable_clock(void)
+void audio_switch_disable_clock(void)
 {
 	if (!acinfo) return;
 
-	if (acinfo->audiohub_clk)
-		clk_disable(acinfo->audiohub_clk);
+	if (acinfo->clk_refcnt > 0) {
+		acinfo->clk_refcnt--;
 
-	if (acinfo->apbif_clk)
-		clk_disable(acinfo->apbif_clk);
+		if (acinfo->clk_refcnt == 0) {
+			if (acinfo->audiohub_clk)
+				clk_disable(acinfo->audiohub_clk);
 
+			if (acinfo->apbif_clk)
+				clk_disable(acinfo->apbif_clk);
+		}
+	}
+	AHUB_DEBUG_PRINT(" %s clk cnt %d \n",__func__,  acinfo->clk_refcnt);
 }
 
-static int apbif_enable_clock(void)
+
+int audio_switch_set_clock_rate(int rate)
+{
+	/* FIXME: to complete */
+	return 0;
+}
+
+int audio_switch_set_clock_parent(int parent)
+{
+	/* FIXME: to complete */
+	return 0;
+}
+
+int audio_switch_enable_clock(void)
 {
 
 	int err = 0;
@@ -657,23 +721,27 @@ static int apbif_enable_clock(void)
 	if (!acinfo)
 		return -EIO;
 
-	/*apbif clocks */
-	if (clk_enable(acinfo->apbif_clk)) {
-		err = PTR_ERR(acinfo->apbif_clk);
-		goto fail_audio_clock;
+	if (!acinfo->clk_refcnt) {
+		/*apbif clocks */
+		if (clk_enable(acinfo->apbif_clk)) {
+			err = PTR_ERR(acinfo->apbif_clk);
+			goto fail_audio_clock;
+		}
+
+		/* audio hub */
+		if (clk_enable(acinfo->audiohub_clk)) {
+			err = PTR_ERR(acinfo->audiohub_clk);
+			goto fail_audio_clock;
+		}
 	}
 
-	/* audio hub */
-	if (clk_enable(acinfo->audiohub_clk)) {
-		err = PTR_ERR(acinfo->audiohub_clk);
-		goto fail_audio_clock;
-	}
-
+	acinfo->clk_refcnt++;
+	AHUB_DEBUG_PRINT(" %s clk cnt %d \n",__func__,  acinfo->clk_refcnt);
 	return err;
 
 fail_audio_clock:
 
-	apbif_disable_clock();
+	audio_switch_disable_clock();
 	return err;
 }
 
@@ -699,8 +767,43 @@ int audio_apbif_set_acif(int ifc, int fifo_mode, struct audio_cif *cifInfo)
 	return 0;
 }
 
-int apbif_initialize(int ifc, struct audio_cif *cifInfo)
+int audio_switch_suspend(void)
 {
+	int i = 0;
+	struct apbif_channel_info *ch;
+
+	ahub_save_registers();
+
+	for (i = 0; i < NR_APBIF_CHANNELS; i++) {
+		ch = &apbif_channels[i];
+
+		if ((ch->fifo_inuse[AUDIO_TX_MODE] == true) ||
+			(ch->fifo_inuse[AUDIO_RX_MODE] == true)) {
+			apbif_save_registers(i);
+		}
+	}
+
+	audio_switch_disable_clock();
+	return 0;
+}
+
+int audio_switch_resume(void)
+{
+	int i = 0;
+	struct apbif_channel_info *ch;
+
+	audio_switch_enable_clock();
+	ahub_restore_registers();
+
+	for (i = 0; i < NR_APBIF_CHANNELS; i++) {
+		ch = &apbif_channels[i];
+
+		if ((ch->fifo_inuse[AUDIO_TX_MODE] == true) ||
+			(ch->fifo_inuse[AUDIO_RX_MODE] == true)) {
+			apbif_restore_registers(i);
+		}
+	}
+
 	return 0;
 }
 
@@ -711,7 +814,7 @@ int audio_switch_open(void)
 	AHUB_DEBUG_PRINT(" audio_switch_open  acinfo 0x%x enable %d ++ \n",
 			(unsigned int)acinfo, enable_audioswitch);
 
-	if (!acinfo && !enable_audioswitch) {
+	if (!acinfo && (enable_audioswitch == false)) {
 		struct apbif_channel_info *ch;
 
 		acinfo =
@@ -747,19 +850,22 @@ int audio_switch_open(void)
 
 		/*FIXME: add interface to set the audiohub rate and parent */
 		for (i = 0; i < ahubrx_maxnum; i++) {
-			ahub_reg_base[i] = IO_ADDRESS(TEGRA_AHUB_BASE) +
+			ahub_reginfo[i].regbase =
+				(u32)IO_ADDRESS(TEGRA_AHUB_BASE) +
 					(i * AUDIO_APBIF_RX_OFFSET);
 		}
 
-		err = apbif_enable_clock();
+		/* FIXME: remove the clock enable, once the spdif stuff
+		is merged */
+		err = audio_switch_enable_clock();
 
 		if (err)
 			goto fail_audio_open;
 
-		enable_audioswitch = 1;
+		enable_audioswitch = true;
 	}
 
-	acinfo->refcnt += 1;
+	acinfo->refcnt++;
 
 	AHUB_DEBUG_PRINT(" audio_switch_open -- acinfo 0x%x refcnt %d \n",
 			(unsigned int)acinfo, acinfo->refcnt);
@@ -768,7 +874,7 @@ int audio_switch_open(void)
 
 fail_audio_open:
 	if (acinfo) {
-		apbif_disable_clock();
+		audio_switch_disable_clock();
 		kfree(acinfo);
 	}
 
@@ -777,13 +883,20 @@ fail_audio_open:
 
 int audio_switch_close(void)
 {
-	if (acinfo && enable_audioswitch) {
-		acinfo->refcnt -= 1;
+	if (acinfo && (enable_audioswitch == true)) {
+		acinfo->refcnt--;
 
 		if (!acinfo->refcnt) {
-			apbif_disable_clock();
+			audio_switch_disable_clock();
+
+			if (acinfo->apbif_clk)
+				clk_put(acinfo->apbif_clk);
+
+			if (acinfo->audiohub_clk)
+				clk_put(acinfo->audiohub_clk);
+
 			kfree(acinfo);
-			enable_audioswitch = 0;
+			enable_audioswitch = false;
 		}
 	}
 	return 0;

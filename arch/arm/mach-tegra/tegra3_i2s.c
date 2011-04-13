@@ -150,10 +150,12 @@ void i2s_suspend(int ifc)
 {
 	i2s_save_registers(ifc);
 	i2s_clock_disable(ifc);
+	audio_switch_suspend();
 }
 
 void i2s_resume(int ifc)
 {
+	audio_switch_resume();
 	i2s_clock_enable(ifc);
 	i2s_restore_registers(ifc);
 }
@@ -862,6 +864,10 @@ int i2s_clock_enable(int ifc)
 	int err = 0;
 	struct i2s_controller_info *info = &i2s_cont_info[ifc];
 
+	err = audio_switch_enable_clock();
+	if (err)
+		return err;
+
 	if (info->i2sprop.i2s_clk && (info->i2sprop.master_mode == true)) {
 		clk_set_rate(info->i2sprop.i2s_clk, info->i2sprop.clk_rate);
 
@@ -878,7 +884,7 @@ int i2s_clock_enable(int ifc)
 		info->clk_refs++;
 	}
 
-	I2S_DEBUG_PRINT(" enable clock count 0x%x \n", info->clk_refs);
+	I2S_DEBUG_PRINT(" i2s enable clock count 0x%x \n", info->clk_refs);
 	return err;
 }
 
@@ -919,7 +925,8 @@ int i2s_clock_disable(int ifc)
 		}
 	}
 
-	I2S_DEBUG_PRINT(" disable clock count 0x%x \n", info->clk_refs);
+	audio_switch_disable_clock();
+	I2S_DEBUG_PRINT(" i2s disable clock count 0x%x \n", info->clk_refs);
 	return 0;
 }
 

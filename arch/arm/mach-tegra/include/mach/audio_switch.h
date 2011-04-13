@@ -107,7 +107,7 @@ void apbif_set_pack_mode(int ifc, int tx, int pack_mode);
 void apbif_channel_set_loopback(int ifc, int on);
 void apbif_channel_enable(int ifc, int tx, int enable);
 int  apbif_get_channel(int regindex, int fifo_mode);
-int  apbif_initialize(int ifc, struct audio_cif *cifInfo);
+
 void apbif_soft_reset(int ifc, int fifo_mode, int enable);
 void apbif_fifo_write(int ifc, int fifo_mode, u32 data);
 u32 apbif_fifo_read(int ifc, int fifo_mode);
@@ -119,6 +119,10 @@ int audio_switch_close(void);
 int audio_switch_open(void);
 int audio_apbif_free_channel(int ifc, int fifo_mode);
 int audio_apbif_set_acif(int ifc, int fifo_mode, struct audio_cif *cifInfo);
+int audio_switch_suspend(void);
+int audio_switch_resume(void);
+int audio_switch_enable_clock(void);
+void audio_switch_disable_clock(void);
 
 
 #endif /* __ARCH_ARM_MACH_AUDIO_SWITCH_H */
