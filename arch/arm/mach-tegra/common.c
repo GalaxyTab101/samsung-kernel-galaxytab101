@@ -251,9 +251,9 @@ void tegra_cpu_reset_handler_flush(bool l1cache)
 			  __pa(&__tegra_cpu_reset_handler_data[TEGRA_RESET_DATA_SIZE]));
 }
 
+#ifdef CONFIG_PM
 static unsigned long tegra_cpu_reset_handler_bckup[TEGRA_RESET_DATA_SIZE];
 
-#ifdef CONFIG_PM
 void tegra_cpu_reset_handler_save(void)
 {
 	unsigned int i;
