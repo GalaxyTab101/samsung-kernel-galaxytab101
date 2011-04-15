@@ -142,6 +142,14 @@
 #define AUDIO_SLAVE_MODE		0
 #define AUDIO_MASTER_MODE		1
 
+/*
+* Audio Samplerates
+*/
+#define AUDIO_SAMPLERATE_8000		8000
+#define AUDIO_SAMPLERATE_16000		16000
+#define AUDIO_SAMPLERATE_44100		44100
+#define AUDIO_SAMPLERATE_48000		48000
+
 struct tegra_audio_platform_data {
 	bool i2s_master;
 	bool dsp_master;

@@ -78,6 +78,14 @@ typedef enum ahubrx_
 	ahubrx_maxnum
 } ahubrx;
 
+typedef enum dam_chtype_
+{
+	dam_ch_in0 = 0x0,
+	dam_ch_in1,
+	dam_ch_out,
+	dam_ch_maxnum
+}dam_chtype;
+
 struct audio_cif
 {
 	int threshold;
@@ -124,5 +132,20 @@ int audio_switch_resume(void);
 int audio_switch_enable_clock(void);
 void audio_switch_disable_clock(void);
 
+void dam_enable(int ifc, int on, int chtype);
+void dam_set_samplerate(int ifc, int chtype, int samplerate);
+
+/* FIXME: move to dam.h if needed */
+int dam_open(void);
+int dam_close(void);
+int dam_set_acif(int ifc, int chtype, struct audio_cif *cifInfo);
+int dam_get_controller(void);
+int dam_free_controller(int ifc);
+int dam_suspend(int ifc);
+int dam_resume(int ifc);
+int dam_set_clock_rate(int rate);
+int dam_set_clock_parent(int ifc, int parent);
+int dam_enable_clock(int ifc);
+void dam_disable_clock(int ifc);
 
 #endif /* __ARCH_ARM_MACH_AUDIO_SWITCH_H */
