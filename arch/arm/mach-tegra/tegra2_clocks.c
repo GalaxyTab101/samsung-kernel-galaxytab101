@@ -2009,6 +2009,7 @@ static struct clk tegra_clk_emc = {
 	}
 
 struct clk tegra_list_clks[] = {
+	PERIPH_CLK("apbdma",	 "apbdma",	     "apbdma",	34,	0,	0x31E,	26000000,  mux_clk_m,			0),
 	PERIPH_CLK("rtc",	"rtc-tegra",		NULL,	4,	0,	0x31E,	32768,     mux_clk_32k,			PERIPH_NO_RESET),
 	PERIPH_CLK("kbc",	"tegra-kbc",		NULL,	36, 	0,	0x31E,	32768,	   mux_clk_32k, PERIPH_NO_RESET),
 	PERIPH_CLK("timer",	"timer",		NULL,	5,	0,	0x31E,	26000000,  mux_clk_m,			0),
