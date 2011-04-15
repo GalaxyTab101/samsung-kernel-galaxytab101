@@ -21,6 +21,7 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/err.h>
 #include <linux/i2c.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
@@ -686,13 +687,13 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	irq = res->start;
 
 	clk = clk_get(&pdev->dev, NULL);
-	if (!clk) {
+	if (IS_ERR_OR_NULL(clk)) {
 		ret = -ENOMEM;
 		goto err_release_region;
 	}
 
 	i2c_clk = clk_get(&pdev->dev, "i2c");
-	if (!i2c_clk) {
+	if (IS_ERR_OR_NULL(i2c_clk)) {
 		ret = -ENOMEM;
 		goto err_clk_put;
 	}
