@@ -28,11 +28,11 @@
 #include <linux/gpio.h>
 
 #include "board.h"
-#ifdef CONFIG_MACH_VENTANA
+#if defined(CONFIG_MACH_VENTANA)
 #include "board-ventana.h"
-#elif CONFIG_MACH_CARDHU
+#elif defined(CONFIG_MACH_CARDHU)
 #include "board-cardhu.h"
-#elif CONFIG_MACH_TEGRA_ENTERPRISE
+#elif defined(CONFIG_MACH_TEGRA_ENTERPRISE)
 #include "board-enterprise.h"
 #endif
 #include "gpio-names.h"
