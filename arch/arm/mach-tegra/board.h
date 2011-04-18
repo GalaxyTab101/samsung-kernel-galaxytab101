@@ -66,5 +66,8 @@ struct board_info {
 };
 
 void tegra_get_board_info(struct board_info *);
+void cpufreq_save_default_governor(void);
+void cpufreq_restore_default_governor(void);
+void cpufreq_set_conservative_governor(void);
 
 #endif
