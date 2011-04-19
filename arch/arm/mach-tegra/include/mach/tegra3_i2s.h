@@ -77,7 +77,7 @@
 
 #define I2S_CTRL_FRAME_FORMAT_SHIFT	12
 #define I2S_CTRL_FRAME_FORMAT_MASK	\
-		(0x3<<I2S_CTRL_FRAME_FORMAT_SHIFT);
+		(0x7<<I2S_CTRL_FRAME_FORMAT_SHIFT);
 #define I2S_CTRL_FRAME_FORMAT_LRCK	\
 		(0<<I2S_CTRL_FRAME_FORMAT_SHIFT) /* BASIC/LJM/RJM */
 #define I2S_CTRL_FRAME_FORMAT_FSYNC	\
@@ -161,10 +161,6 @@
 #define I2S_CH_CTRL_FSYNC_WIDTH_SHIFT		24
 #define I2S_CH_CTRL_FSYNC_WIDTH_MASK		\
 		(0xff << I2S_CH_CTRL_FSYNC_WIDTH_SHIFT)
-#define I2S_CH_CTRL_FSYNC_WIDTH_ZERO		\
-		(0x0 << I2S_CH_CTRL_FSYNC_WIDTH_SHIFT)
-#define I2S_CH_CTRL_FSYNC_WIDTH_ONE		\
-		(0x1 << I2S_CH_CTRL_FSYNC_WIDTH_SHIFT)
 
 /*
 * Highz control
@@ -318,7 +314,7 @@ int  i2s_set_bit_code(int ifc, unsigned bitcode);
 int  i2s_set_data_offset(int ifc, int tx, int dataoffset);
 int  i2s_set_edge_control(int ifc, int edgectrl);
 int  i2s_set_highz_control(int ifc, int highzvalue);
-int  i2s_set_fsync_width(int ifc, int fifo, int fsyncwidth);
+int  i2s_set_fsync_width(int ifc, int fsyncwidth);
 int  i2s_set_slot_control(int ifc, int tx, int totalslot, int numslots);
 int  i2s_set_bit_order(int ifc, int tx, int bitorder);
 int  i2s_set_bit_mask(int ifc, int tx, int maskbit);

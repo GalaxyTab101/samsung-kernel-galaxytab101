@@ -254,7 +254,7 @@ void i2s_set_left_right_control_polarity(int ifc, int left_low)
 	check_i2s_ifc(ifc);
 
 	val = i2s_readl(ifc, I2S_CTRL_0);
-	set_reg_mode(val, I2S_CTRL_LRCK_L_LOW,left_low);
+	set_reg_mode(val, I2S_CTRL_LRCK_R_LOW, left_low);
 	i2s_writel(ifc, val, I2S_CTRL_0);
 }
 
@@ -445,7 +445,7 @@ int i2s_set_highz_control(int ifc, int highzvalue)
 /*
 *   I2s Fsync width
 */
-int i2s_set_fsync_width(int ifc, int fifo, int fsyncwidth)
+int i2s_set_fsync_width(int ifc, int fsyncwidth)
 {
 	u32 val;
 
@@ -467,10 +467,10 @@ int i2s_set_slot_control(int ifc, int tx, int totalslot, int numslots)
 	u32 val;
 
 	check_i2s_ifc(ifc, -EINVAL);
-	val = i2s_readl(ifc, I2S_CH_CTRL_0);
+	val = i2s_readl(ifc, I2S_SLOT_CTRL_0);
 
 	val &= ~I2S_SLOT_CTRL_TOTAL_SLOT_MASK;
-	val |= (totalslot << I2S_CH_CTRL_FSYNC_WIDTH_SHIFT);
+	val |= (totalslot << I2S_SLOT_CTRL_TOTAL_SLOT_SHIFT);
 
 	if (tx != AUDIO_TX_MODE) {
 		val &= ~I2S_SLOT_CTRL_RX_SLOT_MASK;
@@ -480,7 +480,7 @@ int i2s_set_slot_control(int ifc, int tx, int totalslot, int numslots)
 		val |= (numslots << I2S_SLOT_CTRL_TX_SLOT_SHIFT);
 	}
 
-	i2s_writel(ifc, val, I2S_CH_CTRL_0);
+	i2s_writel(ifc, val, I2S_SLOT_CTRL_0);
 	return 0;
 }
 

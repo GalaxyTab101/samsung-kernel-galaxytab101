@@ -26,6 +26,13 @@
 #include <linux/types.h>
 #include <linux/regulator/consumer.h>
 
+#define AUDIO_PORT_I2S0		0
+#define AUDIO_PORT_I2S1		1
+#define AUDIO_PORT_I2S2		2
+#define AUDIO_PORT_I2S3		3
+#define AUDIO_PORT_I2S4		4
+
+
 #define AUDIO_TX_MODE		0
 #define AUDIO_RX_MODE		1
 
