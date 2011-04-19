@@ -28,6 +28,9 @@
 #include <linux/delay.h>
 #include <linux/highmem.h>
 #include <linux/memblock.h>
+#include <linux/notifier.h>
+#include <linux/reboot.h>
+#include <linux/mqueue.h>
 
 #include <asm/cacheflush.h>
 #include <asm/hardware/cache-l2x0.h>
@@ -168,17 +171,19 @@ static void __init tegra_init_power(void)
 
 static bool console_flushed;
 
-static void tegra_pm_flush_console(void)
+static int tegra_pm_flush_console(struct notifier_block *this,
+	unsigned long code,
+	void *unused)
 {
 	if (console_flushed)
-		return;
+		return NOTIFY_NONE;
 	console_flushed = true;
 
 	printk("\n");
 	pr_emerg("Restarting %s\n", linux_banner);
 	if (!try_acquire_console_sem()) {
 		release_console_sem();
-		return;
+		return NOTIFY_NONE;
 	}
 
 	mdelay(50);
@@ -189,11 +194,11 @@ static void tegra_pm_flush_console(void)
 	else
 		pr_emerg("tegra_restart: Console was locked!\n");
 	release_console_sem();
+	return NOTIFY_NONE;
 }
 
 static void tegra_pm_restart(char mode, const char *cmd)
 {
-	tegra_pm_flush_console();
 	arm_machine_restart(mode, cmd);
 }
 
@@ -299,9 +304,14 @@ void __init tegra_cpu_reset_handler_init(void)
 	tegra_cpu_reset_handler_enable();
 }
 
+static struct notifier_block tegra_reboot_notifier = {
+	.notifier_call = tegra_pm_flush_console,
+};
+
 void __init tegra_common_init(void)
 {
 	arm_pm_restart = tegra_pm_restart;
+	register_reboot_notifier(&tegra_reboot_notifier);
 #ifndef CONFIG_SMP
 	/* For SMP system, initializing the reset dispatcher here is too
 	   late. For non-SMP systems, the function that initializes the
