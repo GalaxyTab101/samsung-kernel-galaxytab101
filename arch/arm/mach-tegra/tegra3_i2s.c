@@ -309,6 +309,11 @@ int i2s_set_bit_format(int ifc, unsigned fmt)
 		val |= I2S_CTRL_FRAME_FORMAT_LRCK;
 	} else { /*Dsp,Pcm,Tdm,Nw*/
 		val |= I2S_CTRL_FRAME_FORMAT_FSYNC;
+
+		i2s_set_fsync_width(ifc, 0);
+		i2s_set_edge_control(ifc, 1);
+		i2s_set_slot_control(ifc, AUDIO_TX_MODE, 0, 0x1);
+		i2s_set_slot_control(ifc, AUDIO_RX_MODE, 0, 0x1);
 	}
 
 	i2s_writel(ifc, val, I2S_CTRL_0);
@@ -389,6 +394,14 @@ int i2s_set_samplerate(int ifc, int samplerate)
 	return 0;
 }
 
+int i2s_set_channels(int ifc, int channels)
+{
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	info->i2sprop.channels = channels;
+
+	return 0;
+}
 /*
 * I2s data offset
 */
@@ -728,14 +741,15 @@ static	struct audio_cif  audiocif;
 int i2s_set_acif(int ifc, int fifo_mode, struct audio_cif *cifInfo)
 {
 	struct audio_cif  *tx_audio_cif = &audiocif;
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
 
 	/* set i2s audiocif */
 	/* setting base value for acif */
 	memset(tx_audio_cif, 0 , sizeof(struct audio_cif));
-	tx_audio_cif->audio_channels	= AUDIO_CHANNEL_2;
-	tx_audio_cif->client_channels	= AUDIO_CHANNEL_2;
-	tx_audio_cif->audio_bits	= AUDIO_BIT_SIZE_16;
-	tx_audio_cif->client_bits	= AUDIO_BIT_SIZE_16;
+	tx_audio_cif->audio_channels	= info->i2sprop.channels;
+	tx_audio_cif->client_channels	= info->i2sprop.channels;
+	tx_audio_cif->audio_bits	= info->i2sprop.bit_size;
+	tx_audio_cif->client_bits	= info->i2sprop.bit_size;
 
 	if (fifo_mode == AUDIO_TX_MODE)
 		audio_switch_set_acif((unsigned int)i2s_base[ifc] +
@@ -743,6 +757,9 @@ int i2s_set_acif(int ifc, int fifo_mode, struct audio_cif *cifInfo)
 	else
 		audio_switch_set_acif((unsigned int)i2s_base[ifc] +
 			 I2S_AUDIOCIF_I2SRX_CTRL_0, tx_audio_cif);
+
+	apbif_set_pack_mode(i2s_get_apbif_channel(ifc, fifo_mode),
+		fifo_mode, info->i2sprop.fifo_fmt);
 
 	audio_apbif_set_acif(i2s_get_apbif_channel(ifc, fifo_mode),
 		fifo_mode, tx_audio_cif);

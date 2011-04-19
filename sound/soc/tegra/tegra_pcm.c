@@ -190,6 +190,11 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 	struct tegra_runtime_data *prtd = 0;
 	int i, ret=0;
 
+	pr_debug("%s: Device %d, Stream %s, substream_name %s \n", __func__, \
+		substream->pcm->device, \
+		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)?"Playback": \
+		"Capture", substream->name);
+
 	/* Ensure period size is multiple of minimum DMA step size */
 	ret = snd_pcm_hw_constraint_step(runtime, 0,
 		SNDRV_PCM_HW_PARAM_PERIOD_BYTES, DMA_STEP_SIZE_MIN);

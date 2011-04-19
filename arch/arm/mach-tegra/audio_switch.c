@@ -753,14 +753,14 @@ int audio_apbif_set_acif(int ifc, int fifo_mode, struct audio_cif *cifInfo)
 		 APBIF_AUDIOCIF_TX0_CTRL_0, cifInfo);
 
 		/* FIXME: packed mode as default */
-		apbif_set_pack_mode(ifc, AUDIO_TX_MODE, AUDIO_FIFO_PACK_16);
+		//apbif_set_pack_mode(ifc, AUDIO_TX_MODE, AUDIO_FIFO_PACK_16);
 
 	} else {
 		audio_switch_set_acif((unsigned int)ch->virt_base +
 		 APBIF_AUDIOCIF_RX0_CTRL_0, cifInfo);
 
 		/* FIXME: packed mode as default */
-		apbif_set_pack_mode(ifc, AUDIO_RX_MODE, AUDIO_FIFO_PACK_16);
+		//apbif_set_pack_mode(ifc, AUDIO_RX_MODE, AUDIO_FIFO_PACK_16);
 	}
 	return 0;
 }

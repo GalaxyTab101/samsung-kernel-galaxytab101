@@ -207,6 +207,15 @@ int i2s_set_samplerate(int ifc, int samplerate)
 	return 0;
 }
 
+int i2s_set_channels(int ifc, int channels)
+{
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	info->i2sprop.channels = channels;
+
+	return 0;
+}
+
 void i2s_set_fifo_mode(int ifc, int fifo, int tx)
 {
 	u32 val;

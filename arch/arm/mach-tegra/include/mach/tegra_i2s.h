@@ -43,6 +43,7 @@ struct tegra_i2s_property {
 	int bit_size;		/* 8/12/16/20/24/28/32 */
 	int fifo_fmt;		/* fifo format */
 
+	int channels;		/* channels */
 	int sample_rate;	/* Sample rate */
 	unsigned long clk_rate; /* clock rate */
 
@@ -92,9 +93,11 @@ struct clk *i2s_get_clock_by_name(const char *name);
 
 void i2s_set_fifo_attention(int ifc, int buffersize, int fifo_mode);
 int i2s_set_samplerate(int ifc, int samplerate);
+int i2s_set_channels(int ifc, int channels);
 
 int i2s_clock_disable(int ifc);
 int i2s_clock_enable(int ifc);
 int i2s_close(int ifc);
 int i2s_clock_rate(int ifc, int rate);
+
 #endif /* __ARCH_ARM_MACH_TEGRA_I2S_H */

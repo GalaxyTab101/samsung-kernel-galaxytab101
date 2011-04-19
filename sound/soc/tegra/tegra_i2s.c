@@ -169,6 +169,21 @@ static int tegra_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	i2s_set_samplerate(i2s_id, val);
 
+	switch (params_channels(params)) {
+	case 1: val = AUDIO_CHANNEL_1; break;
+	case 2: val = AUDIO_CHANNEL_2; break;
+	case 3: val = AUDIO_CHANNEL_3; break;
+	case 4: val = AUDIO_CHANNEL_4; break;
+	case 5: val = AUDIO_CHANNEL_5; break;
+	case 6: val = AUDIO_CHANNEL_6; break;
+	case 7: val = AUDIO_CHANNEL_7; break;
+	case 8: val = AUDIO_CHANNEL_8; break;
+	default:
+		return -EINVAL;
+	}
+
+	i2s_set_channels(i2s_id, val);
+
 	return 0;
 }
 
@@ -201,6 +216,7 @@ static int tegra_i2s_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_DSP_A:
 		val1 = AUDIO_FRAME_FORMAT_DSP;
+		val2 = AUDIO_LRCK_RIGHT_LOW;
 		break;
 	case SND_SOC_DAIFMT_DSP_B:
 		val1 = AUDIO_FRAME_FORMAT_DSP;
@@ -381,8 +397,8 @@ struct snd_soc_dai tegra_i2s_dai[] = {
 	TEGRA_I2S_CREATE_DAI(1, 1, 2, TEGRA_SAMPLE_RATES),
 #else
 	TEGRA_I2S_CREATE_DAI(1, 2, 2, TEGRA_SAMPLE_RATES),
-	TEGRA_I2S_CREATE_DAI(2, 1, 2, TEGRA_SAMPLE_RATES),
-	TEGRA_I2S_CREATE_DAI(3, 1, 2, TEGRA_SAMPLE_RATES),
+	TEGRA_I2S_CREATE_DAI(2, 1, 2, TEGRA_VOICE_SAMPLE_RATES),
+	TEGRA_I2S_CREATE_DAI(3, 1, 2, TEGRA_VOICE_SAMPLE_RATES),
 #endif
 };
 
@@ -420,6 +436,7 @@ static int tegra_i2s_driver_probe(struct platform_device *pdev)
 				goto fail_clock;
 		}
 	}
+
 	return 0;
 
 fail_clock:
