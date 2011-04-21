@@ -115,8 +115,16 @@ static const struct snd_pcm_hardware tegra_pcm_hardware = {
 static int tegra_pcm_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
 {
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
+	int buffersize = params_period_bytes(params);
+
 	snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
-	set_fifo_attention(substream, params_period_bytes(params));
+
+	if (strcmp(cpu_dai->name, "tegra-spdif") == 0)
+		set_spdif_fifo_attention(substream, buffersize);
+	else
+		set_i2s_fifo_attention(substream, buffersize);
 	return 0;
 }
 
@@ -234,7 +242,6 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 		goto fail;
 	}
 
-	/* 
 	prtd = kzalloc(sizeof(struct tegra_runtime_data), GFP_KERNEL);
 	if (prtd == NULL)
 		return -ENOMEM;
@@ -293,9 +300,11 @@ end:
 
 static int tegra_pcm_close(struct snd_pcm_substream *substream)
 {
+	int i;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct tegra_runtime_data *prtd = runtime->private_data;
-	int i;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
 
 	if (!prtd) {
 		printk(KERN_ERR "tegra_pcm_close called with prtd == NULL\n");
@@ -306,7 +315,10 @@ static int tegra_pcm_close(struct snd_pcm_substream *substream)
 		prtd->dma_state = STATE_EXIT;
 		for (i = 0; i < DMA_REQ_QCOUNT; i++) {
 			tegra_dma_dequeue_req(prtd->dma_chan, &prtd->dma_req[i]);
-			free_dma_request(substream);
+			if (strcmp(cpu_dai->name, "tegra-spdif") == 0)
+				free_spdif_dma_request(substream);
+			else
+				free_i2s_dma_request(substream);
 		}
 		tegra_dma_flush(prtd->dma_chan);
 		tegra_dma_free_channel(prtd->dma_chan);

@@ -123,9 +123,14 @@ struct tegra_i2s_property* i2s_get_prop(int ifc)
 
 void i2s_suspend(int ifc)
 {
-	struct i2s_runtime_data* ird = &i2s_cont_info[ifc].i2s_reg_data;
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+	struct i2s_runtime_data* ird = &info->i2s_reg_data;
 
 	check_ifc(ifc);
+
+	if (info->clk_refs == 0)
+		i2s_clock_enable(ifc);
+
 	ird->i2s_ctrl_0 = i2s_readl(ifc, I2S_I2S_CTRL_0);
 	ird->i2s_status_0 = i2s_readl(ifc, I2S_I2S_STATUS_0);
 	ird->i2s_timing_0 = i2s_readl(ifc, I2S_I2S_TIMING_0);

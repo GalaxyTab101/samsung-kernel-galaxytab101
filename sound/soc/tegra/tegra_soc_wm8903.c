@@ -468,7 +468,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"IN3R", NULL, "Linein"},
 };
 
-
 static int tegra_codec_init(struct snd_soc_codec *codec)
 {
 	struct tegra_audio_data* audio_data = codec->socdev->codec_data;
@@ -530,9 +529,14 @@ static struct snd_soc_dai_link tegra_soc_dai[] = {
 	TEGRA_CREATE_SOC_DAI_LINK("WM8903", "WM8903 HiFi",
 		&tegra_i2s_dai[0], &wm8903_dai, &tegra_hifi_ops),
 
+	TEGRA_CREATE_SOC_DAI_LINK("Tegra-spdif", "Tegra Spdif",
+		&tegra_spdif_dai, &tegra_generic_codec_dai[0],
+		&tegra_spdif_ops),
+
+
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 	TEGRA_CREATE_SOC_DAI_LINK("Tegra-generic", "Tegra Generic Voice",
-		&tegra_i2s_dai[1], &tegra_generic_codec_dai[0],
+		&tegra_i2s_dai[1], &tegra_generic_codec_dai[1],
 		&tegra_voice_ops),
 	TEGRA_CREATE_SOC_DAI_LINK("Tegra-spdif", "Tegra Spdif",
 		&tegra_spdif_dai, &tegra_generic_codec_dai[1],
@@ -540,10 +544,10 @@ static struct snd_soc_dai_link tegra_soc_dai[] = {
 #else
 /* FIXME: enabled once these device are enumerated
 	TEGRA_CREATE_SOC_DAI_LINK("Tegra-generic-0", "Tegra BB Voice",
-		&tegra_i2s_dai[2], &tegra_generic_codec_dai[0],
+		&tegra_i2s_dai[1], &tegra_generic_codec_dai[1],
 		&tegra_voice_ops),
 	TEGRA_CREATE_SOC_DAI_LINK("Tegra-generic-1", "Tegra BT Voice",
-		&tegra_i2s_dai[3], &tegra_generic_codec_dai[1],
+		&tegra_i2s_dai[2], &tegra_generic_codec_dai[2],
 		&tegra_voice_ops),
 */
 #endif

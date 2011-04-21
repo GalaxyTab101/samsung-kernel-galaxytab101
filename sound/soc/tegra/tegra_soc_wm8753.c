@@ -368,6 +368,11 @@ static int tegra_voice_hw_free(struct snd_pcm_substream *substream)
 {
 	return 0;
 }
+static int tegra_spdif_hw_params(struct snd_pcm_substream *substream,
+					struct snd_pcm_hw_params *params)
+{
+	return 0;
+}
 
 static int tegra_spdif_hw_params(struct snd_pcm_substream *substream,
 					struct snd_pcm_hw_params *params)
@@ -524,6 +529,10 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	/* Line in */
 	{"LINE1", NULL, "Linein"},
 	{"LINE2", NULL, "Linein"},
+};
+
+static struct snd_soc_ops tegra_spdif_ops = {
+	.hw_params = tegra_spdif_hw_params,
 };
 
 static void wm8753_intr_work(struct work_struct *work)
@@ -703,8 +712,11 @@ static struct snd_soc_dai_link tegra_soc_dai[] = {
 	TEGRA_CREATE_SOC_DAI_LINK("WM8753", "WM8753 HiFi",
 		&tegra_i2s_dai[0], &wm8753_dai[WM8753_DAI_HIFI],
 		&tegra_hifi_ops),
+	TEGRA_CREATE_SOC_DAI_LINK("Tegra-spdif", "Tegra Spdif",
+		&tegra_spdif_dai, &tegra_generic_codec_dai[0],
+		&tegra_spdif_ops),
 	TEGRA_CREATE_SOC_DAI_LINK("Tegra-generic", "Tegra Generic Voice",
-		&tegra_i2s_dai[1], &tegra_generic_codec_dai[0],
+		&tegra_i2s_dai[1], &tegra_generic_codec_dai[1],
 		&tegra_voice_ops),
 	TEGRA_CREATE_SOC_DAI_LINK("Tegra-spdif", "Tegra Spdif",
 		&tegra_spdif_dai, &tegra_generic_codec_dai[1],

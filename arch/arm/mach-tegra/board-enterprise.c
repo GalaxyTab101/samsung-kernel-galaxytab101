@@ -250,7 +250,7 @@ static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 		.i2s_master	= true,
 		.dma_on		= true,  /* use dma by default */
 		.i2s_master_clk = 44100,
-		.i2s_clk_rate	= 11289600,
+		.dev_clk_rate	= 11289600,
 		.dap_clk	= "extern1",
 		.mode		= AUDIO_FRAME_FORMAT_I2S,
 		.fifo_fmt	= AUDIO_FIFO_PACK_16,
@@ -262,7 +262,7 @@ static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 
 static struct tegra_audio_platform_data tegra_spdif_pdata = {
 	.dma_on = true,  /* use dma by default */
-	.i2s_clk_rate = 5644800,
+	.dev_clk_rate = 5644800,
 	.mode = SPDIF_BIT_MODE_MODE16BIT,
 	.fifo_fmt = 0,
 };

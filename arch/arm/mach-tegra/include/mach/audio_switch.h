@@ -148,4 +148,14 @@ int dam_set_clock_parent(int ifc, int parent);
 int dam_enable_clock(int ifc);
 void dam_disable_clock(int ifc);
 
+#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+ /* dummy calls */
+int audio_switch_open(void) { return 0; }
+int audio_switch_close(void) { return 0; }
+int audio_switch_suspend(void) { return 0; }
+int audio_switch_resume(void) { return 0; }
+int audio_switch_enable_clock(void) { return 0; }
+void audio_switch_disable_clock(void) {}
+#endif
+
 #endif /* __ARCH_ARM_MACH_AUDIO_SWITCH_H */

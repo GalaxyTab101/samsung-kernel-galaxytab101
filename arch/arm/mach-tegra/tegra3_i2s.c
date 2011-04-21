@@ -148,15 +148,21 @@ static void i2s_restore_registers(int ifc)
 
 void i2s_suspend(int ifc)
 {
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	if (info->clk_refs == 0)
+		i2s_clock_enable(ifc);
+
 	i2s_save_registers(ifc);
-	i2s_clock_disable(ifc);
 	audio_switch_suspend();
+
+	i2s_clock_disable(ifc);
 }
 
 void i2s_resume(int ifc)
 {
-	audio_switch_resume();
 	i2s_clock_enable(ifc);
+	audio_switch_resume();
 	i2s_restore_registers(ifc);
 }
 
@@ -835,6 +841,7 @@ int i2s_init(int ifc,  struct tegra_i2s_property* pi2sprop)
 		return err;
 	}
 
+	i2s_clock_rate(ifc, pi2sprop->clk_rate);
 	err = i2s_clock_enable(ifc);
 
 	if (err) {
@@ -852,6 +859,8 @@ int i2s_init(int ifc,  struct tegra_i2s_property* pi2sprop)
 
 	i2s_set_data_offset(ifc, AUDIO_TX_MODE, 1);
 	i2s_set_data_offset(ifc, AUDIO_RX_MODE, 1);
+
+	i2s_set_samplerate(ifc, pi2sprop->sample_rate);
 
 	i2s_clock_disable(ifc);
 

@@ -236,8 +236,6 @@ struct tegra_audiocont_info {
 };
 
 static struct tegra_audiocont_info *acinfo = NULL;
-static bool enable_audioswitch = false;
-
 static struct apbif_channel_info apbif_channels[NR_APBIF_CHANNELS];
 
 struct tegra_ahub_info {
@@ -783,7 +781,6 @@ int audio_switch_suspend(void)
 		}
 	}
 
-	audio_switch_disable_clock();
 	return 0;
 }
 
@@ -792,7 +789,6 @@ int audio_switch_resume(void)
 	int i = 0;
 	struct apbif_channel_info *ch;
 
-	audio_switch_enable_clock();
 	ahub_restore_registers();
 
 	for (i = 0; i < NR_APBIF_CHANNELS; i++) {
@@ -811,10 +807,9 @@ int audio_switch_open(void)
 {
 	int err = 0, i = 0;
 
-	AHUB_DEBUG_PRINT(" audio_switch_open  acinfo 0x%x enable %d ++ \n",
-			(unsigned int)acinfo, enable_audioswitch);
+	AHUB_DEBUG_PRINT(" %s 0x%x ++ \n", __func__, (unsigned int)acinfo);
 
-	if (!acinfo && (enable_audioswitch == false)) {
+	if (!acinfo) {
 		struct apbif_channel_info *ch;
 
 		acinfo =
@@ -844,6 +839,7 @@ int audio_switch_open(void)
 		acinfo->audiohub_clk = clk_get_sys("d_audio", NULL);
 		if (IS_ERR_OR_NULL(acinfo->audiohub_clk)) {
 			err = -ENOENT;
+			clk_put(acinfo->apbif_clk);
 			acinfo->audiohub_clk = 0;
 			goto fail_audio_open;
 		}
@@ -854,20 +850,11 @@ int audio_switch_open(void)
 				(u32)IO_ADDRESS(TEGRA_AHUB_BASE) +
 					(i * AUDIO_APBIF_RX_OFFSET);
 		}
-
-		/* FIXME: remove the clock enable, once the spdif stuff
-		is merged */
-		err = audio_switch_enable_clock();
-
-		if (err)
-			goto fail_audio_open;
-
-		enable_audioswitch = true;
 	}
 
 	acinfo->refcnt++;
 
-	AHUB_DEBUG_PRINT(" audio_switch_open -- acinfo 0x%x refcnt %d \n",
+	AHUB_DEBUG_PRINT(" %s -- acinfo 0x%x refcnt %d \n", __func__,
 			(unsigned int)acinfo, acinfo->refcnt);
 
 	return 0;
@@ -883,7 +870,7 @@ fail_audio_open:
 
 int audio_switch_close(void)
 {
-	if (acinfo && (enable_audioswitch == true)) {
+	if (acinfo && (acinfo->refcnt > 0)) {
 		acinfo->refcnt--;
 
 		if (!acinfo->refcnt) {
@@ -896,7 +883,7 @@ int audio_switch_close(void)
 				clk_put(acinfo->audiohub_clk);
 
 			kfree(acinfo);
-			enable_audioswitch = false;
+			acinfo = NULL;
 		}
 	}
 	return 0;

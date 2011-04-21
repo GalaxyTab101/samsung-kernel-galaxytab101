@@ -26,14 +26,13 @@ struct tegra_i2s_info {
 	struct platform_device *pdev;
 	struct tegra_audio_platform_data *pdata;
 
-	/* Control for whole I2S (Data format, etc.) */
 	unsigned int bit_format;
 	bool i2s_master;
 	int ref_count;
 	struct das_regs_cache das_regs;
 };
 
-void free_dma_request(struct snd_pcm_substream *substream)
+void free_i2s_dma_request(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
@@ -92,7 +91,7 @@ void setup_i2s_dma_request(struct snd_pcm_substream *substream,
 	return;
 }
 
-void set_fifo_attention(struct snd_pcm_substream *substream,
+void set_i2s_fifo_attention(struct snd_pcm_substream *substream,
 			int buffersize)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -226,6 +225,7 @@ static int tegra_i2s_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	default:
 		return -EINVAL;
 	}
+
 	i2s_set_bit_format(i2s_id, val1);
 	i2s_set_left_right_control_polarity(i2s_id, val2);
 
@@ -271,7 +271,6 @@ static int i2s_configure(struct tegra_i2s_info *info )
 {
 	struct platform_device *pdev = info->pdev;
 	struct tegra_audio_platform_data *pdata = pdev->dev.platform_data;
-	unsigned int i2s_id = pdev->id;
 	struct tegra_i2s_property i2sprop;
 
 	memset(&i2sprop, 0, sizeof(i2sprop));
@@ -279,12 +278,11 @@ static int i2s_configure(struct tegra_i2s_info *info )
 	i2sprop.master_mode = pdata->i2s_master;
 	i2sprop.audio_mode = pdata->mode;
 	i2sprop.bit_size = pdata->bit_size;
-	i2sprop.clk_rate = pdata->i2s_clk_rate;
+	i2sprop.clk_rate = pdata->dev_clk_rate;
 	i2sprop.sample_rate = pdata->i2s_master_clk;
 	i2sprop.fifo_fmt = pdata->fifo_fmt;
 
-	i2s_init(i2s_id, &i2sprop);
-	i2s_set_samplerate(i2s_id, i2sprop.sample_rate);
+	i2s_init(pdev->id, &i2sprop);
 
 	return 0;
 }
@@ -316,6 +314,8 @@ int tegra_i2s_resume(struct snd_soc_dai *cpu_dai)
 
 	i2s_clock_disable(cpu_dai->id);
 
+	/* disabled clock as it is being enabled back on startup */
+	i2s_clock_disable(cpu_dai->id);
 	return 0;
 }
 

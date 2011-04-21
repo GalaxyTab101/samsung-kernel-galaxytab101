@@ -100,7 +100,7 @@ static struct platform_device debug_uart = {
 
 static struct tegra_audio_platform_data tegra_spdif_pdata = {
 	.dma_on = true,  /* use dma by default */
-	.spdif_clk_rate = 5644800,
+	.dev_clk_rate = 5644800,
 };
 
 static struct tegra_utmip_config utmi_phy_config[] = {
@@ -402,7 +402,7 @@ static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 		.i2s_master	= true,
 		.dma_on		= true,  /* use dma by default */
 		.i2s_master_clk = 44100,
-		.i2s_clk_rate	= 11289600,
+		.dev_clk_rate	= 11289600,
 		.dap_clk	= "clk_dev1",
 		.audio_sync_clk = "audio_2x",
 		.mode		= AUDIO_FRAME_FORMAT_I2S,
@@ -417,7 +417,7 @@ static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 		.dma_on		= true,  /* use dma by default */
 		.i2s_master_clk = 8000,
 		.dsp_master_clk = 8000,
-		.i2s_clk_rate	= 2000000,
+		.dev_clk_rate	= 2000000,
 		.dap_clk	= "clk_dev1",
 		.audio_sync_clk = "audio_2x",
 		.mode		= AUDIO_FRAME_FORMAT_DSP,

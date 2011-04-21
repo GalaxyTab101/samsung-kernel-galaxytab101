@@ -59,35 +59,35 @@
  */
 
 /* Interrupt on transmit error:	 1=enable, 0=disable. */
-#define SPDIF_CTRL_0_IE_TXE			(1<<25)
+#define SPDIF_CTRL_0_IE_TXE		(1<<25)
 
 /* Interrupt on receive error:	 1=enable, 0=disable. */
-#define SPDIF_CTRL_0_IE_RXE			(1<<24)
+#define SPDIF_CTRL_0_IE_RXE		(1<<24)
 
 
 /*
  * Interrupt when RX user FIFO attn. level is reached:
  * 1=enable, 0=disable.
  */
-#define SPDIF_CTRL_0_QE_RU			(1<<19)
+#define SPDIF_CTRL_0_QE_RU		(1<<19)
 
 /*
  * Interrupt when TX user FIFO attn. level is reached:
  * 1=enable, 0=disable.
  */
-#define SPDIF_CTRL_0_QE_TU			(1<<18)
+#define SPDIF_CTRL_0_QE_TU		(1<<18)
 
 /*
  * Interrupt when RX data FIFO attn. level is reached:
  * 1=enable, 0=disable.
  */
-#define SPDIF_CTRL_0_QE_RX			(1<<17)
+#define SPDIF_CTRL_0_QE_RX		(1<<17)
 
 /*
  * Interrupt when TX data FIFO attn. level is reached:
  * 1=enable, 0=disable.
  */
-#define SPDIF_CTRL_0_QE_TX			(1<<16)
+#define SPDIF_CTRL_0_QE_TX		(1<<16)
 
 /*
  * Pack data mode:
@@ -332,10 +332,10 @@
 #else
 
 #define SPDIF_STROBE_CTRL_0				0x4
-#define SPDIF_AUDIOCIF_TXDATA_CTRL_0	0x08
-#define SPDIF_AUDIOCIF_RXDATA_CTRL_0	0x0C
-#define SPDIF_AUDIOCIF_TXUSER_CTRL_0	0x10
-#define SPDIF_AUDIOCIF_RXUSER_CTRL_0	0x14
+#define SPDIF_AUDIOCIF_TXDATA_CTRL_0			0x08
+#define SPDIF_AUDIOCIF_RXDATA_CTRL_0			0x0C
+#define SPDIF_AUDIOCIF_TXUSER_CTRL_0			0x10
+#define SPDIF_AUDIOCIF_RXUSER_CTRL_0			0x14
 #define SPDIF_CH_STA_RX_A_0				0x18
 #define SPDIF_CH_STA_RX_B_0				0x1C
 #define SPDIF_CH_STA_RX_C_0				0x20
@@ -348,7 +348,7 @@
 #define SPDIF_CH_STA_TX_D_0				0x3C
 #define SPDIF_CH_STA_TX_E_0				0x40
 #define SPDIF_CH_STA_TX_F_0				0x44
-#define SPDIF_FLOWCTL_CTRL_0			0x70
+#define SPDIF_FLOWCTL_CTRL_0				0x70
 #define SPDIF_TX_STEP_0					0x74
 #define SPDIF_FLOW_STATUS_0				0x78
 #define SPDIF_FLOW_TOTAL_0				0x7c
@@ -364,6 +364,7 @@
 #define SPDIF_LCOEF_2_4_1_0				0xa4
 #define SPDIF_LCOEF_2_4_2_0				0xa8
 
+#define SPDIF_REG_INDEX_MAX	(SPDIF_LCOEF_2_4_2_0 >> 2)
 /*
  * Register SPDIF_CTRL_0
  */
@@ -372,12 +373,12 @@
 #define SPDIF_CTRL_0_FLOWCTL_EN		(1<<31)
 
 /* Second level clock gating*/
-#define SPDIF_CTRL_0_CG_EN			(1<<11)
+#define SPDIF_CTRL_0_CG_EN		(1<<11)
 
 /* Soft reset*/
 #define SPDIF_CTRL_0_SOFT_RESET		(1<<7)
 
-#define SPDIF_FIFO_ATN_LVL_ONE_SLOT			1
+#define SPDIF_FIFO_ATN_LVL_ONE_SLOT		1
 #define SPDIF_FIFO_ATN_LVL_FOUR_SLOTS		4
 #define SPDIF_FIFO_ATN_LVL_EIGHT_SLOTS		8
 #define SPDIF_FIFO_ATN_LVL_TWELVE_SLOTS		12
@@ -387,6 +388,7 @@
  * 1=busy, 0=not busy.
  */
 #define SPDIF_STATUS_0_TX_BSY			(1<<1)
+#define SPDIF_STATUS_0_RX_BSY			(1<<0)
 
 #endif
 /*
@@ -477,15 +479,43 @@ struct spdif_regs_cache {
 	int spdif_usr_dat_tx_a_0;
 };
 
+struct tegra_spdif_clk_info {
+	struct clk *spdifout_clk;
+	struct clk *hda2codec_clk;
+	struct clk *spdifin_clk;
+	struct clk *spdifin_sync_clk;
+	struct clk *audio_clk;
+	struct clk *audio2x_clk;
+};
+
+struct tegra_spdif_property {
+	bool master_mode;	/* master/slave */
+	int audio_mode;		/* 16bit,20bit,24bit,raw*/
+	int sample_rate;
+	int clk_rate;
+	int clk_parent;
+	int channel;
+};
+
+struct tegra_spdif_device_context {
+	int channeltype;	/* tx or rx */
+	int fifo_attn;		/* fifo attention */
+	int dma_ch;		/* dma channel being used */
+	int stream_index;	/* stream index being used */
+	int ch_inuse;
+	int clk_refs;
+
+	struct tegra_spdif_property ch_prop;
+};
+
 /* spdif apis */
 void spdif_fifo_enable(unsigned long base, int mode, int on);
 int spdif_set_bit_mode(unsigned long base, unsigned mode);
 int spdif_set_fifo_packed(unsigned long base, unsigned on);
-int spdif_set_sample_rate(unsigned long base, unsigned int sample_rate);
+int spdif_set_sample_rate(int fifo_mode, unsigned int sample_rate);
 void spdif_fifo_write(unsigned long base, int mode, u32 data);
 int spdif_fifo_set_attention_level(unsigned long base,
-					int mode,
-					unsigned int level);
+					int mode, unsigned int level);
 void spdif_fifo_clear(unsigned long base, int mode);
 u32 spdif_get_status(unsigned long base, int mode);
 u32 spdif_get_control(unsigned long base);
@@ -496,6 +526,17 @@ u32 spdif_get_fifo_full_empty_count(unsigned long base, int mode);
 int spdif_initialize(unsigned long base, int mode);
 void spdif_get_all_regs(unsigned long base, struct spdif_regs_cache* regs);
 void spdif_set_all_regs(unsigned long base, struct spdif_regs_cache* regs);
-int spdif_get_dma_requestor(int ifc, int mode);
 
+int spdif_get_dma_requestor(int mode);
+int spdif_free_dma_requestor(int mode);
+void spdif_set_fifo_attention(int buffersize, int fifo_mode);
+
+int spdif_init(unsigned long base, int mode,
+			struct tegra_spdif_property* pspdifprop);
+int spdif_close(void);
+int spdif_clock_enable(int mode);
+int spdif_clock_disable(int mode);
+int spdif_clock_set_parent(int mode, int rate);
+int spdif_suspend(void);
+int spdif_resume(void);
 #endif /* __ARCH_ARM_MACH_TEGRA_SPDIF_H */

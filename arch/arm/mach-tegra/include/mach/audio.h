@@ -163,7 +163,7 @@ struct tegra_audio_platform_data {
 	int i2s_master_clk; /* When I2S mode and master, the framesync rate. */
 	int dsp_master_clk; /* When DSP mode and master, the framesync rate. */
 	bool dma_on;
-	unsigned long i2s_clk_rate;
+	unsigned long dev_clk_rate;
 	unsigned long spdif_clk_rate;
 	const char *dap_clk;
 	const char *audio_sync_clk;

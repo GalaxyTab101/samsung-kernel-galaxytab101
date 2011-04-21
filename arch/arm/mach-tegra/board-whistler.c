@@ -358,7 +358,7 @@ static void whistler_i2c_init(void)
 
 static struct tegra_audio_platform_data tegra_spdif_pdata = {
 	.dma_on = true,  /* use dma by default */
-	.spdif_clk_rate = 5644800,
+	.dev_clk_rate = 5644800,
 };
 
 static struct tegra_audio_platform_data tegra_audio_pdata[] = {
@@ -368,7 +368,7 @@ static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 		.dma_on		= true,  /* use dma by default */
 		.i2s_master_clk = 44100,
 		.dsp_master_clk = 44100,
-		.i2s_clk_rate	= 2822400,
+		.dev_clk_rate	= 2822400,
 		.dap_clk	= "clk_dev1",
 		.audio_sync_clk = "audio_2x",
 		.mode		= AUDIO_FRAME_FORMAT_I2S,
@@ -383,7 +383,7 @@ static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 		.dma_on		= true,  /* use dma by default */
 		.i2s_master_clk = 8000,
 		.dsp_master_clk = 8000,
-		.i2s_clk_rate	= 2000000,
+		.dev_clk_rate	= 2000000,
 		.dap_clk	= "clk_dev1",
 		.audio_sync_clk = "audio_2x",
 		.mode		= AUDIO_FRAME_FORMAT_DSP,
