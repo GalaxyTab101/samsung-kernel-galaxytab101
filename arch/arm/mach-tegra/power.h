@@ -147,6 +147,7 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
 void tegra_cpu_dynamic_power_init(void);
 
+unsigned int tegra_count_slow_cpus(unsigned long speed_limit);
 unsigned int tegra_get_slowest_cpu_n(void);
 unsigned long tegra_cpu_lowest_speed(void);
 unsigned long tegra_cpu_highest_speed(void);
