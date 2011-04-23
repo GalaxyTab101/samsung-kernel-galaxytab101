@@ -203,6 +203,7 @@ int clk_reparent(struct clk *c, struct clk *parent);
 void tegra_clk_init_from_table(struct tegra_clk_init_table *table);
 void clk_set_cansleep(struct clk *c);
 unsigned long clk_get_max_rate(struct clk *c);
+unsigned long clk_get_min_rate(struct clk *c);
 unsigned long clk_get_rate_locked(struct clk *c);
 void tegra2_sdmmc_tap_delay(struct clk *c, int delay);
 int tegra_emc_set_rate(unsigned long rate);
