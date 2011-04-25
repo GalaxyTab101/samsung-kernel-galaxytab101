@@ -470,6 +470,7 @@ static void __init tegra_enterprise_init(void)
 	tegra_spdif_device.dev.platform_data = &tegra_spdif_pdata;
 	platform_add_devices(enterprise_devices, ARRAY_SIZE(enterprise_devices));
 	enterprise_sdhci_init();
+	enterprise_regulator_init();
 	touch_init();
 	enterprise_usb_init();
 	enterprise_gps_init();
