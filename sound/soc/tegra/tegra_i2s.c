@@ -403,7 +403,6 @@ EXPORT_SYMBOL_GPL(tegra_i2s_dai);
 static int tegra_i2s_driver_probe(struct platform_device *pdev)
 {
 	int err = 0;
-	struct resource *res, *mem;
 	struct tegra_i2s_info *info;
 	int i = 0;
 
@@ -415,44 +414,6 @@ static int tegra_i2s_driver_probe(struct platform_device *pdev)
 	info->pdata = pdev->dev.platform_data;
 	info->pdata->driver_data = info;
 	BUG_ON(!info->pdata);
-
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		dev_err(&pdev->dev, "no mem resource!\n");
-		err = -ENODEV;
-		goto fail;
-	}
-
-	mem = request_mem_region(res->start, resource_size(res), pdev->name);
-	if (!mem) {
-		dev_err(&pdev->dev, "memory region already claimed!\n");
-		err = -EBUSY;
-		goto fail;
-	}
-
-	info->i2s_phys = res->start;
-	info->i2s_base = ioremap(res->start, res->end - res->start + 1);
-	if (!info->i2s_base) {
-		dev_err(&pdev->dev, "cannot remap iomem!\n");
-		err = -ENOMEM;
-		goto fail_release_mem;
-	}
-
-	res = platform_get_resource(pdev, IORESOURCE_DMA, 0);
-	if (!res) {
-		dev_err(&pdev->dev, "no dma resource!\n");
-		err = -ENODEV;
-		goto fail_unmap_mem;
-	}
-	info->dma_req_sel = res->start;
-
-	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (!res) {
-		dev_err(&pdev->dev, "no irq resource!\n");
-		err = -ENODEV;
-		goto fail_unmap_mem;
-	}
-	info->irq = res->start;
 
 	err = i2s_configure(info);
 	if (err) {
@@ -468,18 +429,13 @@ static int tegra_i2s_driver_probe(struct platform_device *pdev)
 			tegra_i2s_dai[i].private_data = info;
 			err = snd_soc_register_dai(&tegra_i2s_dai[i]);
 			if (err)
-				goto fail_unmap_mem;
+				goto fail_clock;
 		}
 	}
 	return 0;
 
 fail_clock:
 	i2s_close(pdev->id);
-fail_unmap_mem:
-	iounmap(info->i2s_base);
-fail_release_mem:
-	release_mem_region(mem->start, resource_size(mem));
-fail:
 	kfree(info);
 	return err;
 }
@@ -488,9 +444,6 @@ fail:
 static int __devexit tegra_i2s_driver_remove(struct platform_device *pdev)
 {
 	struct tegra_i2s_info *info = tegra_i2s_dai[pdev->id].private_data;
-
-	if (info->i2s_base)
-		iounmap(info->i2s_base);
 
 	if (info)
 		kfree(info);
