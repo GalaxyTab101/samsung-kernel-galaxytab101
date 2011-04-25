@@ -72,11 +72,13 @@
 #define CLK_RESET_PLLC_BASE		0x80
 #define CLK_RESET_PLLM_BASE		0x90
 #define CLK_RESET_PLLP_BASE		0xa0
+#define CLK_RESET_PLLA_BASE		0xb0
 #define CLK_RESET_PLLX_BASE		0xe0
 
 #define CLK_RESET_PLLC_MISC		0x8c
 #define CLK_RESET_PLLM_MISC		0x9c
 #define CLK_RESET_PLLP_MISC		0xac
+#define CLK_RESET_PLLA_MISC		0xbc
 #define CLK_RESET_PLLX_MISC		0xe4
 
 #define CLK_RESET_CLK_SOURCE_MSELECT	0x3b4
@@ -204,7 +206,7 @@ __tear_down_master_data:
  *
  *	  reset vector for LP1 restore; copied into IRAM during suspend.
  *	  brings the system back up to a safe starting point (SDRAM out of
- *	  self-refresh, PLLC, PLLM and PLLP reenabled, CPU running on PLLP,
+ *	  self-refresh, PLLC, PLLM, PLLA and PLLP reenabled, CPU running on PLLP,
  *	  system clock running on the same PLL that it suspended at), and
  *	  jumps to tegra_lp2_startup to restore PLLX and virtual addressing.
  *	  physical address of tegra_lp2_startup expected to be stored in
@@ -214,7 +216,7 @@ __tear_down_master_data:
 ENTRY(__tegra_lp1_reset)
 	/* the CPU and system bus are running at 32KHz and executing from
 	 * IRAM when this code is executed; immediately switch to CLKM and
-	 * enable PLLP, PLLM, PLLC, and PLLX. */
+	 * enable PLLP, PLLM, PLLC, PLLA and PLLX. */
 	mov32	r0, TEGRA_CLK_RESET_BASE
 	mov	r1, #(1<<28)
 	str	r1, [r0, #CLK_RESET_SCLK_BURST]
@@ -230,6 +232,7 @@ ENTRY(__tegra_lp1_reset)
 	str	r1, [r2, #PMC_PLLP_WB0_OVERRIDE]
 
 	pll_enable r1, r0, CLK_RESET_PLLP_BASE, CLK_RESET_PLLP_MISC
+	pll_enable r1, r0, CLK_RESET_PLLA_BASE, CLK_RESET_PLLA_MISC
 	pll_enable r1, r0, CLK_RESET_PLLC_BASE, CLK_RESET_PLLC_MISC
 	pll_enable r1, r0, CLK_RESET_PLLX_BASE, CLK_RESET_PLLX_MISC
 	mov32	r7, TEGRA_TMRUS_BASE
@@ -250,6 +253,7 @@ padload_done:
 #if USE_PLL_LOCK_BITS
 	pll_locked r1, r0, CLK_RESET_PLLM_BASE
 	pll_locked r1, r0, CLK_RESET_PLLP_BASE
+	pll_locked r1, r0, CLK_RESET_PLLA_BASE
 	pll_locked r1, r0, CLK_RESET_PLLC_BASE
 	pll_locked r1, r0, CLK_RESET_PLLX_BASE
 #else
@@ -424,10 +428,13 @@ powerdown_l2_done:
 	str	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
 powerdown_pll_pcx:
 
-	/* disable PLLP, PLLC, and PLLX in LP0 and LP1 states */
+	/* disable PLLP, PLLA, PLLC, and PLLX in LP0 and LP1 states */
 	ldr	r0, [r5, #CLK_RESET_PLLP_BASE]
 	bic	r0, r0, #(1<<30)
 	str	r0, [r5, #CLK_RESET_PLLP_BASE]
+	ldr	r0, [r5, #CLK_RESET_PLLA_BASE]
+	bic	r0, r0, #(1<<30)
+	str	r0, [r5, #CLK_RESET_PLLA_BASE]
 	ldr	r0, [r5, #CLK_RESET_PLLC_BASE]
 	bic	r0, r0, #(1<<30)
 	str	r0, [r5, #CLK_RESET_PLLC_BASE]
