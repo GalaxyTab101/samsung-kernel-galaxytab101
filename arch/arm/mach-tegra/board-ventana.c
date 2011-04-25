@@ -127,7 +127,6 @@ static struct tegra_utmip_config utmi_phy_config[] = {
 static struct tegra_ulpi_config ulpi_phy_config = {
 	.reset_gpio = TEGRA_GPIO_PG2,
 	.clk = "clk_dev2",
-	.inf_type = TEGRA_USB_LINK_ULPI,
 };
 
 #ifdef CONFIG_BCM4329_RFKILL
@@ -633,19 +632,16 @@ static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 			.phy_config = &utmi_phy_config[0],
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 1,
-			.usb_phy_type = TEGRA_USB_PHY_TYPE_UTMIP,
 	},
 	[1] = {
 			.phy_config = &ulpi_phy_config,
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 1,
-			.phy_type = TEGRA_USB_PHY_TYPE_LINK_ULPI,
 	},
 	[2] = {
 			.phy_config = &utmi_phy_config[1],
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 1,
-			.usb_phy_type = TEGRA_USB_PHY_TYPE_UTMIP,
 	},
 };
 
