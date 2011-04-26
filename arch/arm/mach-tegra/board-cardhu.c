@@ -362,6 +362,7 @@ static void cardhu_i2c_init(void)
 	platform_device_register(&tegra_i2c_device1);
 }
 
+#if defined(CONFIG_RTC_DRV_TEGRA)
 static struct resource tegra_rtc_resources[] = {
 	[0] = {
 		.start = TEGRA_RTC_BASE,
@@ -381,6 +382,7 @@ static struct platform_device tegra_rtc_device = {
 	.resource = tegra_rtc_resources,
 	.num_resources = ARRAY_SIZE(tegra_rtc_resources),
 };
+#endif
 
 static struct platform_device tegra_camera = {
 	.name = "tegra_camera",
@@ -394,7 +396,9 @@ static struct platform_device *cardhu_devices[] __initdata = {
 	&tegra_uartd_device,
 	&tegra_uarte_device,
 	&pmu_device,
+#if defined(CONFIG_RTC_DRV_TEGRA)
 	&tegra_rtc_device,
+#endif
 	&tegra_udc_device,
 	&tegra_usb_fsg_device,
 	&androidusb_device,
