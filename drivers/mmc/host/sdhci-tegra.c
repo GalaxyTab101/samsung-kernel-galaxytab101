@@ -72,6 +72,8 @@ struct tegra_sdhci_host {
 	unsigned int max_clk;
 	struct regulator *vsd;
 	unsigned int card_present;
+	struct regulator *reg_vdd_slot;
+	struct regulator *reg_vddio;
 };
 
 static irqreturn_t carddetect_irq(int irq, void *data)
@@ -201,7 +203,7 @@ static void tegra_sdhci_set_signalling_voltage(struct sdhci_host *sdhci,
 		maxV = 1800000;
 	}
 
-	rc = regulator_set_voltage(host->vsd, minV, maxV);
+	rc = regulator_set_voltage(host->reg_vddio, minV, maxV);
 	if (rc)
 		printk(KERN_ERR "%s switching to %dV failed %d\n",
 			mmc_hostname(sdhci->mmc), (maxV/1000000), rc);
@@ -248,8 +250,6 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	struct resource *res;
 	int irq;
 	void __iomem *ioaddr;
-	static struct regulator *reg_sd_slot = NULL;
-	static struct regulator *reg_vddio_sdmmc1 = NULL;
 
 	plat = pdev->dev.platform_data;
 	if (plat == NULL)
@@ -295,51 +295,48 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 	if (rc != 0)
 		goto err_clkput;
 
-	if (plat->vsd_slot_name) {
-		/* Enabling power rails */
-		/* Enable VDDIO_SD_SLOT 3.3V*/
-		dev_info(&pdev->dev, "Getting regulator for rail vddio_sd_slot\n");
-		if (reg_sd_slot == NULL) {
-			reg_sd_slot = regulator_get(NULL, plat->vsd_slot_name);
-			if (WARN_ON(IS_ERR_OR_NULL(reg_sd_slot)))
+	if (plat->slot_rail_name) {
+		/* Enabling the slot power rails */
+		dev_info(&pdev->dev, "get slot power rail regulator\n");
+		if (host->reg_vdd_slot == NULL) {
+			host->reg_vdd_slot = regulator_get(NULL, plat->slot_rail_name);
+			if (WARN_ON(IS_ERR_OR_NULL(host->reg_vdd_slot)))
 				dev_err(&pdev->dev, "couldn't get regulator "
-					"%s: %ld\n", plat->vsd_slot_name,
-						PTR_ERR(reg_sd_slot));
+					"%s: %ld\n", plat->slot_rail_name,
+						PTR_ERR(host->reg_vdd_slot));
 			else
-				regulator_enable(reg_sd_slot);
+				regulator_enable(host->reg_vdd_slot);
 		}
-	}
+	} else
+		host->reg_vdd_slot = NULL;
 
-	if (plat->vsd_name) {
-		/* Enable rail for vddio_sdmmc1 */
-		dev_info(&pdev->dev, "Getting regulator for rail"
-				 " vddio_sdmmc1\n");
-		if (reg_vddio_sdmmc1 == NULL) {
-			reg_vddio_sdmmc1 = regulator_get(NULL, plat->vsd_name);
-			if (WARN_ON(IS_ERR_OR_NULL(reg_vddio_sdmmc1)))
+	if (plat->vdd_rail_name) {
+		/* Enable vdd power rail */
+		dev_info(&pdev->dev, "Getting regulator for rail %s\n", plat->vdd_rail_name);
+		if (host->reg_vddio == NULL) {
+			host->reg_vddio = regulator_get(NULL, plat->vdd_rail_name);
+			if (WARN_ON(IS_ERR_OR_NULL(host->reg_vddio)))
 				dev_err(&pdev->dev, "couldn't get regulator "
-					"%s: %ld\n", plat->vsd_name,
-					PTR_ERR(reg_vddio_sdmmc1));
+					"%s: %ld\n", plat->vdd_rail_name,
+					PTR_ERR(host->reg_vddio));
 			else {
-				rc = regulator_set_voltage(reg_vddio_sdmmc1,
-						3280000, 3320000);
+				rc = regulator_set_voltage(host->reg_vddio,
+						plat->vdd_min_uv, plat->vdd_max_uv);
 				if (rc != 0) {
 					dev_err(&pdev->dev, "regulator_set_"
-						"voltage() for rail reg_"
-						"vddio_sdmmc1 failed:i %d\n",
-						rc);
+						"voltage() for rail %s "
+						"failed:i %d\n",
+						plat->vdd_rail_name, rc);
 				} else
-					regulator_enable(reg_vddio_sdmmc1);
+					regulator_enable(host->reg_vddio);
 			}
 		}
 
-		if (plat->is_voltage_switch_supported) {
-			host->vsd = reg_vddio_sdmmc1;
+		if (plat->is_voltage_switch_supported)
 			tegra_sdhci_ops.set_signalling_voltage =
 				tegra_sdhci_set_signalling_voltage;
-		} else
-			host->vsd = NULL;
-	}
+	} else
+		host->reg_vddio = NULL;
 
 	host->clk_enabled = 1;
 	sdhci->hw_name = "tegra";
@@ -439,13 +436,20 @@ static int tegra_sdhci_remove(struct platform_device *pdev)
 		if (plat && plat->board_probe)
 			plat->board_probe(pdev->id, host->sdhci->mmc);
 
-		if (host->vsd) {
-			rc = regulator_disable(host->vsd);
+		sdhci_remove_host(host->sdhci, 0);
+
+		if (host->reg_vddio) {
+			rc = regulator_disable(host->reg_vddio);
 			if (!rc)
-				regulator_put(host->vsd);
+				regulator_put(host->reg_vddio);
 		}
 
-		sdhci_remove_host(host->sdhci, 0);
+		if (host->reg_vdd_slot) {
+			rc = regulator_disable(host->reg_vdd_slot);
+			if (!rc)
+				regulator_put(host->reg_vdd_slot);
+		}
+
 		sdhci_free_host(host->sdhci);
 	}
 	return 0;
@@ -553,6 +557,11 @@ static int tegra_sdhci_suspend(struct platform_device *pdev, pm_message_t state)
 
 	tegra_sdhci_enable_clock(host, 0);
 
+	if (host->reg_vddio)
+		ret = regulator_disable(host->reg_vddio);
+	if (host->reg_vdd_slot)
+		ret = regulator_disable(host->reg_vdd_slot);
+
 	return ret;
 }
 
@@ -580,6 +589,11 @@ static int tegra_sdhci_resume(struct platform_device *pdev)
 			&host->sdhci->mmc->ios);
 		return 0;
 	}
+
+	if (host->reg_vdd_slot)
+		ret = regulator_enable(host->reg_vdd_slot);
+	if (host->reg_vddio)
+		ret = regulator_enable(host->reg_vddio);
 
 	tegra_sdhci_enable_clock(host, SDHCI_TEGRA_MIN_CONTROLLER_CLOCK);
 	ret = sdhci_resume_host(host->sdhci);

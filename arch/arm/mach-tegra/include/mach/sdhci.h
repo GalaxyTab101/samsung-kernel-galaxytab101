@@ -31,8 +31,10 @@ struct tegra_sdhci_platform_data {
 	unsigned int tap_delay;
 	bool is_voltage_switch_supported;
 	bool is_8bit_supported;
-	const char *vsd_name;
-	const char *vsd_slot_name;
+	const char *vdd_rail_name;
+	const char *slot_rail_name;
+	int vdd_max_uv;
+	int vdd_min_uv;
 	unsigned int max_clk;
 
 	void (*board_probe)(int id, struct mmc_host *);
