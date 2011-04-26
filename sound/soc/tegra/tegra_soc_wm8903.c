@@ -80,18 +80,22 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 	int dai_flag = 0, sys_clk;
 	int err;
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	if (tegra_das_is_port_master(tegra_audio_codec_type_hifi))
 		dai_flag |= SND_SOC_DAIFMT_CBM_CFM;
 	else
+#endif
 		dai_flag |= SND_SOC_DAIFMT_CBS_CFS;
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	data_fmt = tegra_das_get_codec_data_fmt(tegra_audio_codec_type_hifi);
 
 	/* We are supporting DSP and I2s format for now */
-	if (data_fmt & dac_dap_data_format_i2s)
-		dai_flag |= SND_SOC_DAIFMT_I2S;
-	else
+	if (data_fmt & dac_dap_data_format_dsp)
 		dai_flag |= SND_SOC_DAIFMT_DSP_A;
+	else
+#endif
+		dai_flag |= SND_SOC_DAIFMT_I2S;
 
 	err = snd_soc_dai_set_fmt(codec_dai, dai_flag);
 	if (err < 0) {
@@ -220,18 +224,22 @@ static int tegra_voice_hw_params(struct snd_pcm_substream *substream,
 	int dai_flag = 0, sys_clk;
 	int err;
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	if (tegra_das_is_port_master(tegra_audio_codec_type_bluetooth))
 		dai_flag |= SND_SOC_DAIFMT_CBM_CFM;
 	else
+#endif
 		dai_flag |= SND_SOC_DAIFMT_CBS_CFS;
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	data_fmt = tegra_das_get_codec_data_fmt(tegra_audio_codec_type_bluetooth);
 
 	/* We are supporting DSP and I2s format for now */
-	if (data_fmt & dac_dap_data_format_dsp)
-		dai_flag |= SND_SOC_DAIFMT_DSP_A;
-	else
+	if (data_fmt & dac_dap_data_format_i2s)
 		dai_flag |= SND_SOC_DAIFMT_I2S;
+	else
+#endif
+		dai_flag |= SND_SOC_DAIFMT_DSP_A;
 
 	err = snd_soc_dai_set_fmt(codec_dai, dai_flag);
 	if (err < 0) {
@@ -474,6 +482,7 @@ static int tegra_codec_init(struct snd_soc_codec *codec)
 	int err = 0;
 
 	if (!audio_data->init_done) {
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 		audio_data->dap_mclk = tegra_das_get_dap_mclk();
 		if (!audio_data->dap_mclk) {
 			pr_err("Failed to get dap mclk \n");
@@ -481,6 +490,7 @@ static int tegra_codec_init(struct snd_soc_codec *codec)
 			return err;
 		}
 		clk_enable(audio_data->dap_mclk);
+#endif
 
 		/* Add tegra specific widgets */
 		snd_soc_dapm_new_controls(codec, tegra_dapm_widgets,

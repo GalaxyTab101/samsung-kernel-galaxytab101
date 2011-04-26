@@ -160,18 +160,22 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 	unsigned int value;
 	int err;
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	if (tegra_das_is_port_master(tegra_audio_codec_type_hifi))
 		dai_flag |= SND_SOC_DAIFMT_CBM_CFM;
 	else
+#endif
 		dai_flag |= SND_SOC_DAIFMT_CBS_CFS;
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	data_fmt = tegra_das_get_codec_data_fmt(tegra_audio_codec_type_hifi);
 
 	/* We are supporting DSP and I2s format for now */
-	if (data_fmt & dac_dap_data_format_i2s)
-		dai_flag |= SND_SOC_DAIFMT_I2S;
-	else
+	if (data_fmt & dac_dap_data_format_dsp)
 		dai_flag |= SND_SOC_DAIFMT_DSP_A;
+	else
+#endif
+		dai_flag |= SND_SOC_DAIFMT_I2S;
 
 	err = snd_soc_dai_set_fmt(codec_dai, dai_flag);
 	if (err < 0) {
@@ -323,18 +327,22 @@ static int tegra_voice_hw_params(struct snd_pcm_substream *substream,
 	int dai_flag = 0, sys_clk;
 	int err;
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	if (tegra_das_is_port_master(tegra_audio_codec_type_bluetooth))
 		dai_flag |= SND_SOC_DAIFMT_CBM_CFM;
 	else
+#endif
 		dai_flag |= SND_SOC_DAIFMT_CBS_CFS;
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	data_fmt = tegra_das_get_codec_data_fmt(tegra_audio_codec_type_bluetooth);
 
 	/* We are supporting DSP and I2s format for now */
-	if (data_fmt & dac_dap_data_format_dsp)
-		dai_flag |= SND_SOC_DAIFMT_DSP_A;
-	else
+	if (data_fmt & dac_dap_data_format_i2s)
 		dai_flag |= SND_SOC_DAIFMT_I2S;
+	else
+#endif
+		dai_flag |= SND_SOC_DAIFMT_DSP_A;
 
 	err = snd_soc_dai_set_fmt(codec_dai, dai_flag);
 	if (err < 0) {
