@@ -36,6 +36,7 @@ int enterprise_regulator_init(void);
 #ifdef CONFIG_TOUCHSCREEN_ATMEL_MT_T9
 #define TOUCH_GPIO_IRQ_ATMEL_T9	TEGRA_GPIO_PH4
 #define TOUCH_GPIO_RST_ATMEL_T9	TEGRA_GPIO_PH6
+#define TOUCH_BUS_ATMEL_T9	1
 #endif
 
 #endif

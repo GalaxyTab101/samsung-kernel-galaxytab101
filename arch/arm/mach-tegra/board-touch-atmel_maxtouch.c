@@ -82,6 +82,6 @@ struct tegra_touchscreen_init atmel_mxt_init_data = {
 	.rst_gpio = TOUCH_GPIO_RST_ATMEL_T9,			/* GPIO2 Value for RST */
 	.sv_gpio1 = {1, TOUCH_GPIO_RST_ATMEL_T9, 0, 1},		/* Valid, GPIOx, Set value, Delay      */
 	.sv_gpio2 = {1, TOUCH_GPIO_RST_ATMEL_T9, 1, 100},	/* Valid, GPIOx, Set value, Delay      */
-	.ts_boardinfo = {1, atmxt_i2c_info, 1}		/* BusNum, BoardInfo, Value     */
+	.ts_boardinfo = {TOUCH_BUS_ATMEL_T9, atmxt_i2c_info, 1}	/* BusNum, BoardInfo, Value     */
 };
 
