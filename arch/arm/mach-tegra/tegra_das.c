@@ -506,7 +506,7 @@ int tegra_das_open(void)
 {
 	int err = 0;
 
-	das_drv_data->mclk = tegra_get_clock_by_name("cdev1");
+	das_drv_data->mclk = tegra_get_clock_by_name("clk_dev1");
 
 	if (!das_drv_data->mclk)
 		err = -ENODEV;
@@ -574,6 +574,15 @@ int tegra_das_set_mclk_rate(int rate)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tegra_das_set_mclk_rate);
+
+int tegra_das_get_mclk_rate(void)
+{
+	if (!das_drv_data->mclk)
+		return -ENODEV;
+
+	return clk_get_rate(das_drv_data->mclk);
+}
+EXPORT_SYMBOL_GPL(tegra_das_get_mclk_rate);
 
 static int tegra_das_probe(struct platform_device *pdev)
 {

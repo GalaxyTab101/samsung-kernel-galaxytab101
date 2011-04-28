@@ -24,7 +24,24 @@
 #define PLAYBACK_STARTED true
 #define PLAYBACK_STOPPED false
 
-static void tegra_pcm_play(struct tegra_runtime_data *prtd)
+static const struct snd_pcm_hardware tegra_pcm_hardware = {
+	.info = SNDRV_PCM_INFO_INTERLEAVED |
+			SNDRV_PCM_INFO_PAUSE |
+			SNDRV_PCM_INFO_RESUME |
+			SNDRV_PCM_INFO_MMAP |
+			SNDRV_PCM_INFO_MMAP_VALID ,
+	.formats = SNDRV_PCM_FMTBIT_S16_LE,
+	.channels_min = 1,
+	.channels_max = 2,
+	.buffer_bytes_max = (PAGE_SIZE * 8),
+	.period_bytes_min = 128,
+	.period_bytes_max = (PAGE_SIZE),
+	.periods_min = 2,
+	.periods_max = 8,
+	.fifo_size   = 4,
+};
+
+static void tegra_pcm_queue_dma(struct tegra_runtime_data *prtd)
 {
 	struct snd_pcm_substream *substream = prtd->substream;
 	struct snd_pcm_runtime *runtime = substream->runtime;
@@ -33,39 +50,22 @@ static void tegra_pcm_play(struct tegra_runtime_data *prtd)
 
 	if (runtime->dma_addr) {
 		prtd->size = frames_to_bytes(runtime, runtime->period_size);
-		if (prtd->dma_state != STATE_ABORT) {
-			prtd->dma_reqid_tail = (prtd->dma_reqid_tail + 1) % DMA_REQ_QCOUNT;
-			prtd->dma_req[prtd->dma_reqid_tail].source_addr = buf->addr +
-			frames_to_bytes(runtime,prtd->dma_pos);
-			prtd->dma_req[prtd->dma_reqid_tail].size = prtd->size;
-			tegra_dma_enqueue_req(prtd->dma_chan,
-						&prtd->dma_req[prtd->dma_reqid_tail]);
-		}
-	}
-
-	prtd->dma_pos += runtime->period_size;
-	if (prtd->dma_pos >= runtime->buffer_size) {
-		prtd->dma_pos = 0;
-	}
-
-}
-
-static void tegra_pcm_capture(struct tegra_runtime_data *prtd)
-{
-	struct snd_pcm_substream *substream = prtd->substream;
-	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_dma_buffer *buf = &substream->dma_buffer;
-
-	if (runtime->dma_addr) {
-		prtd->size = frames_to_bytes(runtime, runtime->period_size);
 
 		if (prtd->dma_state != STATE_ABORT) {
-			prtd->dma_reqid_tail = (prtd->dma_reqid_tail + 1) % DMA_REQ_QCOUNT;
-			prtd->dma_req[prtd->dma_reqid_tail].dest_addr = buf->addr +
-			frames_to_bytes(runtime,prtd->dma_pos);
-			prtd->dma_req[prtd->dma_reqid_tail].size = prtd->size;
-			tegra_dma_enqueue_req(prtd->dma_chan,
-						&prtd->dma_req[prtd->dma_reqid_tail]);
+			prtd->dma_tail_idx = (prtd->dma_tail_idx + 1) %
+						DMA_REQ_QCOUNT;
+			dma_req = &prtd->dma_req[prtd->dma_tail_idx];
+
+			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+				dma_req->source_addr = buf->addr +
+					frames_to_bytes(runtime,prtd->dma_pos);
+			} else {
+				dma_req->dest_addr = buf->addr +
+					frames_to_bytes(runtime,prtd->dma_pos);
+			}
+
+			dma_req->size = prtd->size;
+			tegra_dma_enqueue_req(prtd->dma_chan, dma_req);
 		}
 	}
 
@@ -87,30 +87,12 @@ static void dma_complete_callback (struct tegra_dma_req *req)
 	}
 
 	if (prtd->dma_state != STATE_ABORT) {
-		prtd->dma_reqid_head = (prtd->dma_reqid_head + 1) % DMA_REQ_QCOUNT;
+		prtd->dma_head_idx = (prtd->dma_head_idx + 1) %
+						DMA_REQ_QCOUNT;
 		snd_pcm_period_elapsed(substream);
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			tegra_pcm_play(prtd);
-		} else {
-			tegra_pcm_capture(prtd);
-		}
+		tegra_pcm_queue_dma(prtd);
 	}
 }
-
-static const struct snd_pcm_hardware tegra_pcm_hardware = {
-	.info 	= SNDRV_PCM_INFO_INTERLEAVED | \
-			SNDRV_PCM_INFO_PAUSE | SNDRV_PCM_INFO_RESUME | \
-			SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID ,
-	.formats		= SNDRV_PCM_FMTBIT_S16_LE,
-	.channels_min		= 1,
-	.channels_max		= 2,
-	.buffer_bytes_max	= (PAGE_SIZE * 8),
-	.period_bytes_min	= 128,
-	.period_bytes_max	= (PAGE_SIZE),
-	.periods_min		= 2,
-	.periods_max		= 8,
-	.fifo_size 		= 4,
-};
 
 static int tegra_pcm_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
@@ -140,8 +122,8 @@ static int tegra_pcm_prepare(struct snd_pcm_substream *substream)
 
 	prtd->dma_pos = 0;
 	prtd->period_index = 0;
-	prtd->dma_reqid_head = 0;
-	prtd->dma_reqid_tail = DMA_REQ_QCOUNT - 1;
+	prtd->dma_head_idx = 0;
+	prtd->dma_tail_idx = DMA_REQ_QCOUNT - 1;
 
 	return 0;
 }
@@ -155,18 +137,10 @@ static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			prtd->state = STATE_INIT;
-			prtd->dma_state = STATE_INIT;
-			for (i = 0; i < DMA_REQ_QCOUNT; i++)
-				tegra_pcm_play(prtd); /* dma enqueue req */
-		} else if (prtd->state != STATE_INIT) {
-			/* start recording */
-			prtd->state = STATE_INIT;
-			prtd->dma_state = STATE_INIT;
-			for (i = 0; i < DMA_REQ_QCOUNT; i++)
-				tegra_pcm_capture(prtd); /* dma enqueue req */
-		}
+
+		prtd->dma_state = STATE_INIT;
+		tegra_pcm_queue_dma(prtd); /* dma enqueue req1 */
+		tegra_pcm_queue_dma(prtd); /* dma enqueue req2 */
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
@@ -175,22 +149,13 @@ static int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
 		prtd->dma_state = STATE_ABORT;
 		tegra_dma_cancel(prtd->dma_chan);
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			if (prtd->dma_chan) {
-				for (i = 0; i < DMA_REQ_QCOUNT; i++)
-					tegra_dma_dequeue_req(prtd->dma_chan,
-							&prtd->dma_req[i]);
-				prtd->dma_reqid_head = 0;
-				prtd->dma_reqid_tail = DMA_REQ_QCOUNT - 1;
-			}
-		} else {
-			if (prtd->dma_chan) {
-				for (i = 0; i < DMA_REQ_QCOUNT; i++)
-					tegra_dma_dequeue_req(prtd->dma_chan,
-							&prtd->dma_req[i]);
-				prtd->dma_reqid_head = 0;
-				prtd->dma_reqid_tail = DMA_REQ_QCOUNT - 1;
-			}
+
+		if (prtd->dma_chan) {
+			for (i = 0; i < DMA_REQ_QCOUNT; i++)
+				tegra_dma_dequeue_req(prtd->dma_chan,
+						&prtd->dma_req[i]);
+		prtd->dma_head_idx = 0;
+		prtd->dma_tail_idx = DMA_REQ_QCOUNT - 1;
 		}
 		break;
 
@@ -211,8 +176,9 @@ static snd_pcm_uframes_t tegra_pcm_pointer(struct snd_pcm_substream *substream)
 		 bytes_to_frames(runtime,
 				tegra_dma_get_transfer_count(
 					prtd->dma_chan,
-					&prtd->dma_req[prtd->dma_reqid_head],
+					&prtd->dma_req[prtd->dma_head_idx],
 					false));
+
 	return (size);
 }
 
@@ -249,7 +215,7 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 	runtime->private_data = prtd;
 	prtd->substream = substream;
 
-	prtd->state = STATE_INVALID;
+	prtd->dma_state = STATE_INVALID;
 
 	if (strcmp(cpu_dai->name, "tegra-spdif") == 0)
 	{
@@ -286,7 +252,7 @@ static int tegra_pcm_open(struct snd_pcm_substream *substream)
 
 fail:
 	if (prtd) {
-		prtd->state = STATE_EXIT;
+		prtd->dma_state = STATE_EXIT;
 
 		if (prtd->dma_chan) {
 			tegra_dma_flush(prtd->dma_chan);
@@ -324,8 +290,8 @@ static int tegra_pcm_close(struct snd_pcm_substream *substream)
 		tegra_dma_flush(prtd->dma_chan);
 		tegra_dma_free_channel(prtd->dma_chan);
 		prtd->dma_chan = NULL;
-		prtd->dma_reqid_head = 0;
-		prtd->dma_reqid_tail = DMA_REQ_QCOUNT - 1;
+		prtd->dma_head_idx = 0;
+		prtd->dma_tail_idx = DMA_REQ_QCOUNT - 1;
 	}
 	kfree(prtd);
 

@@ -146,9 +146,9 @@ static int tegra_wired_jack_probe(struct platform_device *pdev)
 	int hp_det_n = 0, cdc_irq = 0;
 	int en_mic_int = 0, en_mic_ext = 0;
 	int en_spkr = 0;
-	struct tegra_wired_jack_conf *pdata;
+	struct wired_jack_conf *pdata;
 
-	pdata = (struct tegra_wired_jack_conf *)pdev->dev.platform_data;
+	pdata = (struct wired_jack_conf *)pdev->dev.platform_data;
 
 	if (!pdata || !pdata->hp_det_n
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)

@@ -136,23 +136,18 @@ static int tegra_i2s_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params,
 				struct snd_soc_dai *dai)
 {
-	struct tegra_i2s_info *info = dai->private_data;
 	unsigned int i2s_id = dai->id;
 	int val;
-	unsigned int sample_size;
 
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		val = AUDIO_BIT_SIZE_16;
-		sample_size = 16;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
 		val = AUDIO_BIT_SIZE_24;
-		sample_size = 24;
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		val = AUDIO_BIT_SIZE_32;
-		sample_size = 32;
 		break;
 	default:
 		return -EINVAL;
@@ -187,10 +182,10 @@ static int tegra_i2s_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBS_CFS:
-		val1 = 1;
+		info->i2s_master = 1;
 		break;
 	case SND_SOC_DAIFMT_CBM_CFM:
-		val1 = 0;
+		info->i2s_master = 0;
 		break;
 	case SND_SOC_DAIFMT_CBS_CFM:
 	case SND_SOC_DAIFMT_CBM_CFS:
@@ -199,9 +194,7 @@ static int tegra_i2s_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	default:
 		return -EINVAL;
 	}
-	i2s_set_master(i2s_id, val1);
-	info->i2s_master = val1;
-
+	i2s_set_master(i2s_id, info->i2s_master);
 
 	val2 = AUDIO_LRCK_LEFT_LOW;
 
@@ -292,12 +285,9 @@ int tegra_i2s_suspend(struct snd_soc_dai *cpu_dai)
 {
 	struct tegra_i2s_info *info = cpu_dai->private_data;
 
-	i2s_clock_enable(cpu_dai->id);
-
 	i2s_suspend(cpu_dai->id);
 	tegra_das_get_all_regs(&info->das_regs);
 
-	i2s_clock_disable(cpu_dai->id);
 
 	return 0;
 }
@@ -306,13 +296,11 @@ int tegra_i2s_resume(struct snd_soc_dai *cpu_dai)
 {
 	struct tegra_i2s_info *info = cpu_dai->private_data;
 
-	i2s_clock_enable(cpu_dai->id);
 
 	tegra_das_set_all_regs(&info->das_regs);
 	i2s_resume(cpu_dai->id);
 	tegra_jack_resume();
 
-	i2s_clock_disable(cpu_dai->id);
 
 	/* disabled clock as it is being enabled back on startup */
 	i2s_clock_disable(cpu_dai->id);

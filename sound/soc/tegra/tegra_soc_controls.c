@@ -79,7 +79,7 @@ static void tegra_audio_route(struct tegra_audio_data* audio_data,
 
 	if ((is_call_mode_new != audio_data->is_call_mode) ||
 		(is_bt_sco_mode != was_bt_sco_mode)) {
-#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
+
 		if (is_call_mode_new && is_bt_sco_mode) {
 			tegra_das_set_connection
 				(tegra_das_port_con_id_voicecall_with_bt);
@@ -96,7 +96,7 @@ static void tegra_audio_route(struct tegra_audio_data* audio_data,
 			tegra_das_set_connection
 				(tegra_das_port_con_id_hifi);
 		}
-#endif
+
 		audio_data->is_call_mode = is_call_mode_new;
 	}
 }

@@ -178,7 +178,7 @@ struct tegra_audio_platform_data {
 	void *driver_data;
 };
 
-struct tegra_wired_jack_conf {
+struct wired_jack_conf {
 	int hp_det_n;   /* headphone jack detection gpio pin */
 	int en_mic_ext; /* external mic enable gpio pin */
 	int en_mic_int; /* internal mic enable gpio pin */
@@ -186,6 +186,7 @@ struct tegra_wired_jack_conf {
 	int en_spkr;    /* gpio pin to drive amplifier */
 	const char *spkr_amp_reg;    /* regulator name for speaker amp */
 	struct regulator *amp_reg;   /* regulator for speaker amp */
+	int amp_reg_enabled;
 };
 
 int audio_wired_jack_init(void);

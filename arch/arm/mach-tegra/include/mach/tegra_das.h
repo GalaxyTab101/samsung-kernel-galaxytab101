@@ -263,4 +263,8 @@ int tegra_das_disable_mclk(void);
  */
 int tegra_das_set_mclk_rate(int rate);
 
+/*
+ * Function to get the mclk rate
+ */
+int tegra_das_get_mclk_rate(void);
 #endif

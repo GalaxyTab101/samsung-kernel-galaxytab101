@@ -154,13 +154,12 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = rtd->dai->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
 	struct snd_soc_codec *codec = codec_dai->codec;
-	struct tegra_audio_data* audio_data = rtd->socdev->codec_data;
-	enum dac_dap_data_format data_fmt;
 	int dai_flag = 0, sys_clk;
 	unsigned int value;
 	int err;
 
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
+	enum dac_dap_data_format data_fmt;
 	if (tegra_das_is_port_master(tegra_audio_codec_type_hifi))
 		dai_flag |= SND_SOC_DAIFMT_CBM_CFM;
 	else
@@ -190,7 +189,7 @@ static int tegra_hifi_hw_params(struct snd_pcm_substream *substream,
 		return err;
 	}
 
-	sys_clk = clk_get_rate(audio_data->dap_mclk);
+	sys_clk = tegra_das_get_mclk_rate();
 	err = snd_soc_dai_set_sysclk(codec_dai, 0, sys_clk, SND_SOC_CLOCK_IN);
 	if (err < 0) {
 		pr_err("codec_dai clock not set\n");
@@ -322,12 +321,12 @@ static int tegra_voice_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->dai->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
-	struct tegra_audio_data* audio_data = rtd->socdev->codec_data;
-	enum dac_dap_data_format data_fmt;
 	int dai_flag = 0, sys_clk;
 	int err;
 
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
+	enum dac_dap_data_format data_fmt;
+
 	if (tegra_das_is_port_master(tegra_audio_codec_type_bluetooth))
 		dai_flag |= SND_SOC_DAIFMT_CBM_CFM;
 	else
@@ -356,7 +355,7 @@ static int tegra_voice_hw_params(struct snd_pcm_substream *substream,
 		return err;
 	}
 
-	sys_clk = clk_get_rate(audio_data->dap_mclk);
+	sys_clk = tegra_das_get_mclk_rate();
 	err = snd_soc_dai_set_sysclk(codec_dai, 0, sys_clk, SND_SOC_CLOCK_IN);
 	if (err < 0) {
 		pr_err("cpu_dai clock not set\n");
@@ -402,20 +401,14 @@ int tegra_soc_suspend_pre(struct platform_device *pdev, pm_message_t state)
 
 int tegra_soc_suspend_post(struct platform_device *pdev, pm_message_t state)
 {
-	struct snd_soc_device *socdev = platform_get_drvdata(pdev);
-	struct tegra_audio_data* audio_data = socdev->codec_data;
-
-	clk_disable(audio_data->dap_mclk);
+	tegra_das_disable_mclk();
 
 	return 0;
 }
 
 int tegra_soc_resume_pre(struct platform_device *pdev)
 {
-	struct snd_soc_device *socdev = platform_get_drvdata(pdev);
-	struct tegra_audio_data* audio_data = socdev->codec_data;
-
-	clk_enable(audio_data->dap_mclk);
+	tegra_das_enable_mclk();
 
 	return 0;
 }
@@ -588,13 +581,20 @@ static int tegra_codec_init(struct snd_soc_codec *codec)
 	unsigned int value;
 
 	if (!audio_data->init_done) {
-		audio_data->dap_mclk = tegra_das_get_dap_mclk();
-		if (!audio_data->dap_mclk) {
-			pr_err("Failed to get dap mclk \n");
+
+		ret = tegra_das_open();
+		if (ret) {
+			pr_err(" Failed get dap mclk \n");
 			ret = -ENODEV;
-			return ret;
+			goto wm8753_init_fail;
 		}
-		clk_enable(audio_data->dap_mclk);
+
+		ret = tegra_das_enable_mclk();
+		if (ret) {
+			pr_err(" Failed to enable dap mclk \n");
+			ret = -ENODEV;
+			goto wm8753_init_fail;
+		}
 
 		/* Add tegra specific widgets */
 		snd_soc_dapm_new_controls(codec, tegra_dapm_widgets,
@@ -608,7 +608,7 @@ static int tegra_codec_init(struct snd_soc_codec *codec)
 		ret = tegra_jack_init(codec);
 		if (ret < 0) {
 			pr_err("Failed in jack init \n");
-			return ret;
+			goto wm8753_init_fail;
 		}
 
 		/* Default to OFF */
@@ -617,14 +617,15 @@ static int tegra_codec_init(struct snd_soc_codec *codec)
 		ret = tegra_controls_init(codec);
 		if (ret < 0) {
 			pr_err("Failed in controls init \n");
-			return ret;
+			goto wm8753_init_fail;
 		}
 
 		if (!wm8753_jack) {
 			wm8753_jack = kzalloc(sizeof(*wm8753_jack), GFP_KERNEL);
 			if (!wm8753_jack) {
 				pr_err("failed to allocate wm8753-jack\n");
-				return -ENOMEM;
+				ret = -ENOMEM;
+				goto wm8753_init_fail;
 			}
 
 			wm8753_jack->gpio = TEGRA_GPIO_PW3;
@@ -691,6 +692,10 @@ gpio_failed:
 	gpio_free(wm8753_jack->gpio);
 failed:
 	kfree(wm8753_jack);
+
+wm8753_init_fail:
+	tegra_das_disable_mclk();
+	tegra_das_close();
 	wm8753_jack = NULL;
 	return ret;
 }

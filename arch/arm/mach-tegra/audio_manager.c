@@ -193,4 +193,10 @@ int tegra_das_set_mclk_rate(int rate)
 }
 EXPORT_SYMBOL_GPL(tegra_das_set_mclk_rate);
 
+int tegra_das_get_mclk_rate(void)
+{
+	return clk_get_rate(aud_manager->mclk);
+}
+EXPORT_SYMBOL_GPL(tegra_das_get_mclk_rate);
+
 MODULE_LICENSE("GPL");

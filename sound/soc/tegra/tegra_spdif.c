@@ -24,11 +24,8 @@
 struct tegra_spdif_info {
 	struct platform_device *pdev;
 	struct tegra_audio_platform_data *pdata;
-	struct clk *spdif_clk;
 	unsigned long spdif_phys;
 	unsigned long spdif_base;
-
-	int irq;
 };
 
 void free_spdif_dma_request(struct snd_pcm_substream *substream)
@@ -128,7 +125,6 @@ static int tegra_spdif_hw_params(struct snd_pcm_substream *substream,
 {
 	struct tegra_spdif_info *info = dai->private_data;
 	int val;
-	unsigned int rate, sample_size;
 	int fifo_mode = AUDIO_RX_MODE;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
@@ -137,15 +133,12 @@ static int tegra_spdif_hw_params(struct snd_pcm_substream *substream,
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		val = SPDIF_BIT_MODE_MODE16BIT;
-		sample_size = 16;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
 		val = SPDIF_BIT_MODE_MODE24BIT;
-		sample_size = 16;
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		val = SPDIF_BIT_MODE_MODERAW;
-		sample_size = 32;
 		break;
 	default:
 		return -EINVAL;
@@ -338,14 +331,6 @@ static int tegra_spdif_driver_probe(struct platform_device *pdev)
 		err = -ENOMEM;
 		goto fail_release_mem;
 	}
-
-	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (!res) {
-		dev_err(&pdev->dev, "no irq resource!\n");
-		err = -ENODEV;
-		goto fail_unmap_mem;
-	}
-	info->irq = res->start;
 
 	sp_prop.clk_rate = info->pdata->dev_clk_rate;
 

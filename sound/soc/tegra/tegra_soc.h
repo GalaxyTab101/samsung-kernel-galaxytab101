@@ -71,9 +71,7 @@
 #define I2S2_CLK 		2000000
 #define TEGRA_DEFAULT_SR	44100
 
-#define TEGRA_SAMPLE_RATES \
-	(SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_44100 | \
-	SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_88200 | SNDRV_PCM_RATE_96000)
+#define TEGRA_SAMPLE_RATES (SNDRV_PCM_RATE_8000_96000)
 #define TEGRA_VOICE_SAMPLE_RATES SNDRV_PCM_RATE_8000
 
 #define DMA_STEP_SIZE_MIN 8
@@ -95,12 +93,11 @@ struct tegra_runtime_data {
 	struct snd_pcm_substream *substream;
 	int size;
 	int dma_pos;
-	struct tegra_dma_req dma_req[DMA_REQ_QCOUNT];
-	int dma_reqid_head;
-	int dma_reqid_tail;
-	volatile int state;
+	int dma_tail_idx;
+	int dma_head_idx;
 	int period_index;
 	int dma_state;
+	struct tegra_dma_req dma_req[DMA_REQ_QCOUNT];
 	struct tegra_dma_channel *dma_chan;
 };
 
@@ -116,39 +113,26 @@ struct tegra_audio_data {
 	int codec_con;
 };
 
-struct wired_jack_conf {
-	int hp_det_n;
-	int en_mic_int;
-	int en_mic_ext;
-	int cdc_irq;
-	int en_spkr;
-	const char *spkr_amp_reg;
-	struct regulator *amp_reg;
-	int amp_reg_enabled;
-};
-
 void tegra_ext_control(struct snd_soc_codec *codec, int new_con);
 int tegra_controls_init(struct snd_soc_codec *codec);
 
 int tegra_jack_init(struct snd_soc_codec *codec);
 void tegra_jack_exit(void);
 void tegra_jack_resume(void);
-void free_i2s_dma_request(struct snd_pcm_substream *substream);
-void set_i2s_fifo_attention(struct snd_pcm_substream *substream,
-			int buffersize);
-void free_spdif_dma_request(struct snd_pcm_substream *substream);
-void set_spdif_fifo_attention(struct snd_pcm_substream *substream,
-			int buffersize);
-
 void tegra_switch_set_state(int state);
 
 void setup_i2s_dma_request(struct snd_pcm_substream *substream,
 			struct tegra_dma_req *req,
 			void (*dma_callback)(struct tegra_dma_req *req),
 			void *dma_data);
+void free_i2s_dma_request(struct snd_pcm_substream *substream);
+void set_i2s_fifo_attention(struct snd_pcm_substream *substream,
+			int buffersize);
 void setup_spdif_dma_request(struct snd_pcm_substream *substream,
 			struct tegra_dma_req *req,
 			void (*dma_callback)(struct tegra_dma_req *req),
 			void *dma_data);
-
+void free_spdif_dma_request(struct snd_pcm_substream *substream);
+void set_spdif_fifo_attention(struct snd_pcm_substream *substream,
+			int buffersize);
 #endif

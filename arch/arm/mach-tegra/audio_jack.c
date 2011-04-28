@@ -26,7 +26,7 @@
 
 #include "gpio-names.h"
 
-extern struct tegra_wired_jack_conf audio_wr_jack_conf;
+extern struct wired_jack_conf audio_wr_jack_conf;
 
 static struct platform_device audio_hs_jack_device = {
 	.name = "tegra_wired_jack",

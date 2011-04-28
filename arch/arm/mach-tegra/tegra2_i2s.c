@@ -72,8 +72,8 @@ struct i2s_clk_info {
 };
 
 static struct i2s_clk_info i2sclk_info[NR_I2S_IFC] = {
-	{"i2s0"},
 	{"i2s1"},
+	{"i2s2"},
 };
 
 static struct i2s_controller_info i2s_cont_info[NR_I2S_IFC];
