@@ -440,7 +440,7 @@ static struct tegra_das_platform_data tegra_das_pdata = {
 				.bits_per_sample = 16,
 				.rate = 44100,
 				.dac_dap_data_comm_format =
-						dac_dap_data_format_all,
+						dac_dap_data_format_i2s,
 			},
 		},
 		[1] = {
