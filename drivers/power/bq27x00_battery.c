@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2008 Rodolfo Giometti <giometti@linux.it>
  * Copyright (C) 2008 Eurotech S.p.A. <info@eurotech.it>
+ * Copyright (C) 2011 NVIDIA Corporation.
  *
  * Based on a previous work by Copyright (C) 2008 Texas Instruments, Inc.
  *
@@ -26,6 +27,8 @@
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <asm/unaligned.h>
+#include <linux/interrupt.h>
+#include <mach/gpio.h>
 
 #define DRIVER_VERSION			"1.1.0"
 
@@ -55,6 +58,8 @@
 #define BQ27510_CNTL_SET_SLEEP		0x0013
 #define BQ27510_CNTL_CLEAR_SLEEP	0x0014
 
+/* Define battery poll period to 30ms */
+#define BATTERY_POLL_PERIOD		30000
 
 /* If the system has several batteries we need a different name for each
  * of them...
@@ -71,12 +76,15 @@ struct bq27x00_access_methods {
 enum bq27x00_chip { BQ27000, BQ27500, BQ27510 };
 
 struct bq27x00_device_info {
-	struct device 		*dev;
+	struct device		*dev;
 	int			id;
 	struct bq27x00_access_methods	*bus;
 	struct power_supply	bat;
+	struct power_supply	ac;
+	struct timer_list	battery_poll_timer;
 	enum bq27x00_chip	chip;
-
+	int			irq;
+	bool			battery_present;
 	struct i2c_client	*client;
 };
 
@@ -342,7 +350,7 @@ static int bq27510_battery_cycle_count(struct bq27x00_device_info *di,
 	}
 }
 
-#define to_bq27x00_device_info(x) container_of((x), \
+#define bat_to_bq27x00_device_info(x) container_of((x), \
 				struct bq27x00_device_info, bat);
 
 static int bq27x00_battery_get_property(struct power_supply *psy,
@@ -350,7 +358,7 @@ static int bq27x00_battery_get_property(struct power_supply *psy,
 					union power_supply_propval *val)
 {
 	int ret = 0;
-	struct bq27x00_device_info *di = to_bq27x00_device_info(psy);
+	struct bq27x00_device_info *di = bat_to_bq27x00_device_info(psy);
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
@@ -406,13 +414,52 @@ static int bq27x00_battery_get_property(struct power_supply *psy,
 	return ret;
 }
 
+#define ac_to_bq27x00_device_info(x) container_of((x), \
+				struct bq27x00_device_info, ac);
+
+static enum power_supply_property bq27x00_ac_props[] = {
+	POWER_SUPPLY_PROP_ONLINE,
+};
+
+static char *ac_power_supplied_to[] = {
+	"bq27x00-bat",
+};
+
+static int bq27x00_ac_get_property(struct power_supply *psy,
+	enum power_supply_property psp,
+	union power_supply_propval *val)
+{
+	struct bq27x00_device_info *di = ac_to_bq27x00_device_info(psy);
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		val->intval = gpio_get_value(di->irq);
+		break;
+	default:
+		dev_err(&di->client->dev,
+			"%s: INVALID property\n", __func__);
+		return -EINVAL;
+	}
+	return 0;
+}
+
 static void bq27x00_powersupply_init(struct bq27x00_device_info *di)
 {
-	di->bat.type = POWER_SUPPLY_TYPE_BATTERY;
-	di->bat.properties = bq27x00_battery_props;
-	di->bat.num_properties = ARRAY_SIZE(bq27x00_battery_props);
-	di->bat.get_property = bq27x00_battery_get_property;
-	di->bat.external_power_changed = NULL;
+	if (di->battery_present) {
+		di->bat.name = "bq27x00-bat";
+		di->bat.type = POWER_SUPPLY_TYPE_BATTERY;
+		di->bat.properties = bq27x00_battery_props;
+		di->bat.num_properties = ARRAY_SIZE(bq27x00_battery_props);
+		di->bat.get_property = bq27x00_battery_get_property;
+		di->bat.external_power_changed = NULL;
+	}
+
+	di->ac.name = "bq27x00-ac";
+	di->ac.type = POWER_SUPPLY_TYPE_MAINS;
+	di->ac.supplied_to = ac_power_supplied_to;
+	di->ac.num_supplicants = ARRAY_SIZE(ac_power_supplied_to);
+	di->ac.properties = bq27x00_ac_props;
+	di->ac.num_properties = ARRAY_SIZE(bq27x00_ac_props);
+	di->ac.get_property = bq27x00_ac_get_property;
 }
 
 /*
@@ -458,10 +505,24 @@ static int bq27x00_read_i2c(u8 reg, int *rt_value, int b_single,
 	return err;
 }
 
+static irqreturn_t ac_present_irq(int irq, void *data)
+{
+	struct bq27x00_device_info *di = data;
+	power_supply_changed(&di->ac);
+	return IRQ_HANDLED;
+}
+
+static void battery_poll_timer_func(unsigned long pdi)
+{
+	struct bq27x00_device_info *di = (void *)pdi;
+	power_supply_changed(&di->bat);
+	mod_timer(&di->battery_poll_timer,
+		jiffies + msecs_to_jiffies(BATTERY_POLL_PERIOD));
+}
+
 static int bq27x00_battery_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
 {
-	char *name;
 	struct bq27x00_device_info *di;
 	struct bq27x00_access_methods *bus;
 	int num;
@@ -472,24 +533,18 @@ static int bq27x00_battery_probe(struct i2c_client *client,
 	retval = idr_pre_get(&battery_id, GFP_KERNEL);
 	if (retval == 0)
 		return -ENOMEM;
+
 	mutex_lock(&battery_mutex);
 	retval = idr_get_new(&battery_id, client, &num);
 	mutex_unlock(&battery_mutex);
 	if (retval < 0)
 		return retval;
 
-	name = kasprintf(GFP_KERNEL, "%s-%d", id->name, num);
-	if (!name) {
-		dev_err(&client->dev, "failed to allocate device name\n");
-		retval = -ENOMEM;
-		goto batt_failed_1;
-	}
-
 	di = kzalloc(sizeof(*di), GFP_KERNEL);
 	if (!di) {
 		dev_err(&client->dev, "failed to allocate device info data\n");
 		retval = -ENOMEM;
-		goto batt_failed_2;
+		goto batt_failed_1;
 	}
 	di->id = num;
 	di->chip = id->driver_data;
@@ -499,45 +554,75 @@ static int bq27x00_battery_probe(struct i2c_client *client,
 		dev_err(&client->dev, "failed to allocate access method "
 					"data\n");
 		retval = -ENOMEM;
-		goto batt_failed_3;
+		goto batt_failed_2;
 	}
 
+	di->irq = client->irq;
 	i2c_set_clientdata(client, di);
 	di->dev = &client->dev;
-	di->bat.name = name;
 	bus->read = &bq27x00_read_i2c;
 	di->bus = bus;
 	di->client = client;
 
-	bq27x00_powersupply_init(di);
-
 	/* Let's see whether this adapter can support what we need. */
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		dev_err(&client->dev, "insufficient functionality!\n");
-		return -ENODEV;
+		retval = -ENODEV;
+		goto batt_failed_3;
 	}
 
 	read_data = i2c_smbus_read_word_data(di->client, BQ27x00_REG_FLAGS);
 
 	if (!(read_data & BQ27500_FLAG_BAT_DET))
 		dev_err(&client->dev, "no battery present\n");
+	else
+		di->battery_present = true;
 
-	retval = power_supply_register(&client->dev, &di->bat);
+	bq27x00_powersupply_init(di);
+
+	if (di->battery_present) {
+		retval = power_supply_register(&client->dev, &di->bat);
+		if (retval) {
+			dev_err(&client->dev, "failed to register battery\n");
+			goto batt_failed_3;
+		}
+
+		setup_timer(&di->battery_poll_timer,
+			battery_poll_timer_func, (unsigned long) di);
+		mod_timer(&di->battery_poll_timer,
+			jiffies + msecs_to_jiffies(BATTERY_POLL_PERIOD));
+	}
+
+	retval = power_supply_register(&client->dev, &di->ac);
 	if (retval) {
-		dev_err(&client->dev, "failed to register battery\n");
+		dev_err(&client->dev, "failed to register ac power supply\n");
 		goto batt_failed_4;
 	}
 
-	dev_info(&client->dev, "support ver. %s enabled\n", DRIVER_VERSION);
+	retval = request_threaded_irq(di->irq, NULL,
+		ac_present_irq,
+		IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
+		"ac_present", di);
+	if (retval < 0) {
+		dev_err(&di->client->dev,
+			"%s: request_irq failed(%d)\n", __func__, retval);
+		goto batt_failed_5;
+	}
 
+	dev_info(&client->dev, "support ver. %s enabled\n", DRIVER_VERSION);
 	return 0;
 
+batt_failed_5:
+	power_supply_unregister(&di->ac);
 batt_failed_4:
-	kfree(bus);
+	if (di->battery_present) {
+		power_supply_unregister(&di->bat);
+		del_timer_sync(&di->battery_poll_timer);
+	}
 batt_failed_3:
-	kfree(di);
+	kfree(bus);
 batt_failed_2:
-	kfree(name);
+	kfree(di);
 batt_failed_1:
 	mutex_lock(&battery_mutex);
 	idr_remove(&battery_id, num);
@@ -550,14 +635,19 @@ static int bq27x00_battery_remove(struct i2c_client *client)
 {
 	struct bq27x00_device_info *di = i2c_get_clientdata(client);
 
-	power_supply_unregister(&di->bat);
+	free_irq(di->irq, di);
+	power_supply_unregister(&di->ac);
 
-	kfree(di->bat.name);
+	if (di->battery_present) {
+		power_supply_unregister(&di->bat);
+		del_timer_sync(&di->battery_poll_timer);
+	}
 
 	mutex_lock(&battery_mutex);
 	idr_remove(&battery_id, di->id);
 	mutex_unlock(&battery_mutex);
 
+	kfree(di->bus);
 	kfree(di);
 
 	return 0;
@@ -572,6 +662,11 @@ static int bq27x00_battery_suspend(struct i2c_client *client,
 
 	bq27500_device = i2c_get_clientdata(client);
 
+	if (!bq27500_device->battery_present)
+		return 0;
+
+	del_timer_sync(&bq27500_device->battery_poll_timer);
+
 	if (bq27500_device->chip == BQ27510) {
 		ret = i2c_smbus_write_word_data(bq27500_device->client,
 			BQ27510_CNTL, BQ27510_CNTL_SET_SLEEP);
@@ -581,7 +676,7 @@ static int bq27x00_battery_suspend(struct i2c_client *client,
 			return ret;
 		}
 		ret = i2c_smbus_write_word_data(bq27500_device->client,
-				BQ27510_CNTL, 0x01);
+				BQ27510_CNTL, BQ27510_CNTL_DEVICE_TYPE);
 		if (ret  < 0) {
 			dev_err(&bq27500_device->client->dev,
 				"write failure\n");
@@ -598,6 +693,9 @@ static int bq27x00_battery_resume(struct i2c_client *client)
 
 	bq27500_device = i2c_get_clientdata(client);
 
+	if (!bq27500_device->battery_present)
+		return 0;
+
 	if (bq27500_device->chip == BQ27510) {
 		ret = i2c_smbus_write_word_data(bq27500_device->client,
 				BQ27510_CNTL, BQ27510_CNTL_CLEAR_SLEEP);
@@ -607,13 +705,19 @@ static int bq27x00_battery_resume(struct i2c_client *client)
 			return ret;
 		}
 		ret = i2c_smbus_write_word_data(bq27500_device->client,
-				BQ27510_CNTL, 0x01);
+				BQ27510_CNTL, BQ27510_CNTL_DEVICE_TYPE);
 		if (ret  < 0) {
 			dev_err(&bq27500_device->client->dev,
 				"write failure\n");
 			return ret;
 		}
 	}
+
+	setup_timer(&bq27500_device->battery_poll_timer,
+		battery_poll_timer_func, (unsigned long) bq27500_device);
+	mod_timer(&bq27500_device->battery_poll_timer,
+		jiffies + msecs_to_jiffies(BATTERY_POLL_PERIOD));
+
 	return 0;
 }
 #endif
