@@ -613,10 +613,9 @@ static struct snd_soc_dai_link tegra_soc_dai[] = {
 		&tegra_i2s_dai[1], &tegra_generic_codec_dai[1],
 		&tegra_voice_ops),
 #else
-/* FIXME: enabled once these device are enumerated
 	TEGRA_CREATE_SOC_DAI_LINK("Tegra-generic-0", "Tegra BB Voice",
-		&tegra_i2s_dai[2], &tegra_generic_codec_dai[0],
-		&tegra_voice_ops), */
+		&tegra_i2s_dai[1], &tegra_generic_codec_dai[1],
+		&tegra_voice_ops),
 	TEGRA_CREATE_SOC_DAI_LINK("Tegra-generic-1", "Tegra BT Voice",
 		&tegra_i2s_dai[2], &tegra_generic_codec_dai[2],
 		&tegra_voice_ops),

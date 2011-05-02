@@ -222,9 +222,6 @@ static __initdata struct tegra_clk_init_table cardhu_clk_init_table[] = {
 	{ "blink",	"clk_32k",	32768,		true},
 	{ "pll_a",	NULL,		56448000,	false},
 	{ "pll_a_out0",	NULL,		11289600,	false},
-	{ "i2s1",	"pll_a_out0",	11289600,	false},
-	{ "i2s2",	"pll_a_out0",	11289600,	false},
-	{ "i2s3",	"pll_a_out0",	11289600,	false},
 	{ "d_audio","pll_a_out0",	11289600,	false},
 	{ NULL,		NULL,		0,		0},
 };
@@ -309,7 +306,6 @@ static struct tegra_audio_platform_data tegra_i2s_pdata[] = {
 		.dma_on		= true,  /* use dma by default */
 		.i2s_master_clk = 44100,
 		.dev_clk_rate	= 11289600,
-		.dap_clk	= "extern1",
 		.mode		= AUDIO_FRAME_FORMAT_I2S,
 		.fifo_fmt	= AUDIO_FIFO_PACK_16,
 		.bit_size	= AUDIO_BIT_SIZE_16,
@@ -317,6 +313,17 @@ static struct tegra_audio_platform_data tegra_i2s_pdata[] = {
 		.dsp_bus_width	= 16,
 	},
 	[1] = {
+		.i2s_master	= true,
+		.dma_on		= true,  /* use dma by default */
+		.i2s_master_clk = 8000,
+		.dev_clk_rate	= 1024000,
+		.mode		= AUDIO_FRAME_FORMAT_DSP,
+		.fifo_fmt	= AUDIO_FIFO_NOP,
+		.bit_size	= AUDIO_BIT_SIZE_16,
+		.i2s_bus_width	= 32,
+		.dsp_bus_width	= 16,
+	},
+	[2] = {
 		.i2s_master	= true,
 		.dma_on		= true,  /* use dma by default */
 		.i2s_master_clk = 8000,
@@ -342,6 +349,25 @@ struct wired_jack_conf audio_wr_jack_conf = {
 	.en_mic_int = TEGRA_GPIO_PX0,
 	.spkr_amp_reg = "avdd_amp"
 };
+
+static void cardhu_audio_init(void)
+{
+#if defined(CONFIG_SND_HDA_TEGRA)
+	platform_device_register(&tegra_hda_device);
+#endif
+
+	tegra_i2s_device1.dev.platform_data = &tegra_i2s_pdata[0];
+	platform_device_register(&tegra_i2s_device1);
+
+	tegra_i2s_device2.dev.platform_data = &tegra_i2s_pdata[1];
+	platform_device_register(&tegra_i2s_device2);
+
+	tegra_i2s_device3.dev.platform_data = &tegra_i2s_pdata[2];
+	platform_device_register(&tegra_i2s_device3);
+
+	tegra_spdif_device.dev.platform_data = &tegra_spdif_pdata;
+	platform_device_register(&tegra_spdif_device);
+}
 
 static void cardhu_i2c_init(void)
 {
@@ -401,16 +427,10 @@ static struct platform_device *cardhu_devices[] __initdata = {
 	&tegra_udc_device,
 	&androidusb_device,
 	&tegra_usb_fsg_device,
-#if defined(CONFIG_SND_HDA_TEGRA)
-	&tegra_hda_device,
-#endif
 #if defined(CONFIG_TEGRA_IOVMM_SMMU)
 	&tegra_smmu_device,
 #endif
 	&tegra_wdt_device,
-	&tegra_i2s_device1,
-	&tegra_i2s_device3,
-	&tegra_spdif_device,
 	&tegra_avp_device,
 	&tegra_camera,
 	&tegra_spi_device4,
@@ -569,10 +589,8 @@ static void __init tegra_cardhu_init(void)
 	cardhu_usb_init();
 	snprintf(serial, sizeof(serial), "%llx", tegra_chip_uid());
 	andusb_plat.serial_number = kstrdup(serial, GFP_KERNEL);
-	tegra_i2s_device1.dev.platform_data = &tegra_i2s_pdata[0];
-	tegra_i2s_device3.dev.platform_data = &tegra_i2s_pdata[1];
-	tegra_spdif_device.dev.platform_data = &tegra_spdif_pdata;
 	platform_add_devices(cardhu_devices, ARRAY_SIZE(cardhu_devices));
+	cardhu_audio_init();
 	cardhu_sdhci_init();
 	cardhu_regulator_init();
 	cardhu_gpio_switch_regulator_init();

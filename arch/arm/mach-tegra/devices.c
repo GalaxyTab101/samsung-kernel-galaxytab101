@@ -675,18 +675,21 @@ static struct resource audio_resource[] = {
 };
 
 struct platform_device tegra_i2s_device1 = {
-	.name		= "audio",
+	.name		= "i2s",
 	.id		= 1,
 	.resource	= audio_resource,
 	.num_resources	= ARRAY_SIZE(audio_resource),
 };
 
-struct platform_device tegra_i2s_device3 = {
-	.name		= "audio",
-	.id		= 3,
+struct platform_device tegra_i2s_device2 = {
+	.name		= "i2s",
+	.id		= 2,
 };
 
-/* FIXME : Temporarly adding - find the right solution */
+struct platform_device tegra_i2s_device3 = {
+	.name		= "i2s",
+	.id		= 3,
+};
 
 static struct resource spdif_resource[] = {
 	[0] = {

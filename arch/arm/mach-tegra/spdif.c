@@ -573,50 +573,6 @@ void spdif_restore_regs(unsigned long base)
 	spdif_writel(base, regs->spdif_usr_sta_rx_a_0, SPDIF_USR_STA_RX_A_0);
 	spdif_writel(base, regs->spdif_usr_dat_tx_a_0, SPDIF_USR_DAT_TX_A_0);
 }
-
-void spdif_get_all_regs(unsigned long base, struct spdif_regs_cache* regs)
-{
-	regs->spdif_ctrl_0 = spdif_readl(base, SPDIF_CTRL_0);
-	regs->spdif_status_0 = spdif_readl(base, SPDIF_STATUS_0);
-	regs->spdif_strobe_ctrl_0 = spdif_readl(base, SPDIF_STROBE_CTRL_0);
-	regs->spdif_data_fifo_scr_0 = spdif_readl(base, SPDIF_DATA_FIFO_CSR_0);
-	regs->spdif_ch_sta_rx_a_0 = spdif_readl(base, SPDIF_CH_STA_RX_A_0);
-	regs->spdif_ch_sta_rx_b_0 = spdif_readl(base, SPDIF_CH_STA_RX_B_0);
-	regs->spdif_ch_sta_rx_c_0 = spdif_readl(base, SPDIF_CH_STA_RX_C_0);
-	regs->spdif_ch_sta_rx_d_0 = spdif_readl(base, SPDIF_CH_STA_RX_D_0);
-	regs->spdif_ch_sta_rx_e_0 = spdif_readl(base, SPDIF_CH_STA_RX_E_0);
-	regs->spdif_ch_sta_rx_f_0 = spdif_readl(base, SPDIF_CH_STA_RX_F_0);
-	regs->spdif_ch_sta_tx_a_0 = spdif_readl(base, SPDIF_CH_STA_TX_A_0);
-	regs->spdif_ch_sta_tx_b_0 = spdif_readl(base, SPDIF_CH_STA_TX_B_0);
-	regs->spdif_ch_sta_tx_c_0 = spdif_readl(base, SPDIF_CH_STA_TX_C_0);
-	regs->spdif_ch_sta_tx_d_0 = spdif_readl(base, SPDIF_CH_STA_TX_D_0);
-	regs->spdif_ch_sta_tx_e_0 = spdif_readl(base, SPDIF_CH_STA_TX_E_0);
-	regs->spdif_ch_sta_tx_f_0 = spdif_readl(base, SPDIF_CH_STA_TX_F_0);
-	regs->spdif_usr_sta_rx_a_0 = spdif_readl(base, SPDIF_USR_STA_RX_A_0);
-	regs->spdif_usr_dat_tx_a_0 = spdif_readl(base, SPDIF_USR_DAT_TX_A_0);
-}
-
-void spdif_set_all_regs(unsigned long base, struct spdif_regs_cache* regs)
-{
-	spdif_writel(base, regs->spdif_ctrl_0, SPDIF_CTRL_0);
-	spdif_writel(base, regs->spdif_status_0, SPDIF_STATUS_0);
-	spdif_writel(base, regs->spdif_strobe_ctrl_0, SPDIF_STROBE_CTRL_0);
-	spdif_writel(base, regs->spdif_data_fifo_scr_0, SPDIF_DATA_FIFO_CSR_0);
-	spdif_writel(base, regs->spdif_ch_sta_rx_a_0, SPDIF_CH_STA_RX_A_0);
-	spdif_writel(base, regs->spdif_ch_sta_rx_b_0, SPDIF_CH_STA_RX_B_0);
-	spdif_writel(base, regs->spdif_ch_sta_rx_c_0, SPDIF_CH_STA_RX_C_0);
-	spdif_writel(base, regs->spdif_ch_sta_rx_d_0, SPDIF_CH_STA_RX_D_0);
-	spdif_writel(base, regs->spdif_ch_sta_rx_e_0, SPDIF_CH_STA_RX_E_0);
-	spdif_writel(base, regs->spdif_ch_sta_rx_f_0, SPDIF_CH_STA_RX_F_0);
-	spdif_writel(base, regs->spdif_ch_sta_tx_a_0, SPDIF_CH_STA_TX_A_0);
-	spdif_writel(base, regs->spdif_ch_sta_tx_b_0, SPDIF_CH_STA_TX_B_0);
-	spdif_writel(base, regs->spdif_ch_sta_tx_c_0, SPDIF_CH_STA_TX_C_0);
-	spdif_writel(base, regs->spdif_ch_sta_tx_d_0, SPDIF_CH_STA_TX_D_0);
-	spdif_writel(base, regs->spdif_ch_sta_tx_e_0, SPDIF_CH_STA_TX_E_0);
-	spdif_writel(base, regs->spdif_ch_sta_tx_f_0, SPDIF_CH_STA_TX_F_0);
-	spdif_writel(base, regs->spdif_usr_sta_rx_a_0, SPDIF_USR_STA_RX_A_0);
-	spdif_writel(base, regs->spdif_usr_dat_tx_a_0, SPDIF_USR_DAT_TX_A_0);
-}
 #else
 
 static int spdif_get_apbif_channel(int fifo_mode)
@@ -729,6 +685,9 @@ int spdif_set_acif(int fifo_mode, struct audio_cif *cifInfo)
 	else
 		audio_switch_set_acif(spinfo->base +
 			 SPDIF_AUDIOCIF_RXDATA_CTRL_0, tx_audio_cif);
+
+	apbif_set_pack_mode(spdif_get_apbif_channel(fifo_mode),
+		fifo_mode, AUDIO_FIFO_PACK_16);
 
 	audio_apbif_set_acif(spdif_get_apbif_channel(fifo_mode),
 		fifo_mode, tx_audio_cif);

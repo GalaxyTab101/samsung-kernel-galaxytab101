@@ -666,6 +666,9 @@ int i2s_init(int ifc,  struct tegra_i2s_property* pi2sprop)
 	if (i2s_open(ifc))
 		return err;
 
+	i2s_clock_rate(ifc, pi2sprop->clk_rate);
+	i2s_clock_set_parent(ifc, 0);
+
 	err = i2s_clock_enable(ifc);
 
 	if (err) {
@@ -726,6 +729,18 @@ int i2s_clock_disable(int ifc)
 			info->clk_refs = 0;
 		}
 	}
+
+	return 0;
+}
+
+int i2s_clock_set_parent(int ifc, int parent)
+{
+	/* Fix set the parent properly */
+	struct clk *pll_a_out0_clk = clk_get_sys(NULL, "pll_a_out0");
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+
+	if (info->i2sprop.i2s_clk)
+		clk_set_parent(info->i2sprop.i2s_clk, pll_a_out0_clk);
 
 	return 0;
 }

@@ -98,6 +98,7 @@ int i2s_set_channels(int ifc, int channels);
 int i2s_clock_disable(int ifc);
 int i2s_clock_enable(int ifc);
 int i2s_close(int ifc);
+int i2s_clock_set_parent(int ifc, int parent);
 int i2s_clock_rate(int ifc, int rate);
 
 #endif /* __ARCH_ARM_MACH_TEGRA_I2S_H */

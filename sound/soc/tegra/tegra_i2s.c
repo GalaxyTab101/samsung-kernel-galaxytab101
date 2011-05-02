@@ -468,11 +468,7 @@ static struct platform_driver tegra_i2s_driver = {
 	.probe = tegra_i2s_driver_probe,
 	.remove = __devexit_p(tegra_i2s_driver_remove),
 	.driver = {
-#if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 		.name = "i2s",
-#else
-		.name = "audio",
-#endif
 		.owner = THIS_MODULE,
 	},
 };
