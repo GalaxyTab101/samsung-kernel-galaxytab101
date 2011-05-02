@@ -32,8 +32,8 @@
 #include "board.h"
 
 
-#define ENTERPRISE_WLAN_PWR	TEGRA_GPIO_PD4
-#define ENTERPRISE_WLAN_RST	TEGRA_GPIO_PD3
+#define ENTERPRISE_WLAN_PWR	TEGRA_GPIO_PV2
+#define ENTERPRISE_WLAN_RST	TEGRA_GPIO_PV3
 #define ENTERPRISE_SD_CD TEGRA_GPIO_PI5
 
 static void (*wifi_status_cb)(int card_present, void *dev_id);
@@ -122,7 +122,7 @@ static struct tegra_sdhci_platform_data tegra_sdhci_platform_data0 = {
 	.slot_rail_name = NULL,
 	.vdd_max_uv = -1,
 	.vdd_min_uv = -1,
-	.max_clk = 48000000,
+	.max_clk = 45000000,
 	.is_8bit_supported = false,
 };
 
