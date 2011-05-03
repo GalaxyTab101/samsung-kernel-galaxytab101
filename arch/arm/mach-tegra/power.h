@@ -23,13 +23,10 @@
 #ifndef __MACH_TEGRA_POWER_H
 #define __MACH_TEGRA_POWER_H
 
-/* Setting this disable per-CPU LP2 wake on interrupt. This must be set to 1
-   until bug 790458 is fixed after which the code associated with this can
-   be removed. */
-#define WAR_790458	1
-
 #include <mach/iomap.h>
 #include <asm/page.h>
+
+#define SANITY_CHECK_ARM_ERRATA_FIXES	1
 
 #define TEGRA_POWER_PWRREQ_POLARITY	0x1	/* core power request polarity */
 #define TEGRA_POWER_PWRREQ_OE		0x2	/* core power request enable */

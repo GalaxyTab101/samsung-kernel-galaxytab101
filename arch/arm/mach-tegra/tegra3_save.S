@@ -682,67 +682,38 @@ ENTRY(__put_cpu_in_reset)
 	mov32	r7, (TEGRA_FLOW_CTRL_BASE-IO_PPSB_PHYS+IO_PPSB_VIRT)
 
 	/* Clear this CPU's "event" and "interrupt" flags and power gate
-	   it when halting but not before it is in the "WFI" state. */
+	   it when halting but not before it is in the "WFE" state. */
 	mov32	r3, FLOW_CTRL_CSR_INTR_FLAG | FLOW_CTRL_CSR_EVENT_FLAG | FLOW_CTRL_CSR_ENABLE
-	mov	r4, #(1 << 8)
+	mov	r4, #(1 << 4)				@ wfe bitmap
 	orr	r3, r3, r4, lsl r0
 	str	r3, [r7, r2]
 
 	/* Halt this CPU. */
+	mov	r3, #0x400
+delay_1:
+	subs	r3, r3, #1				@ delay as a part of wfe war.
+	bge	delay_1;
+	cpsid	a					@ disable imprecise aborts.
+	ldr	r3, [r7, r2]				@ read CSR
+	str	r3, [r7, r2]				@ clear CSR
 	tst	sp, #TEGRA_POWER_HOTPLUG_SHUTDOWN
 	moveq	r3, #FLOW_CTRL_WAIT_FOR_INTERRUPT	@ For LP2
 	movne	r3, #FLOW_CTRL_WAITEVENT		@ For hotplug
 	str	r3, [r7, r1]
 	ldr	r0, [r7, r1]
-	mov	r3, #3
+	b	wfe_war
 
 __put_cpu_in_reset_again:
 	dsb
-	isb
-	wfi				@ CPU should be power gated here
-	subs	r3, r3, #1
-	bge	__put_cpu_in_reset_again
+	.align 5
+	wfe						@ CPU should be power gated here
+wfe_war:
+	b	__put_cpu_in_reset_again
 
-	/* Halt failed to take effect and all retries have been exausted.
-	   Clear the flow controller halt status.
-	   If trying to go to LP2 state, just jump to the reset handler and
-	   restart the CPU as if it has been woken up. If trying to offline
-	   this CPU, just assert our own reset. The requester will have to
-	   clean up the mess (disable clock, power gate, etc.). */
-	mov	r3, #0
-	str	r3, [r7, r2]
-	str	r3, [r7, r1]
-	ldr	r3, [r7, r1]
-	tst	sp, #TEGRA_POWER_HOTPLUG_SHUTDOWN
-	bne	__assert_reset
-
-	/* Pretend the CPU was reset upon return from __shut_off_mmu. */
-	mov32	r9, (TEGRA_EXCEPTION_VECTORS_BASE-IO_PPSB_PHYS+IO_PPSB_VIRT)
-	ldr	r9, [r9]		@ reset failure handler is instruction
-	sub	r9, r9, #4		@ before the normal reset handler
-
-	/* Change page table pointer to tegra_pgd_phys so that SDRAM is
-	 * mapped virtual == physical. */
-	adrl	r3, __tear_down_master_data
-	ldr	r3, [r3]		@ &tegra_pgd_phys
-	ldr	r3, [r3]
-	orr	r3, r3, #TTB_FLAGS
-	mov	r2, #0
-	mcr	p15, 0, r2, c13, c0, 1	@ reserved context
-	isb
-	mcr	p15, 0, r3, c2, c0, 0	@ TTB 0
-	isb
-	mov32	r1, __shut_off_mmu
-	bx	r1
-
-__assert_reset:
-	movw	r1, 0x1111
-	mov	r1, r1, lsl r0
-	mov32	r7, (TEGRA_CLK_RESET_BASE-IO_PPSB_PHYS+IO_PPSB_VIRT)
-	str	r1, [r7, #0x340]	@ put CPU in reset
-	dsb
-	isb
-	b	.
+	/* 38 nop's, which fills reset of wfe cache line and 4 more cachelines with nop*/
+	.rept 38
+	nop
+	.endr
 
 ENDPROC(__put_cpu_in_reset)
 

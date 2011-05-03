@@ -61,6 +61,9 @@
  */
 	.align L1_CACHE_SHIFT
 __restart_plls:
+	cpu_id	r0
+	cmp	r0, #0
+	bne	__cortex_a9_restore
 	mov32	r0, tegra_sctx
 	mov32	r3, (TEGRA_CLK_RESET_BASE-IO_PPSB_PHYS+IO_PPSB_VIRT)
 	mov32	r4, (TEGRA_TMRUS_BASE-IO_PPSB_PHYS+IO_PPSB_VIRT)
@@ -111,6 +114,37 @@ ENTRY(tegra_lp2_startup)
 	bl	__invalidate_cpu_state
 	bl	__enable_coresite_access
 
+#if SANITY_CHECK_ARM_ERRATA_FIXES
+	mrc	p15, 0, r0, c0, c0, 0		@ read main ID register
+	and	r2, r0, #0x00f00000		@ variant
+	and	r4, r0, #0x0000000f		@ revision
+	orr	r4, r4, r2, lsr #20-4		@ combine variant and revision
+	mrc	p15, 0, r9, c15, c0, 1	@ read diagnostic register
+#ifdef CONFIG_ARM_ERRATA_743622
+	teq	r4, #0x20			@ present in r2p0
+	teqne	r4, #0x21			@ present in r2p1
+	teqne	r4, #0x22			@ present in r2p2
+	teqne	r4, #0x27			@ present in r2p7
+	teqne	r4, #0x29			@ present in r2p9
+	tsteq	r9, #(1 << 6)
+lh4:	beq	lh4
+#endif
+#ifdef CONFIG_ARM_ERRATA_751472
+	cmp	r5, #0x30			@ present prior to r3p0
+	bge	end1
+	tst	r9, #(1 << 11)
+lh5:	beq	lh5
+end1:
+#endif
+#ifdef CONFIG_ARM_ERRATA_752520
+	cmp	r4, #0x29			@ present prior to r2p9
+	bge	end2
+	tst	r9, #(1 << 20)
+lh6:	beq	lh6
+end2:
+#endif
+#endif
+
 #if	DEBUG_LP2_STARTUP
 	b	.
 #endif
@@ -118,7 +152,7 @@ ENTRY(tegra_lp2_startup)
 	cpu_id	r0
 	subs	r0, r0, #1
 	movmi	r2, #FLOW_CTLR_CPU_CSR		@ CPU0 CSR
-	movpl 	r2, r0, lsl #8
+	movpl 	r2, r0, lsl #3
 	addpl	r2, r2, #FLOW_CTLR_CPU1_CSR	@ CPUn CSR, n == 1,2,3
 	mov32	r4, TEGRA_FLOW_CTRL_BASE
 	ldr	r1, [r4, +r2]
@@ -127,15 +161,26 @@ ENTRY(tegra_lp2_startup)
 	bic	r1, r1, r0
 	str	r1, [r4, +r2]
 
+	dsb
 	mrc	p15, 0, r0, c1, c0, 1
 	orr	r0, r0, #(1 << 6) | (1 << 0)	@ re-enable coherency
 	mcr	p15, 0, r0, c1, c0, 1
+	dsb
+
+	/* Set power state to normal in scu power status register. */
+	cpu_id	r0
+	mov32	r1, (TEGRA_ARM_PERIF_BASE+0x8)
+	ldrb	r4, [r1, r0]
+	bic	r4, r4, #3
+	strb	r4, [r1, r0]
+	dsb
 
 	/* enable SCU */
 	mov32	r0, TEGRA_ARM_PERIF_BASE
 	ldr	r1, [r0]
 	orr	r1, r1, #1
 	str	r1, [r0]
+	dsb
 
 	adr	r4, __tegra_lp2_data
 	ldmia	r4, {r5, r7, r12}
@@ -190,6 +235,15 @@ ENTRY(tegra_hotplug_startup)
 	mrc	p15, 0, r0, c1, c0, 1
 	orr	r0, r0, #(1 << 6) | (1 << 0)	@ re-enable coherency
 	mcr	p15, 0, r0, c1, c0, 1
+	dsb
+
+	/* Set power state to normal in scu power status register. */
+	cpu_id	r0
+	mov32	r1, (TEGRA_ARM_PERIF_BASE+0x8)
+	ldrb	r4, [r1, r0]
+	bic	r4, r4, #3
+	strb	r4, [r1, r0]
+	dsb
 
 	adr	r4, __tegra_hotplug_data
 	ldmia	r4, {r5, r7, r12}

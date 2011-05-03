@@ -51,6 +51,7 @@
 #include "reset.h"
 #include "clock.h"
 #include "dvfs.h"
+#include "fuse.h"
 
 #ifdef CONFIG_SMP
 static s64 tegra_cpu_wake_by_time[4] = {LLONG_MAX, LLONG_MAX, LLONG_MAX, LLONG_MAX};
@@ -113,13 +114,17 @@ bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 	if (!tegra_all_cpus_booted)
 		return false;
 
-#if WAR_790458
-	/* Per-CPU wake from LP2 is not supported because under the current
-	   allocation policy, there are not enough timers to allocate one
-	   per CPU for wakeup. */
-	if (num_online_cpus() > 1)
+	/* On A01, lp2 on slave cpu's cause cpu hang randomly.
+	 * Refer to Bug 804085.
+	 */
+	if ( (tegra_get_revision() == TEGRA_REVISION_A01) &&
+		num_online_cpus() > 1)
 		return false;
-#endif
+	/* FIXME: all cpu's entering lp2 is not working.
+	 * don't let cpu0 enter lp2 when any of slave  cpu is alive.
+	 */
+	if ( (dev->cpu == 0) && (num_online_cpus() > 1) )
+		return false;
 
 	if (dev->cpu == 0) {
 		u32 reg = readl(CLK_RST_CONTROLLER_CPU_CMPLX_STATUS);
@@ -254,6 +259,7 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	u32 twd_ctrl;
 	u32 twd_load;
 	s64 request;
+	s64 sleep_time;
 
 	if (need_resched())
 		return;
@@ -266,6 +272,8 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 		tegra_flow_wfi(dev);
 		return;
 	}
+	sleep_time = request - tegra_lp2_exit_latency;
+	tegra_lp2_set_trigger(sleep_time);
 
 	idle_stats.tear_down_count[cpu_number(dev->cpu)]++;
 
@@ -311,6 +319,8 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	writel(smp_processor_id(), EVP_CPU_RSVD_VECTOR);
 	start_critical_timings();
 
+	if (sleep_time)
+		tegra_lp2_set_trigger(0);
 	/*
 	 * TODO: is it worth going back to wfi if no interrupt is pending
 	 * and the requested sleep time has not passed?
