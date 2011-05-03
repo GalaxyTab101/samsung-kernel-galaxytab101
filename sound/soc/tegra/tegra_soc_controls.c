@@ -20,6 +20,8 @@
 
 #include "tegra_soc.h"
 
+int tegra_i2sloopback_func = TEGRA_INT_I2SLOOPBACK_OFF;
+
 static void tegra_audio_route(struct tegra_audio_data* audio_data,
 			      int device_new, int is_call_mode_new)
 {
@@ -260,6 +262,43 @@ struct snd_kcontrol_new tegra_call_mode_control = {
 	.put = tegra_call_mode_put
 };
 
+static int tegra_i2s_loopback_info(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 1;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 1;
+	return 0;
+}
+
+static int tegra_i2s_loopback_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = tegra_i2sloopback_func;
+	return 0;
+}
+
+static int tegra_i2s_loopback_put(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	if (tegra_i2sloopback_func == ucontrol->value.integer.value[0])
+	return 0;
+
+	tegra_i2sloopback_func = ucontrol->value.integer.value[0];
+	return 1;
+}
+
+struct snd_kcontrol_new tegra_i2s_loopback_control = {
+	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE,
+	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+	.name = "I2S loopback",
+	.private_value = 0xffff,
+	.info = tegra_i2s_loopback_info,
+	.get = tegra_i2s_loopback_get,
+	.put = tegra_i2s_loopback_put
+};
+
 int tegra_controls_init(struct snd_soc_codec *codec)
 {
 	struct tegra_audio_data* audio_data = codec->socdev->codec_data;
@@ -280,6 +319,12 @@ int tegra_controls_init(struct snd_soc_codec *codec)
 	/* Add call mode switch control */
 	err = snd_ctl_add(codec->card,
 		snd_ctl_new1(&tegra_call_mode_control, audio_data));
+	if (err < 0)
+		return err;
+
+	/* Add I2S loopback control */
+	err = snd_ctl_add(codec->card,
+		snd_ctl_new1(&tegra_i2s_loopback_control, audio_data));
 	if (err < 0)
 		return err;
 

@@ -32,6 +32,8 @@ struct tegra_i2s_info {
 	struct das_regs_cache das_regs;
 };
 
+extern int tegra_i2sloopback_func;
+
 void free_i2s_dma_request(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -153,6 +155,11 @@ static int tegra_i2s_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 	i2s_set_bit_size(i2s_id, val);
+
+	if (tegra_i2sloopback_func == TEGRA_INT_I2SLOOPBACK_ON)
+		i2s_set_loopback(i2s_id,1);
+	else
+		i2s_set_loopback(i2s_id,0);
 
 	switch (params_rate(params)) {
 	case 8000:
