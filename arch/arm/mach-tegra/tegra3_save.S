@@ -43,11 +43,21 @@
 
 #define EMC_CFG				0xc
 #define EMC_ADR_CFG			0x10
+#define EMC_TIMING_CONTROL		0x28
 #define EMC_REFRESH			0x70
 #define EMC_NOP				0xdc
 #define EMC_SELF_REF			0xe0
+#define EMC_MRW				0xe8
+#define EMC_FBIO_CFG5		0x104
+#define EMC_AUTO_CAL_CONFIG	0x2a4
+#define EMC_AUTO_CAL_INTERVAL	0x2a8
+#define EMC_AUTO_CAL_STATUS	0x2ac
 #define EMC_REQ_CTRL			0x2b0
 #define EMC_EMC_STATUS			0x2b4
+#define EMC_ZCAL_INTERVAL		0x2e0
+#define EMC_ZQ_CAL				0x2ec
+#define EMC_XM2VTTGENPADCTRL	0x310
+#define EMC_XM2VTTGENPADCTRL2	0x314
 
 #define PMC_CTRL			0x0
 #define PMC_CTRL_BFI_SHIFT		8
@@ -63,6 +73,9 @@
 #define PMC_PLLP_WB0_OVERRIDE		0xf8
 #define PMC_SCRATCH38			0x134
 #define PMC_SCRATCH41			0x140
+
+#define PMC_IO_DPD_REQ			0x1b8
+#define PMC_IO_DPD_STATUS		0x1bc
 
 #define CLK_RESET_CCLK_BURST		0x20
 #define CLK_RESET_CCLK_DIVIDER		0x24
@@ -114,6 +127,27 @@
 	tst	\rd, #(0x3<<24)
 	moveq	\rd, #(0x1<<8)		@ just 1 device
 	movne	\rd, #(0x3<<8)		@ 2 devices
+.endm
+
+.macro emc_timing_update, rd, base
+	mov	\rd, #1
+	str	\rd, [\base, #EMC_TIMING_CONTROL]
+1001:
+	ldr	\rd, [\base, #EMC_EMC_STATUS]
+	tst	\rd, #(0x1<<23)		@ wait until EMC_STATUS_TIMING_UPDATE_STALLED is clear
+	bne	1001b
+.endm
+
+.macro pad_save, base, addr, val, tmp
+1001:
+	ldm	\base, {\addr-\val}
+	cmp	\addr, #0
+	beq	1002f
+	ldr	\tmp, [\addr]
+	str	\tmp, [\base, #4]
+	add	\base, \base, #8
+	b	1001b
+1002:
 .endm
 
 /*
@@ -238,18 +272,6 @@ ENTRY(__tegra_lp1_reset)
 	mov32	r7, TEGRA_TMRUS_BASE
 	ldr	r1, [r7]
 
-	/* since the optimized settings are still in SDRAM, there is
-	 * no need to store them back into the IRAM-local __lp1_pad_area */
-	add	r2, pc, #__lp1_pad_area-(.+8)
-padload:ldmia	r2!, {r3-r4}
-	cmp	r3, #0
-	beq	padload_done
-	str	r4, [r3]
-	b	padload
-padload_done:
-	ldr	r2, [r7]
-	add	r2, r2, #0x4	@ 4uS delay for DRAM pad restoration
-	wait_until r2, r7, r3
 #if USE_PLL_LOCK_BITS
 	pll_locked r1, r0, CLK_RESET_PLLM_BASE
 	pll_locked r1, r0, CLK_RESET_PLLP_BASE
@@ -261,28 +283,54 @@ padload_done:
 	wait_until r1, r7, r3
 #endif
 
+	add	r5, pc, #__lp1_pad_area-(.+8)	@ r5 reserved for pad base
+	ldr	r4, [r5, #0x34]
+
 	str	r4, [r0, #CLK_RESET_SCLK_BURST]
 	mov32	r4, ((1<<28) | (8))	@ burst policy is PLLX
 	str	r4, [r0, #CLK_RESET_CCLK_BURST]
 
 #if defined (CONFIG_CACHE_L2X0)
 	/* power up L2 */
-	mov32	r4, TEGRA_PMC_BASE
-	ldr	r0, [r4, #PMC_PWRGATE_STATUS]
+	ldr	r0, [r2, #PMC_PWRGATE_STATUS]
 	tst	r0, #(1<<PMC_PWRGATE_PARTID_L2C)
 	bne	powerup_l2_done
 	movw	r0, #(1<<8) | PMC_PWRGATE_PARTID_L2C
-	str	r0, [r4, #PMC_PWRGATE_TOGGLE]
+	str	r0, [r2, #PMC_PWRGATE_TOGGLE]
 powerup_l2_wait:
-	ldr	r0, [r4, #PMC_PWRGATE_STATUS]
+	ldr	r0, [r2, #PMC_PWRGATE_STATUS]
 	tst	r0, #(1<<PMC_PWRGATE_PARTID_L2C)
 	beq	powerup_l2_wait
 powerup_l2_done:
 	mov	r0, #PMC_PWRGATE_PARTID_L2C
-	str	r0, [r4, #PMC_REMOVE_CLAMPING_CMD]
+	str	r0, [r2, #PMC_REMOVE_CLAMPING_CMD]
 #endif
 
-	mov32	r0, TEGRA_EMC_BASE
+	mov32	r0, TEGRA_EMC_BASE			@ r0 reserved for emc base
+
+	ldr	r1, [r5, #0x2C]	@ PMC_IO_DPD_STATUS
+	mvn	r1, r1
+	bic	r1, r1, #(0x1<<31)
+	orr	r1, r1, #(0x1<<30)
+	str	r1, [r2, #PMC_IO_DPD_REQ]
+	ldr	r1, [r5, #0x1C]
+	str	r1, [r0, #EMC_XM2VTTGENPADCTRL]
+	ldr	r1, [r5, #0x24]
+	str	r1, [r0, #EMC_XM2VTTGENPADCTRL2]
+	ldr	r1, [r5, #0x14]
+	str	r1, [r0, #EMC_AUTO_CAL_INTERVAL]
+
+	emc_timing_update r1, r0
+
+	ldr	r1, [r0, #EMC_AUTO_CAL_CONFIG]
+	orr	r1, r1, #(0x1<<31)		@ set AUTO_CAL_ACTIVE
+	str	r1, [r0, #EMC_AUTO_CAL_CONFIG]
+
+emc_wait_audo_cal_onetime:
+	ldr	r1, [r0, #EMC_AUTO_CAL_STATUS]
+	tst	r1, #(0x1<<31)		@ wait until AUTO_CAL_ACTIVE is clear
+	bne	emc_wait_audo_cal_onetime
+
 	ldr	r1, [r0, #EMC_CFG]
 	bic	r1, r1, #(1<<31)	@ disable DRAM_CLK_STOP
 	str	r1, [r0, #EMC_CFG]
@@ -301,8 +349,58 @@ exit_selfrefresh_loop:
 	ands	r2, r2, r1
 	bne	exit_selfrefresh_loop
 
+	lsr	r1, r1, #8		@ devSel, bit0:dev0 bit1:dev1
+
+	mov32	r7, TEGRA_TMRUS_BASE
+	ldr	r2, [r0, #EMC_FBIO_CFG5]
+
+	and	r2, r2, #3
+	cmp	r2, #2
+	beq	emc_lpddr2
+
+	mov32	r2, 0x80000011
+	str	r2, [r0, #EMC_ZQ_CAL]
+	ldr	r2, [r7]
+	add	r2, r2, #10
+	wait_until r2, r7, r3
+
+	tst	r1, #2
+	beq zcal_done
+
+	mov32	r2, 0x40000011
+	str	r2, [r0, #EMC_ZQ_CAL]
+	ldr	r2, [r7]
+	add	r2, r2, #10
+	wait_until r2, r7, r3
+	b zcal_done
+
+emc_lpddr2:
+
+	mov32	r2, 0x800A00AB
+	str	r2, [r0, #EMC_MRW]
+	ldr	r2, [r7]
+	add	r2, r2, #1
+	wait_until r2, r7, r3
+
+	tst	r1, #2
+	beq zcal_done
+
+	mov32	r2, 0x400A00AB
+	str	r2, [r0, #EMC_MRW]
+	ldr	r2, [r7]
+	add	r2, r2, #1
+	wait_until r2, r7, r3
+
+zcal_done:
+
 	mov	r1, #0
 	str	r1, [r0, #EMC_REQ_CTRL]
+	ldr	r1, [r5, #0xC]
+	str	r1, [r0, #EMC_ZCAL_INTERVAL]
+	ldr	r1, [r5, #0x4]
+	str	r1, [r0, #EMC_CFG]
+
+	pad_save r5, r0, r1, r2
 
 	mov32	r0, TEGRA_PMC_BASE
 	ldr	r0, [r0, #PMC_SCRATCH41]
@@ -314,41 +412,77 @@ ENDPROC(__tegra_lp1_reset)
  *
  *	  disables MMU, data cache, and puts SDRAM into self-refresh.
  *	  must execute from IRAM.
+ *
+ *	r4 = TEGRA_PMC_BASE
+ *	r5 = TEGRA_CLK_RESET_BASE
+ *	r6 = TEGRA_FLOW_CTRL_BASE
+ *	r7 = TEGRA_TMRUS_BASE
+ *	sp = power mode flags
+ *
  */
 	.align L1_CACHE_SHIFT
 __tear_down_master_sdram:
-	mov32	r1, TEGRA_EMC_BASE
-	mov	r2, #3
-	str	r2, [r1, #EMC_REQ_CTRL]		@ stall incoming DRAM requests
 
-emcidle:ldr	r2, [r1, #EMC_EMC_STATUS]
-	tst	r2, #4
+	add	r8, pc, #__lp1_pad_area-(.+8)	@ r8 reserved for pad offset
+
+	tst	sp, #TEGRA_POWER_EFFECT_LP0
+	bne	padsave_skip
+	pad_save r8, r0, r1, r2
+padsave_skip:
+
+	mov32	r0, TEGRA_EMC_BASE			@ r0 reserved for emc base
+
+	mov	r1, #0
+	str	r1, [r0, #EMC_ZCAL_INTERVAL]
+	str	r1, [r0, #EMC_AUTO_CAL_INTERVAL]
+	ldr	r1, [r0, #EMC_CFG]
+	bic	r1, r1, #(1<<28)
+	str	r1, [r0, #EMC_CFG]		@ disable DYN_SELF_REF
+
+	emc_timing_update r1, r0
+
+	ldr	r1, [r7]
+	add	r1, r1, #5
+	wait_until r1, r7, r2
+
+emc_wait_audo_cal:
+	ldr	r1, [r0, #EMC_AUTO_CAL_STATUS]
+	tst	r1, #(0x1<<31)		@ wait until AUTO_CAL_ACTIVE is clear
+	bne emc_wait_audo_cal
+
+	mov	r1, #3
+	str	r1, [r0, #EMC_REQ_CTRL]		@ stall incoming DRAM requests
+
+emcidle:
+	ldr	r1, [r0, #EMC_EMC_STATUS]
+	tst	r1, #4
 	beq	emcidle
 
-	mov	r2, #1
-	str	r2, [r1, #EMC_SELF_REF]
+	mov	r1, #1
+	str	r1, [r0, #EMC_SELF_REF]
 
-	emc_device_mask r2, r1
+	emc_device_mask r1, r0
 
-emcself:ldr	r3, [r1, #EMC_EMC_STATUS]
-	and	r3, r3, r2
-	cmp	r3, r2
+emcself:
+	ldr	r2, [r0, #EMC_EMC_STATUS]
+	and	r2, r2, r1
+	cmp	r2, r1
 	bne	emcself				@ loop until DDR in self-refresh
 
-	add	r2, pc, #__lp1_pad_area-(.+8)
+	ldr	r1, [r0, #EMC_XM2VTTGENPADCTRL]
+	mov32	r2, 0xF8F8FFFF		@ clear XM2VTTGEN_DRVUP and XM2VTTGEN_DRVDN
+	and	r1, r1, r2
+	str	r1, [r0, #EMC_XM2VTTGENPADCTRL]
+	ldr	r1, [r0, #EMC_XM2VTTGENPADCTRL2]
+	orr	r1, r1, #7			@ set E_NO_VTTGEN
+	str	r1, [r0, #EMC_XM2VTTGENPADCTRL2]
 
-padsave:ldm	r2, {r0-r1}
-	cmp	r0, #0
-	beq	padsave_done
-	ldr	r3, [r0]
-	str	r1, [r0]
-	str	r3, [r2, #4]
-	add	r2, r2, #8
-	b	padsave
-padsave_done:
+	emc_timing_update r1, r0
 
-	ldr	r0, [r5, #CLK_RESET_SCLK_BURST]
-	str	r0, [r2, #4]
+	mov32	r1, 0x8EC00000
+	str	r1, [r4, #PMC_IO_DPD_REQ]
+	ldr	r1, [r5, #CLK_RESET_SCLK_BURST]
+	str	r1, [r8, #0x4]		@ end of pad list + 4
 	dsb
 	b	__tear_down_master_pll_cpu
 ENDPROC(__tear_down_master_sdram)
@@ -356,9 +490,20 @@ ENDPROC(__tear_down_master_sdram)
 	.align	L1_CACHE_SHIFT
 	.type	__lp1_pad_area, %object
 __lp1_pad_area:
-	/* FIXME: Need pad control (address,value) list */
+	.word	TEGRA_EMC_BASE + EMC_CFG
+	.word	0x0		@ 0x4
+	.word	TEGRA_EMC_BASE + EMC_ZCAL_INTERVAL
+	.word	0x0		@ 0xC
+	.word	TEGRA_EMC_BASE + EMC_AUTO_CAL_INTERVAL
+	.word	0x0		@ 0x14
+	.word	TEGRA_EMC_BASE + EMC_XM2VTTGENPADCTRL
+	.word	0x0		@ 0x1C
+	.word	TEGRA_EMC_BASE + EMC_XM2VTTGENPADCTRL2
+	.word	0x0		@ 0x24
+	.word	TEGRA_PMC_BASE + PMC_IO_DPD_STATUS
+	.word	0x0		@ 0x2C
 	.word	0x0	/* end of pad list */
-	.word	0x0	/* sclk_burst_policy */
+	.word	0x0	/* sclk_burst_policy @ 0x34 */
 	.size	__lp1_pad_area, . - __lp1_pad_area
 
 /*
@@ -574,7 +719,7 @@ __put_cpu_in_reset_again:
 
 	/* Change page table pointer to tegra_pgd_phys so that SDRAM is
 	 * mapped virtual == physical. */
-	adr	r3, __tear_down_master_data
+	adrl	r3, __tear_down_master_data
 	ldr	r3, [r3]		@ &tegra_pgd_phys
 	ldr	r3, [r3]
 	orr	r3, r3, #TTB_FLAGS
