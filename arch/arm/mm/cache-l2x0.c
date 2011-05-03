@@ -254,7 +254,7 @@ static void l2x0_flush_range(unsigned long start, unsigned long end)
 void l2x0_shutdown(void)
 {
 	unsigned long flags;
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) && defined(CONFIG_TRUSTED_FOUNDATIONS)
 	long ret;
 	cpumask_t saved_cpu_mask;
 	cpumask_t local_cpu_mask = CPU_MASK_NONE;
@@ -287,7 +287,7 @@ void l2x0_shutdown(void)
 		}
 #else
 #ifdef CONFIG_SMP
-      /* If SMP defined, 
+      /* If SMP defined,
          TF is running on Core #0. So, force execution on Core #0 */
 		cpu_set(0, local_cpu_mask);
 		sched_getaffinity(0, &saved_cpu_mask);
@@ -317,7 +317,7 @@ static void l2x0_enable(__u32 aux_val, __u32 aux_mask)
 	__u32 cache_id;
 	int ways;
 	const char *type;
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) && defined(CONFIG_TRUSTED_FOUNDATIONS)
 	long ret;
 	cpumask_t saved_cpu_mask;
 	cpumask_t local_cpu_mask = CPU_MASK_NONE;
@@ -369,7 +369,7 @@ static void l2x0_enable(__u32 aux_val, __u32 aux_mask)
 
 		/* enable L2X0 */
 		writel_relaxed(1, l2x0_base + L2X0_CTRL);
-      
+
 #else /* CONFIG_TRUSTED_FOUNDATIONS is defined */
 /*
 			ISSUE : Some registers of PL310 controler must be written from Secure context!
@@ -385,7 +385,7 @@ static void l2x0_enable(__u32 aux_val, __u32 aux_mask)
 		/* l2x0 controller is disabled */
 
 #ifdef CONFIG_SMP
-      /* If SMP defined, 
+      /* If SMP defined,
          TF is running on Core #0. So, force execution on Core #0 */
 		cpu_set(0, local_cpu_mask);
 		sched_getaffinity(0, &saved_cpu_mask);

@@ -142,7 +142,7 @@ int boot_secondary(unsigned int cpu, struct task_struct *idle)
 		This code is very sensitive to the register write sequence.
 		DO NOT remove the barrier() calls. */
 
-#if CONFIG_TRUSTED_FOUNDATIONS
+#ifdef CONFIG_TRUSTED_FOUNDATIONS
 #error TrustedLogic change required
 	callGenericSMC(0xFFFFFFFC, 0xFFFFFFE5, boot_vector);
 #else
