@@ -41,9 +41,10 @@
 	mov	\tmp, \rd
 .endm
 
-/* waits until the microsecond counter (base) is >= rn */
+/* waits until the microsecond counter (base) is > rn */
 .macro	wait_until, rn, base, tmp
 1002:	ldr	\tmp, [\base]
+	add	\rn, \rn, #1
 	sub	\tmp, \tmp, \rn
 	ands	\tmp, \tmp, #0x80000000
 	dmb
