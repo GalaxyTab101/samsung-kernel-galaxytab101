@@ -161,6 +161,13 @@ int __init touch_init(void)
 
 	tegra_get_board_info(&BoardInfo);
 
+#if defined(CONFIG_MACH_CARDHU)
+#if defined(CONFIG_TOUCHSCREEN_ATMEL_MT_T9)
+	if (BoardInfo.board_id == BOARD_PM269)
+		BoardInfo.sku = ATMEL_TOUCHSCREEN_SKU;
+#endif
+#endif
+
 	if (VERBOSE_DEBUG >= 1)
 		pr_info("### BoardInfo.sku = %04X\n", BoardInfo.sku);
 
