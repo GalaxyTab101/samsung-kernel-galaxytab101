@@ -32,12 +32,12 @@
 #include "board.h"
 #include "board-cardhu.h"
 
-
 #define CARDHU_WLAN_PWR	TEGRA_GPIO_PD4
 #define CARDHU_WLAN_RST	TEGRA_GPIO_PD3
 #define CARDHU_WLAN_WOW	TEGRA_GPIO_PO4
 #define CARDHU_SD_CD TEGRA_GPIO_PI5
 #define CARDHU_SD_WP TEGRA_GPIO_PT3
+#define PM269_SD_WP TEGRA_GPIO_PZ4
 
 static void (*wifi_status_cb)(int card_present, void *dev_id);
 static void *wifi_status_cb_devid;
@@ -137,7 +137,7 @@ static struct tegra_sdhci_platform_data tegra_sdhci_platform_data2 = {
 	.slot_rail_name = NULL,
 	.vdd_max_uv = -1,
 	.vdd_min_uv = -1,
-	.max_clk = 48000000,
+	.max_clk = 0,
 	.is_8bit_supported = false,
 };
 
@@ -173,54 +173,14 @@ static struct tegra_sdhci_platform_data tegra_sdhci_platform_data3 = {
 	.is_8bit_supported = true,
 };
 
-static struct tegra_sdhci_platform_data tegra_pm269_sdhci_platform_data0 = {
-	.clk_id = NULL,
-	.force_hs = 0,
-	.register_status_notify	= cardhu_wifi_status_register,
-	.cccr   = {
-		.sdio_vsn       = 2,
-		.multi_block    = 1,
-		.low_speed      = 0,
-		.wide_bus       = 0,
-		.high_power     = 1,
-		.high_speed     = 1,
-	},
-	.cis  = {
-		.vendor         = 0x02d0,
-		.device         = 0x4329,
-	},
-	.cd_gpio = -1,
-	.wp_gpio = -1,
-	.power_gpio = -1,
-	.tap_delay = 6,
-	.is_voltage_switch_supported = false,
-	.vdd_rail_name = NULL,
-	.slot_rail_name = NULL,
-	.max_clk = 48000000,
-	.is_8bit_supported = false,
-};
-
-static struct tegra_sdhci_platform_data tegra_pm269_sdhci_platform_data2 = {
-	.clk_id = NULL,
-	.force_hs = 1,
-	.cd_gpio = -1,
-	.wp_gpio = -1,
-	.power_gpio = -1,
-	.tap_delay = 6,
-	.is_voltage_switch_supported = false,
-	.vdd_rail_name = "vddio_sdmmc3",
-	.slot_rail_name = "vddio_sd_slot",
-	.vdd_max_uv = 3300000,
-	.vdd_min_uv = 3300000,
-	.max_clk = 48000000,
-	.is_8bit_supported = false,
-};
-
 static struct platform_device tegra_sdhci_device0 = {
 	.name		= "sdhci-tegra",
 	.id		= 0,
 	.resource	= sdhci_resource0,
 	.num_resources	= ARRAY_SIZE(sdhci_resource0),
+	.dev = {
+		.platform_data = &tegra_sdhci_platform_data0,
+	},
 };
 
 static struct platform_device tegra_sdhci_device2 = {
@@ -228,6 +188,9 @@ static struct platform_device tegra_sdhci_device2 = {
 	.id		= 2,
 	.resource	= sdhci_resource2,
 	.num_resources	= ARRAY_SIZE(sdhci_resource2),
+	.dev = {
+		.platform_data = &tegra_sdhci_platform_data2,
+	},
 };
 
 static struct platform_device tegra_sdhci_device3 = {
@@ -274,6 +237,27 @@ static int cardhu_sd_wp_gpio_init(void)
 	tegra_gpio_enable(CARDHU_SD_WP);
 
 	rc = gpio_direction_input(CARDHU_SD_WP);
+	if (rc) {
+		pr_err("Unable to configure direction for write protect gpio:%d\n", rc);
+		return rc;
+	}
+
+	return 0;
+}
+
+static int pm269_sd_wp_gpio_init(void)
+{
+	unsigned int rc = 0;
+
+	rc = gpio_request(PM269_SD_WP, "write_protect");
+	if (rc) {
+		pr_err("Write protect gpio request failed:%d\n", rc);
+		return rc;
+	}
+
+	tegra_gpio_enable(PM269_SD_WP);
+
+	rc = gpio_direction_input(PM269_SD_WP);
 	if (rc) {
 		pr_err("Unable to configure direction for write protect gpio:%d\n", rc);
 		return rc;
@@ -358,45 +342,35 @@ int __init cardhu_sdhci_init(void)
 	struct board_info board_info;
 	tegra_get_board_info(&board_info);
 	if (board_info.board_id == BOARD_PM269) {
-		tegra_sdhci_device2.dev.platform_data =
-			&tegra_pm269_sdhci_platform_data2;
-		tegra_sdhci_device0.dev.platform_data =
-			&tegra_pm269_sdhci_platform_data0;
-		platform_device_register(&tegra_sdhci_device3);
-
-		/* Fix ME: The gpios have to enabled for hot plug support */
-		rc = cardhu_sd_cd_gpio_init();
+		tegra_sdhci_platform_data2.max_clk = 12000000;
+		rc = pm269_sd_wp_gpio_init();
 		if (!rc) {
-			tegra_pm269_sdhci_platform_data2.cd_gpio =
-							CARDHU_SD_CD;
-			tegra_pm269_sdhci_platform_data2.cd_gpio_polarity = 0;
+			tegra_sdhci_platform_data0.wp_gpio = PM269_SD_WP;
+			tegra_sdhci_platform_data0.wp_gpio_polarity = 1;
 		}
-
-		platform_device_register(&tegra_sdhci_device2);
-
 	} else {
-		tegra_sdhci_device2.dev.platform_data =
-			&tegra_sdhci_platform_data2;
-		tegra_sdhci_device0.dev.platform_data =
-			&tegra_sdhci_platform_data0;
-		platform_device_register(&tegra_sdhci_device3);
-		platform_device_register(&tegra_sdhci_device2);
-
-		/* Fix ME: The gpios have to enabled for hot plug support */
-		rc = cardhu_sd_cd_gpio_init();
-		if (!rc) {
-			tegra_sdhci_platform_data0.cd_gpio = CARDHU_SD_CD;
-			tegra_sdhci_platform_data0.cd_gpio_polarity = 0;
-		}
+		tegra_sdhci_platform_data2.max_clk = 48000000;
 		rc = cardhu_sd_wp_gpio_init();
 		if (!rc) {
 			tegra_sdhci_platform_data0.wp_gpio = CARDHU_SD_WP;
 			tegra_sdhci_platform_data0.wp_gpio_polarity = 1;
 		}
-
-		platform_device_register(&tegra_sdhci_device0);
-
-		cardhu_wifi_init();
 	}
+
+	platform_device_register(&tegra_sdhci_device3);
+	platform_device_register(&tegra_sdhci_device2);
+
+	/* Fix ME: The gpios have to enabled for hot plug support */
+	rc = cardhu_sd_cd_gpio_init();
+	if (!rc) {
+		tegra_sdhci_platform_data0.cd_gpio = CARDHU_SD_CD;
+		tegra_sdhci_platform_data0.cd_gpio_polarity = 0;
+	}
+
+
+
+	platform_device_register(&tegra_sdhci_device0);
+
+	cardhu_wifi_init();
 	return 0;
 }
