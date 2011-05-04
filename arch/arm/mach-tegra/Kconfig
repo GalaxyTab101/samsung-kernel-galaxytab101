@@ -251,3 +251,8 @@ config TEGRA_REG_ACCESS
 	  which allows accessing Tegra Registers from user space.
 	  This is for test purpose only. This should not be enabled
 	  in production builds.
+
+config TEGRA_EMC_TO_DDR_CLOCK
+	int "EMC to DDR clocks ratio"
+	default "2" if ARCH_TEGRA_2x_SOC
+	default "1"
