@@ -254,7 +254,7 @@ static struct tegra_i2c_platform_data aruba_i2c5_platform_data = {
 	.bus_clk_rate	= { 100000, 0 },
 };
 
-static struct tegra_audio_platform_data tegra_audio_pdata[] = {
+static struct tegra_audio_platform_data tegra_i2s_pdata[] = {
 	[0] = {
 		.i2s_master	= true,
 		.dma_on		= true,  /* use dma by default */
@@ -434,7 +434,7 @@ static struct platform_device *aruba_devices[] __initdata = {
 #endif
 	&aruba_keys_device,
 	&tegra_wdt_device,
-	&tegra_audio_device,
+	&tegra_i2s_device1,
 #if defined(CONFIG_SND_HDA_TEGRA)
 	&tegra_hda_device,
 #endif
@@ -547,7 +547,7 @@ static void __init tegra_aruba_init(void)
 
 	snprintf(serial, sizeof(serial), "%llx", tegra_chip_uid());
 	andusb_plat.serial_number = kstrdup(serial, GFP_KERNEL);
-	tegra_audio_device.dev.platform_data = &tegra_audio_pdata[0];
+	tegra_i2s_device1.dev.platform_data = &tegra_i2s_pdata[0];
 	platform_add_devices(aruba_devices, ARRAY_SIZE(aruba_devices));
 
 	aruba_sdhci_init();
