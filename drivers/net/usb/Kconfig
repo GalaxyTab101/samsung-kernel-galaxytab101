@@ -424,4 +424,12 @@ config USB_SIERRA_NET
 	  To compile this driver as a module, choose M here: the
 	  module will be called sierra_net.
 
+config USB_NET_RAW_IP
+	tristate "RAW-IP Driver for XMM6260 modems"
+	help
+	  Choose this option if you have a XMM6260 modem device with RAW-IP suport.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called rmnet.
+
 endmenu
