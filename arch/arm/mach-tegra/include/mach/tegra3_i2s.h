@@ -307,8 +307,8 @@
  * API
  */
 
-void i2s_set_clock_gating(int ifc, int enable);
-void i2s_set_soft_reset(int ifc, int enable);
+int i2s_set_clock_gating(int ifc, int enable);
+int i2s_set_soft_reset(int ifc, int enable);
 
 int  i2s_set_bit_code(int ifc, unsigned bitcode);
 int  i2s_set_data_offset(int ifc, int tx, int dataoffset);

@@ -20,6 +20,7 @@ obj-y                                   += kfuse.o
 ifeq ($(CONFIG_TEGRA_ALSA),y)
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_i2s.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += tegra3_i2s.o
+obj-y                                   += audio_manager.o
 else
 obj-y                                   += tegra_i2s_audio.o
 obj-y                                   += tegra_spdif_audio.o
@@ -29,7 +30,6 @@ obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += dam.o
 obj-y                                   += spdif.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += audio_jack.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra_das.o
-obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += audio_manager.o
 obj-y                                   += mc.o
 obj-$(CONFIG_USB_SUPPORT)               += usb_phy.o
 obj-$(CONFIG_FIQ)                       += fiq.o

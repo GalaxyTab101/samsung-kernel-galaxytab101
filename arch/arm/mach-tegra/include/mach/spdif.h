@@ -509,34 +509,36 @@ struct tegra_spdif_device_context {
 };
 
 /* spdif apis */
-void spdif_fifo_enable(unsigned long base, int mode, int on);
-int spdif_set_bit_mode(unsigned long base, unsigned mode);
-int spdif_set_fifo_packed(unsigned long base, unsigned on);
-int spdif_set_sample_rate(int fifo_mode, unsigned int sample_rate);
-void spdif_fifo_write(unsigned long base, int mode, u32 data);
-int spdif_fifo_set_attention_level(unsigned long base,
-					int mode, unsigned int level);
-void spdif_fifo_clear(unsigned long base, int mode);
-u32 spdif_get_status(unsigned long base, int mode);
-u32 spdif_get_control(unsigned long base);
-void spdif_ack_status(unsigned long base);
-u32 spdif_get_fifo_scr(unsigned long base);
-phys_addr_t spdif_get_fifo_phy_base(phys_addr_t phy_base, int mode);
-u32 spdif_get_fifo_full_empty_count(unsigned long base, int mode);
+int spdif_fifo_enable(int ifc, int mode, int on);
+int spdif_get_dma_requestor(int ifc, int mode);
+int spdif_free_dma_requestor(int ifc, int mode);
+phys_addr_t spdif_get_fifo_phy_base(int ifc, int mode);
+int spdif_set_fifo_attention(int ifc, int fifo_mode, int buffersize);
+int spdif_fifo_clear(int ifc, int mode);
+int spdif_fifo_set_attention_level(int ifc, int mode, unsigned int level);
+int spdif_fifo_write(int ifc, int mode, u32 data);
+u32 spdif_get_status(int ifc, int mode);
+int spdif_clock_enable(int ifc, int mode);
+int spdif_clock_disable(int ifc, int mode);
+int spdif_suspend(int ifc);
+int spdif_resume(int ifc);
+
+int spdif_set_bit_mode(int ifc, unsigned mode);
+int spdif_set_fifo_packed(int ifc, unsigned on);
+int spdif_set_sample_rate(int ifc, int fifo_mode, unsigned int sample_rate);
+
+u32 spdif_get_control(int ifc);
+int spdif_ack_status(int ifc);
+u32 spdif_get_fifo_scr(int ifc);
+
+u32 spdif_get_fifo_full_empty_count(int ifc, int mode);
 int spdif_initialize(unsigned long base, int mode);
 void spdif_get_all_regs(unsigned long base, struct spdif_regs_cache* regs);
 void spdif_set_all_regs(unsigned long base, struct spdif_regs_cache* regs);
 
-int spdif_get_dma_requestor(int mode);
-int spdif_free_dma_requestor(int mode);
-void spdif_set_fifo_attention(int buffersize, int fifo_mode);
-
-int spdif_init(unsigned long base, int mode,
+int spdif_init(unsigned long base, phys_addr_t phy_base, int mode,
 			struct tegra_spdif_property* pspdifprop);
-int spdif_close(void);
-int spdif_clock_enable(int mode);
-int spdif_clock_disable(int mode);
-int spdif_clock_set_parent(int mode, int rate);
-int spdif_suspend(void);
-int spdif_resume(void);
+int spdif_close(int ifc);
+int spdif_clock_set_parent(int ifc, int mode, int parent);
+int spdif_clock_set_rate(int ifc, int mode, int rate);
 #endif /* __ARCH_ARM_MACH_TEGRA_SPDIF_H */

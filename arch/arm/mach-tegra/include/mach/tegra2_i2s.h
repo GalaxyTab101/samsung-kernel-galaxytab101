@@ -293,11 +293,11 @@
 /*
  * API
  */
-void i2s_set_fifo_mode(int ifc, int fifo, int tx);
+int i2s_set_fifo_mode(int ifc, int fifo, int tx);
 int i2s_set_fifo_format(int ifc, unsigned fmt);
 int i2s_set_pcm_edge_mode(int ifc, unsigned edge_mode);
 int i2s_set_pcm_mask_bits(int ifc, unsigned mask_bits, int tx);
-void i2s_set_pcm_fsync_width(int ifc, int fsync_long);
-void i2s_enable_pcm_mode(int ifc, int enable);
-void i2s_enable_fifos(int ifc, int on);
+int i2s_set_pcm_fsync_width(int ifc, int fsync_long);
+int i2s_enable_pcm_mode(int ifc, int enable);
+int i2s_enable_fifos(int ifc, int on);
 #endif /* __ARCH_ARM_MACH_TEGRA_I2S_H */

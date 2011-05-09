@@ -34,6 +34,232 @@
 #include <mach/iomap.h>
 #include <mach/pinmux.h>
 #include <mach/tegra_das.h>
+#include <mach/tegra_i2s.h>
+#include <mach/spdif.h>
+#include <mach/audio_manager.h>
+
+
+static struct am_dev_fns init_am_dev_fns[] = {
+[AUDIO_I2S_DEVICE] = {
+	.aud_dev_suspend = i2s_suspend,
+	.aud_dev_resume = i2s_resume,
+	.aud_dev_set_stream_state = i2s_fifo_enable,
+	.aud_dev_get_dma_requestor = i2s_get_dma_requestor,
+	.aud_dev_free_dma_requestor = i2s_free_dma_requestor,
+	.aud_dev_get_fifo_phy_base = i2s_get_fifo_phy_base,
+	.aud_dev_set_fifo_attention = i2s_set_fifo_attention,
+	.aud_dev_get_status = i2s_get_status,
+	.aud_dev_clock_disable = i2s_clock_disable,
+	.aud_dev_clock_enable = i2s_clock_enable,
+	.aud_dev_clock_set_parent = i2s_clock_set_parent,
+	.aud_dev_clock_set_rate = i2s_clock_set_rate,
+	.aud_dev_deinit = i2s_close,
+	},
+
+[AUDIO_SPDIF_DEVICE] = {
+	.aud_dev_suspend = spdif_suspend,
+	.aud_dev_resume = spdif_resume,
+	.aud_dev_set_stream_state = spdif_fifo_enable,
+	.aud_dev_get_dma_requestor = spdif_get_dma_requestor,
+	.aud_dev_free_dma_requestor = spdif_free_dma_requestor,
+	.aud_dev_get_fifo_phy_base = spdif_get_fifo_phy_base,
+	.aud_dev_set_fifo_attention = spdif_set_fifo_attention,
+	.aud_dev_get_status = spdif_get_status,
+	.aud_dev_clock_disable = spdif_clock_disable,
+	.aud_dev_clock_enable = spdif_clock_enable,
+	.aud_dev_clock_set_parent = spdif_clock_set_parent,
+	.aud_dev_clock_set_rate = spdif_clock_set_rate,
+	.aud_dev_deinit = spdif_close,
+	},
+
+};
+
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
+
+int am_suspend(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_suspend(devinfo->dev_id);
+}
+
+int am_resume(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_resume(devinfo->dev_id);
+}
+
+int am_set_stream_state(aud_dev_info* devinfo, bool enable)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_set_stream_state(
+				devinfo->dev_id,
+				devinfo->fifo_mode,
+				((enable)? 1 : 0));
+}
+
+int am_get_dma_requestor(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_get_dma_requestor(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+int am_free_dma_requestor(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_free_dma_requestor(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+phys_addr_t am_get_fifo_phy_base(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_get_fifo_phy_base(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+int am_set_fifo_attention(aud_dev_info* devinfo, int buffersize)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_set_fifo_attention(
+				devinfo->dev_id,
+				buffersize,
+				devinfo->fifo_mode);
+}
+
+u32 am_get_status(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_get_status(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+int am_clock_disable(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_clock_disable(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+int am_clock_enable(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_clock_enable(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+int am_clock_set_parent(aud_dev_info* devinfo, int parent)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_clock_set_parent(
+				devinfo->dev_id,
+				devinfo->fifo_mode,
+				parent);
+}
+
+int am_clock_set_rate(aud_dev_info* devinfo, int rate)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_clock_set_rate(
+				devinfo->dev_id,
+				devinfo->fifo_mode,
+				rate);
+}
+
+int am_device_deinit(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_deinit(devinfo->dev_id);
+}
+
+int am_set_stream_format(aud_dev_info* devinfo, am_stream_format_info *format)
+{
+	if (devinfo->dev_type == AUDIO_I2S_DEVICE) {
+		i2s_set_bit_size(devinfo->dev_id, format->bitsize);
+		i2s_set_samplerate(devinfo->dev_id, format->samplerate);
+		i2s_set_channels(devinfo->dev_id, format->channels);
+		i2s_set_fifo_attention(devinfo->dev_id,
+			devinfo->fifo_mode, format->buffersize);
+
+	} else if (devinfo->dev_type == AUDIO_SPDIF_DEVICE) {
+		spdif_set_bit_mode(devinfo->dev_id, format->bitsize);
+		/* fixme - move to appropriate locn later */
+		spdif_set_fifo_packed(devinfo->dev_id, 1);
+
+		spdif_set_sample_rate(devinfo->dev_id,
+			devinfo->fifo_mode, format->samplerate);
+		spdif_set_fifo_attention(devinfo->dev_id,
+			devinfo->fifo_mode, format->buffersize);
+	}
+	return 0;
+}
+
+int am_set_device_format(aud_dev_info* devinfo, am_dev_format_info *format)
+{
+	if (devinfo->dev_type == AUDIO_I2S_DEVICE) {
+		i2s_set_loopback(devinfo->dev_id, format->loopmode);
+		i2s_set_master(devinfo->dev_id, format->mastermode);
+		i2s_set_bit_format(devinfo->dev_id, format->audiomode);
+		i2s_set_left_right_control_polarity(
+				devinfo->dev_id,
+				format->polarity);
+
+	} else if (devinfo->dev_type == AUDIO_SPDIF_DEVICE) {
+
+	}
+	return 0;
+}
+
+int am_device_init(aud_dev_info* devinfo, void *dev_fmt, void  *strm_fmt)
+{
+	am_stream_format_info  *sfmt = (am_stream_format_info*)strm_fmt;
+	am_dev_format_info *dfmt = (am_dev_format_info*)dev_fmt;
+
+	if (devinfo->dev_type == AUDIO_I2S_DEVICE) {
+		struct tegra_i2s_property i2sprop;
+
+
+		memset(&i2sprop, 0, sizeof(i2sprop));
+
+		if (sfmt) {
+			i2sprop.bit_size = sfmt->bitsize;
+			i2sprop.sample_rate = sfmt->samplerate;
+		}
+
+		if (dfmt) {
+			i2sprop.master_mode = dfmt->mastermode;
+			i2sprop.audio_mode = dfmt->audiomode;
+			i2sprop.clk_rate = dfmt->clkrate;
+			i2sprop.fifo_fmt = dfmt->fifofmt;
+		}
+
+		return i2s_init(devinfo->dev_id, &i2sprop);
+
+	} else if (devinfo->dev_type == AUDIO_SPDIF_DEVICE) {
+
+		struct tegra_spdif_property spdifprop;
+		memset(&spdifprop, 0, sizeof(spdifprop));
+
+		if (dfmt) {
+			spdifprop.clk_rate = dfmt->clkrate;
+
+			return spdif_init(
+				devinfo->base,
+				devinfo->phy_base,
+				devinfo->fifo_mode,
+				&spdifprop);
+		}
+	}
+	return 0;
+}
+
+#else
 
 struct audio_manager_context {
 	struct clk *mclk;
@@ -44,6 +270,188 @@ struct audio_manager_context {
 };
 
 struct audio_manager_context *aud_manager;
+
+int am_suspend(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_suspend(devinfo->dev_id);
+}
+
+int am_resume(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_resume(devinfo->dev_id);
+}
+
+int am_set_stream_state(aud_dev_info* devinfo, bool enable)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_set_stream_state(
+				devinfo->dev_id,
+				devinfo->fifo_mode,
+				((enable)? 1 : 0));
+}
+
+int am_get_dma_requestor(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_get_dma_requestor(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+int am_free_dma_requestor(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_free_dma_requestor(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+phys_addr_t am_get_fifo_phy_base(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_get_fifo_phy_base(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+int am_set_fifo_attention(aud_dev_info* devinfo, int buffersize)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_set_fifo_attention(
+				devinfo->dev_id,
+				buffersize,
+				devinfo->fifo_mode);
+}
+
+u32 am_get_status(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_get_status(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+int am_clock_disable(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_clock_disable(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+int am_clock_enable(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_clock_enable(
+				devinfo->dev_id,
+				devinfo->fifo_mode);
+}
+
+int am_clock_set_parent(aud_dev_info* devinfo, int parent)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_clock_set_parent(
+				devinfo->dev_id,
+				devinfo->fifo_mode,
+				parent);
+}
+
+int am_clock_set_rate(aud_dev_info* devinfo, int rate)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_clock_set_rate(
+				devinfo->dev_id,
+				devinfo->fifo_mode,
+				rate);
+}
+
+int am_device_deinit(aud_dev_info* devinfo)
+{
+	struct am_dev_fns* am_fn = &init_am_dev_fns[devinfo->dev_type];
+	return am_fn->aud_dev_deinit(devinfo->dev_id);
+}
+
+int am_set_stream_format(aud_dev_info* devinfo, am_stream_format_info *format)
+{
+	if (devinfo->dev_type == AUDIO_I2S_DEVICE) {
+		i2s_set_bit_size(devinfo->dev_id, format->bitsize);
+		i2s_set_samplerate(devinfo->dev_id, format->samplerate);
+		i2s_set_channels(devinfo->dev_id, format->channels);
+		i2s_set_fifo_attention(devinfo->dev_id,
+			devinfo->fifo_mode, format->buffersize);
+
+	} else if (devinfo->dev_type == AUDIO_SPDIF_DEVICE) {
+		spdif_set_bit_mode(devinfo->dev_id, format->bitsize);
+		spdif_set_sample_rate(
+			devinfo->dev_id,
+			devinfo->fifo_mode,
+			format->samplerate);
+		spdif_set_fifo_attention(devinfo->dev_id,
+			devinfo->fifo_mode, format->buffersize);
+	}
+	return 0;
+}
+
+int am_set_device_format(aud_dev_info* devinfo, am_dev_format_info *format)
+{
+	if (devinfo->dev_type == AUDIO_I2S_DEVICE) {
+		i2s_set_loopback(devinfo->dev_id, format->loopmode);
+		i2s_set_master(devinfo->dev_id, format->mastermode);
+		i2s_set_bit_format(devinfo->dev_id, format->audiomode);
+		i2s_set_left_right_control_polarity(
+				devinfo->dev_id,
+				format->polarity);
+
+	} else if (devinfo->dev_type == AUDIO_SPDIF_DEVICE) {
+
+	}
+	return 0;
+}
+
+int am_device_init(aud_dev_info* devinfo, void *dev_fmt, void  *strm_fmt)
+{
+	am_stream_format_info  *sfmt = (am_stream_format_info*)strm_fmt;
+	am_dev_format_info *dfmt = (am_dev_format_info*)dev_fmt;
+
+	if (devinfo->dev_type == AUDIO_I2S_DEVICE) {
+
+		struct tegra_i2s_property i2sprop;
+		memset(&i2sprop, 0, sizeof(i2sprop));
+
+		if (sfmt) {
+			i2sprop.bit_size = sfmt->bitsize;
+			i2sprop.sample_rate = sfmt->samplerate;
+		}
+
+		if (dfmt) {
+			i2sprop.master_mode = dfmt->mastermode;
+			i2sprop.audio_mode = dfmt->audiomode;
+			i2sprop.clk_rate = dfmt->clkrate;
+			i2sprop.fifo_fmt = dfmt->fifofmt;
+		}
+
+		return i2s_init(devinfo->dev_id, &i2sprop);
+
+	} else if (devinfo->dev_type == AUDIO_SPDIF_DEVICE) {
+
+		struct tegra_spdif_property spdifprop;
+		memset(&spdifprop, 0, sizeof(spdifprop));
+
+		if (dfmt) {
+			spdifprop.clk_rate = dfmt->clkrate;
+
+			return spdif_init(
+				devinfo->base,
+				devinfo->phy_base,
+				devinfo->fifo_mode,
+				&spdifprop);
+		}
+	}
+
+	return 0;
+}
 
 int tegra_das_set_connection(enum tegra_das_port_con_id new_con_id)
 {
@@ -200,3 +608,4 @@ int tegra_das_get_mclk_rate(void)
 EXPORT_SYMBOL_GPL(tegra_das_get_mclk_rate);
 
 MODULE_LICENSE("GPL");
+#endif

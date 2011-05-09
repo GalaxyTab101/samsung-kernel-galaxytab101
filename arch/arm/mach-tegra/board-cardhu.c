@@ -47,6 +47,7 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <mach/usb_phy.h>
+#include <sound/wm8903.h>
 
 #include "board.h"
 #include "clock.h"
@@ -263,9 +264,25 @@ static struct platform_device androidusb_device = {
 	},
 };
 
+static struct wm8903_platform_data wm8903_pdata = {
+	.irq_active_low = 0,
+	.micdet_cfg = 0x83,           /* enable mic bias current */
+	.micdet_delay = 0,
+	.gpio_base = WM8903_GPIO_BASE,
+	.gpio_cfg = {
+		WM8903_GPIO_NO_CONFIG,
+		WM8903_GPIO_NO_CONFIG,
+		0,                     /* as output pin */
+		WM8903_GPn_FN_GPIO_MICBIAS_CURRENT_DETECT
+		<< WM8903_GP4_FN_SHIFT, /* as micbias current detect */
+		WM8903_GPIO_NO_CONFIG,
+	},
+};
+
 static struct i2c_board_info __initdata cardhu_i2c_bus1_board_info[] = {
 	{
 		I2C_BOARD_INFO("wm8903", 0x1a),
+		.platform_data = &wm8903_pdata,
 	},
 };
 
@@ -345,9 +362,9 @@ static struct tegra_audio_platform_data tegra_spdif_pdata = {
 
 struct wired_jack_conf audio_wr_jack_conf = {
 	.hp_det_n = TEGRA_GPIO_PW2,
-	.en_mic_ext = TEGRA_GPIO_PX1,
-	.en_mic_int = TEGRA_GPIO_PX0,
-	.spkr_amp_reg = "avdd_amp"
+	.cdc_irq = TEGRA_GPIO_PW3,
+	.en_spkr = WM8903_GP3,
+	.spkr_amp_reg = "vdd_3v3_spk_amp"
 };
 
 static void cardhu_audio_init(void)

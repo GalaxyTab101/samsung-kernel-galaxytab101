@@ -328,62 +328,6 @@ static struct snd_soc_ops tegra_spdif_ops = {
 	.hw_params = tegra_spdif_hw_params,
 };
 
-void speaker_settings(struct snd_soc_codec *codec, int value)
-{
-	int CtrlReg = 0;
-
-	/* Set Spkr */
-	CtrlReg  = snd_soc_read(codec, WM8903_ANALOGUE_SPK_MIX_LEFT_0);
-	CtrlReg &= ~WM8903_DACL_TO_MIXSPKL_MASK;
-	CtrlReg |= (value << WM8903_DACL_TO_MIXSPKL_SHIFT);
-
-	snd_soc_write(codec, WM8903_ANALOGUE_SPK_MIX_LEFT_0, CtrlReg);
-
-
-	CtrlReg  = snd_soc_read(codec, WM8903_ANALOGUE_SPK_MIX_RIGHT_0);
-	CtrlReg &= ~WM8903_DACR_TO_MIXSPKR_MASK;
-	CtrlReg |= (value << WM8903_DACR_TO_MIXSPKR_SHIFT);
-
-	snd_soc_write(codec, WM8903_ANALOGUE_SPK_MIX_RIGHT_0, CtrlReg);
-
-	CtrlReg  = snd_soc_read(codec, WM8903_POWER_MANAGEMENT_4);
-	CtrlReg  = SET_REG_VAL(CtrlReg,
-				WM8903_MIXSPKL_ENA_WIDTH,
-				WM8903_MIXSPKL_ENA_SHIFT, value);
-	CtrlReg  = SET_REG_VAL(CtrlReg,
-				WM8903_MIXSPKR_ENA_WIDTH,
-				WM8903_MIXSPKR_ENA_SHIFT, value);
-
-	snd_soc_write(codec, WM8903_POWER_MANAGEMENT_4, CtrlReg);
-
-	CtrlReg = snd_soc_read(codec, WM8903_ANALOGUE_OUT3_LEFT);
-	CtrlReg  = SET_REG_VAL(CtrlReg, 1, 8, ~value);
-	snd_soc_write(codec, WM8903_ANALOGUE_OUT3_LEFT, CtrlReg);
-
-	CtrlReg = snd_soc_read(codec, WM8903_ANALOGUE_OUT3_RIGHT);
-	CtrlReg  = SET_REG_VAL(CtrlReg, 1, 8, ~value);
-	snd_soc_write(codec, WM8903_ANALOGUE_OUT3_RIGHT, CtrlReg);
-
-	CtrlReg = snd_soc_read(codec, WM8903_POWER_MANAGEMENT_5);
-	CtrlReg &= ~WM8903_SPKL_ENA_MASK;
-	CtrlReg |= (value << WM8903_SPKL_ENA_SHIFT);
-	CtrlReg &= ~WM8903_SPKR_ENA_MASK;
-	CtrlReg |= (value << WM8903_SPKR_ENA_SHIFT);
-
-
-	snd_soc_write(codec, WM8903_POWER_MANAGEMENT_5, CtrlReg);
-
-
-	CtrlReg = snd_soc_read(codec, WM8903_GPIO_CONTROL_3);
-
-	if (value)
-		CtrlReg = 0x33;
-	else
-		CtrlReg = 0;
-
-	snd_soc_write(codec, WM8903_GPIO_CONTROL_3, CtrlReg);
-}
-
 void tegra_ext_control(struct snd_soc_codec *codec, int new_con)
 {
 	struct tegra_audio_data* audio_data = codec->socdev->codec_data;
@@ -426,11 +370,6 @@ void tegra_ext_control(struct snd_soc_codec *codec, int new_con)
 
 	audio_data->codec_con = new_con;
 
-	/* using this function until pin/widget works*/
-	if (new_con & TEGRA_SPK)
-		speaker_settings(codec, 1);
-	else
-		speaker_settings(codec, 0);
 	/* signal a DAPM event */
 	snd_soc_dapm_sync(codec);
 

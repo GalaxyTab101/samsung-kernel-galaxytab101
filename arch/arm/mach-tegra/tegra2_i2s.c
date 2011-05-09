@@ -121,15 +121,15 @@ struct tegra_i2s_property* i2s_get_prop(int ifc)
 	return &i2s_cont_info[ifc].i2sprop;
 }
 
-void i2s_suspend(int ifc)
+int i2s_suspend(int ifc)
 {
 	struct i2s_controller_info *info = &i2s_cont_info[ifc];
 	struct i2s_runtime_data* ird = &info->i2s_reg_data;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	if (info->clk_refs == 0)
-		i2s_clock_enable(ifc);
+		i2s_clock_enable(ifc, 0);
 
 	ird->i2s_ctrl_0 = i2s_readl(ifc, I2S_I2S_CTRL_0);
 	ird->i2s_status_0 = i2s_readl(ifc, I2S_I2S_STATUS_0);
@@ -142,16 +142,17 @@ void i2s_suspend(int ifc)
 	ird->i2s_fifo1_0 = i2s_readl(ifc, I2S_I2S_FIFO1_0);
 	ird->i2s_fifo2_0 = i2s_readl(ifc, I2S_I2S_FIFO2_0);
 
-	i2s_clock_disable(ifc);
+	i2s_clock_disable(ifc, 0);
+	return 0;
 }
 
-void i2s_resume(int ifc)
+int i2s_resume(int ifc)
 {
 	struct i2s_runtime_data* ird = &i2s_cont_info[ifc].i2s_reg_data;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
-	i2s_clock_enable(ifc);
+	i2s_clock_enable(ifc, 0);
 	i2s_writel(ifc, ird->i2s_ctrl_0, I2S_I2S_CTRL_0);
 	i2s_writel(ifc, ird->i2s_status_0, I2S_I2S_STATUS_0);
 	i2s_writel(ifc, ird->i2s_timing_0, I2S_I2S_TIMING_0);
@@ -162,6 +163,7 @@ void i2s_resume(int ifc)
 	i2s_writel(ifc, ird->i2s_tdm_tx_rx_ctrl_0, I2S_I2S_TDM_TX_RX_CTRL_0);
 	i2s_writel(ifc, ird->i2s_fifo1_0, I2S_I2S_FIFO1_0);
 	i2s_writel(ifc, ird->i2s_fifo2_0, I2S_I2S_FIFO2_0);
+	return 0;
 }
 
 int i2s_set_channel_bit_count(int ifc, int sampling, int bitclk)
@@ -203,7 +205,6 @@ int i2s_set_samplerate(int ifc, int samplerate)
 
 		i2s_set_channel_bit_count(ifc, samplerate, rate);
 	}
-
 	return 0;
 }
 
@@ -216,11 +217,11 @@ int i2s_set_channels(int ifc, int channels)
 	return 0;
 }
 
-void i2s_set_fifo_mode(int ifc, int fifo, int tx)
+int i2s_set_fifo_mode(int ifc, int fifo, int tx)
 {
 	u32 val;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	val = i2s_readl(ifc, I2S_I2S_CTRL_0);
 	if (fifo == 0) {
@@ -231,20 +232,23 @@ void i2s_set_fifo_mode(int ifc, int fifo, int tx)
 		val &= ~I2S_I2S_CTRL_FIFO2_TX_ENABLE;
 		val |= tx ? I2S_I2S_CTRL_FIFO2_TX_ENABLE : 0;
 	}
+
 	i2s_writel(ifc, val, I2S_I2S_CTRL_0);
+	return 0;
 }
 
-void i2s_set_loopback(int ifc, int on)
+int i2s_set_loopback(int ifc, int on)
 {
 	u32 val;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	val = i2s_readl(ifc, I2S_I2S_CTRL_0);
 	val &= ~I2S_I2S_CTRL_FIFO_LPBK_ENABLE;
 	val |= on ? I2S_I2S_CTRL_FIFO_LPBK_ENABLE : 0;
 
 	i2s_writel(ifc, val, I2S_I2S_CTRL_0);
+	return 0;
 }
 
 int i2s_fifo_set_attention_level(int ifc, int fifo, unsigned level)
@@ -274,12 +278,12 @@ int i2s_fifo_set_attention_level(int ifc, int fifo, unsigned level)
 	return 0;
 }
 
-void i2s_fifo_enable(int ifc, int fifo, int on)
+int i2s_fifo_enable(int ifc, int fifo, int on)
 {
 	u32 val;
 	struct i2s_controller_info *info = &i2s_cont_info[ifc];
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	val = i2s_readl(ifc, I2S_I2S_CTRL_0);
 	if (!fifo) {
@@ -296,13 +300,14 @@ void i2s_fifo_enable(int ifc, int fifo, int on)
 				info->i2s_ch_prop[fifo].fifo_attn);
 
 	i2s_writel(ifc, val, I2S_I2S_CTRL_0);
+	return 0;
 }
 
-void i2s_fifo_clear(int ifc, int fifo)
+int i2s_fifo_clear(int ifc, int fifo)
 {
 	u32 val;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	val = i2s_readl(ifc, I2S_I2S_FIFO_SCR_0);
 	if (!fifo) {
@@ -315,16 +320,18 @@ void i2s_fifo_clear(int ifc, int fifo)
 	}
 
 	i2s_writel(ifc, val, I2S_I2S_FIFO_SCR_0);
+	return 0;
 }
 
-void i2s_set_master(int ifc, int master)
+int i2s_set_master(int ifc, int master)
 {
 	u32 val;
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 	val = i2s_readl(ifc, I2S_I2S_CTRL_0);
 	val &= ~I2S_I2S_CTRL_MASTER_ENABLE;
 	val |= master ? I2S_I2S_CTRL_MASTER_ENABLE : 0;
 	i2s_writel(ifc, val, I2S_I2S_CTRL_0);
+	return 0;
 }
 
 int i2s_set_bit_format(int ifc, unsigned fmt)
@@ -350,6 +357,7 @@ int i2s_set_bit_format(int ifc, unsigned fmt)
 	else {
 		i2s_enable_pcm_mode(ifc, 0);
 	}
+
 	return 0;
 }
 
@@ -394,28 +402,30 @@ int i2s_set_fifo_format(int ifc, unsigned fmt)
 	return 0;
 }
 
-void i2s_set_left_right_control_polarity(int ifc, int high_low)
+int i2s_set_left_right_control_polarity(int ifc, int high_low)
 {
 	u32 val;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	val = i2s_readl(ifc, I2S_I2S_CTRL_0);
 	val &= ~I2S_I2S_CTRL_L_R_CTRL;
 	val |= high_low ? I2S_I2S_CTRL_L_R_CTRL : 0;
 	i2s_writel(ifc, val, I2S_I2S_CTRL_0);
+	return 0;
 }
 
-void i2s_enable_pcm_mode(int ifc, int on)
+int i2s_enable_pcm_mode(int ifc, int on)
 {
 	u32 val;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	val = i2s_readl(ifc, I2S_I2S_PCM_CTRL_0);
 	val &= ~(I2S_I2S_PCM_CTRL_TRM_MODE | I2S_I2S_PCM_CTRL_RCV_MODE);
 	val |= on ? (I2S_I2S_PCM_CTRL_TRM_MODE | I2S_I2S_PCM_CTRL_RCV_MODE) : 0;
 	i2s_writel(ifc, val, I2S_I2S_PCM_CTRL_0);
+	return 0;
 }
 
 int i2s_set_pcm_edge_mode(int ifc, unsigned edge_mode)
@@ -464,24 +474,25 @@ int i2s_set_pcm_mask_bits(int ifc, unsigned mask_bits, int tx)
 	return 0;
 }
 
-void i2s_set_pcm_fsync_width(int ifc, int fsync_long)
+int i2s_set_pcm_fsync_width(int ifc, int fsync_long)
 {
 	u32 val;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	val = i2s_readl(ifc, I2S_I2S_PCM_CTRL_0);
 	val &= ~I2S_I2S_PCM_CTRL_FSYNC_PCM_CTRL;
 	val |= fsync_long ? I2S_I2S_PCM_CTRL_FSYNC_PCM_CTRL : 0;
 
 	i2s_writel(ifc, val, I2S_I2S_PCM_CTRL_0);
+	return 0;
 }
 
-void i2s_set_fifo_irq_on_err(int ifc, int fifo, int on)
+int i2s_set_fifo_irq_on_err(int ifc, int fifo, int on)
 {
 	u32 val;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	val = i2s_readl(ifc, I2S_I2S_CTRL_0);
 	if (!fifo) {
@@ -492,14 +503,16 @@ void i2s_set_fifo_irq_on_err(int ifc, int fifo, int on)
 		val &= ~I2S_I2S_IE_FIFO2_ERR;
 		val |= on ? I2S_I2S_IE_FIFO2_ERR : 0;
 	}
+
 	i2s_writel(ifc, val, I2S_I2S_CTRL_0);
+	return 0;
 }
 
-void i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on)
+int i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on)
 {
 	u32 val;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	val = i2s_readl(ifc, I2S_I2S_CTRL_0);
 	if (!fifo) {
@@ -510,21 +523,24 @@ void i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on)
 		val &= ~I2S_I2S_QE_FIFO2;
 		val |= on ? I2S_I2S_QE_FIFO2 : 0;
 	}
+
 	i2s_writel(ifc, val, I2S_I2S_CTRL_0);
+	return 0;
 }
 
-void i2s_set_fifo_attention(int ifc, int buffersize, int fifo_mode)
+int i2s_set_fifo_attention(int ifc, int fifo_mode, int buffersize)
 {
 	int fifoattn = I2S_FIFO_ATN_LVL_FOUR_SLOTS;
 	struct i2s_controller_info *info = &i2s_cont_info[ifc];
 	info->i2s_ch_prop[fifo_mode].fifo_attn = fifoattn;
+	return 0;
 }
 
-void i2s_enable_fifos(int ifc, int on)
+int i2s_enable_fifos(int ifc, int on)
 {
 	u32 val;
 
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 
 	val = i2s_readl(ifc, I2S_I2S_CTRL_0);
 	if (on)
@@ -535,12 +551,14 @@ void i2s_enable_fifos(int ifc, int on)
 			 I2S_I2S_IE_FIFO1_ERR | I2S_I2S_IE_FIFO2_ERR);
 
 	i2s_writel(ifc, val, I2S_I2S_CTRL_0);
+	return 0;
 }
 
-void i2s_fifo_write(int ifc, int fifo, u32 data)
+int i2s_fifo_write(int ifc, int fifo, u32 data)
 {
-	check_ifc(ifc);
+	check_ifc(ifc, -EINVAL);
 	i2s_writel(ifc, data, fifo ? I2S_I2S_FIFO2_0 : I2S_I2S_FIFO1_0);
+	return 0;
 }
 
 u32 i2s_fifo_read(int ifc, int fifo)
@@ -569,11 +587,12 @@ u32 i2s_get_control(int ifc)
 	return i2s_readl(ifc, I2S_I2S_CTRL_0);
 }
 
-void i2s_ack_status(int ifc)
+int i2s_ack_status(int ifc)
 {
-	check_ifc(ifc);
-	return i2s_writel(ifc, i2s_readl(ifc, I2S_I2S_STATUS_0),
+	check_ifc(ifc, -EINVAL);
+	i2s_writel(ifc, i2s_readl(ifc, I2S_I2S_STATUS_0),
 						 I2S_I2S_STATUS_0);
+	return 0;
 }
 
 u32 i2s_get_fifo_scr(int ifc)
@@ -666,11 +685,10 @@ int i2s_init(int ifc,  struct tegra_i2s_property* pi2sprop)
 	if (i2s_open(ifc))
 		return err;
 
-	i2s_clock_rate(ifc, pi2sprop->clk_rate);
-	i2s_clock_set_parent(ifc, 0);
+	i2s_clock_set_rate(ifc, 0, pi2sprop->clk_rate);
+	i2s_clock_set_parent(ifc, 0, 0);
 
-	err = i2s_clock_enable(ifc);
-
+	err = i2s_clock_enable(ifc, 0);
 	if (err) {
 		i2s_close(ifc);
 		return err;
@@ -689,13 +707,13 @@ int i2s_init(int ifc,  struct tegra_i2s_property* pi2sprop)
 	i2s_set_bit_size(ifc, pi2sprop->bit_size);
 	i2s_set_fifo_format(ifc, pi2sprop->fifo_fmt);
 
-	i2s_clock_disable(ifc);
+	i2s_clock_disable(ifc, 0);
 
 	return 0;
 }
 
 
-int i2s_clock_enable(int ifc)
+int i2s_clock_enable(int ifc, int fifo_mode)
 {
 	int err = 0;
 	struct i2s_controller_info *info = &i2s_cont_info[ifc];
@@ -716,7 +734,7 @@ int i2s_clock_enable(int ifc)
 	return err;
 }
 
-int i2s_clock_disable(int ifc)
+int i2s_clock_disable(int ifc, int fifo_mode)
 {
 	struct i2s_controller_info *info = &i2s_cont_info[ifc];
 
@@ -733,7 +751,14 @@ int i2s_clock_disable(int ifc)
 	return 0;
 }
 
-int i2s_clock_set_parent(int ifc, int parent)
+int i2s_clock_set_rate(int ifc, int mode, int rate)
+{
+	struct i2s_controller_info *info = &i2s_cont_info[ifc];
+	info->i2sprop.clk_rate = rate;
+	return 0;
+}
+
+int i2s_clock_set_parent(int ifc, int mode, int parent)
 {
 	/* Fix set the parent properly */
 	struct clk *pll_a_out0_clk = clk_get_sys(NULL, "pll_a_out0");
@@ -744,11 +769,3 @@ int i2s_clock_set_parent(int ifc, int parent)
 
 	return 0;
 }
-
-int i2s_clock_rate(int ifc, int rate)
-{
-	struct i2s_controller_info *info = &i2s_cont_info[ifc];
-	info->i2sprop.clk_rate = rate;
-	return 0;
-}
-

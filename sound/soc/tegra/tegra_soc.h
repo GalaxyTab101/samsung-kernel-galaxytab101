@@ -39,9 +39,7 @@
 #include <linux/tegra_audio.h>
 #include <linux/regulator/consumer.h>
 #include <mach/iomap.h>
-#include <mach/spdif.h>
-#include <mach/tegra_i2s.h>
-#include <mach/spdif.h>
+#include <mach/audio_manager.h>
 #include <mach/irqs.h>
 #include <mach/pinmux.h>
 #include <mach/audio.h>
@@ -122,20 +120,16 @@ int tegra_jack_init(struct snd_soc_codec *codec);
 void tegra_jack_exit(void);
 void tegra_jack_resume(void);
 void tegra_switch_set_state(int state);
-void speaker_settings(struct snd_soc_codec *codec, int value);
 
 void setup_i2s_dma_request(struct snd_pcm_substream *substream,
 			struct tegra_dma_req *req,
 			void (*dma_callback)(struct tegra_dma_req *req),
 			void *dma_data);
 void free_i2s_dma_request(struct snd_pcm_substream *substream);
-void set_i2s_fifo_attention(struct snd_pcm_substream *substream,
-			int buffersize);
+
 void setup_spdif_dma_request(struct snd_pcm_substream *substream,
 			struct tegra_dma_req *req,
 			void (*dma_callback)(struct tegra_dma_req *req),
 			void *dma_data);
 void free_spdif_dma_request(struct snd_pcm_substream *substream);
-void set_spdif_fifo_attention(struct snd_pcm_substream *substream,
-			int buffersize);
 #endif

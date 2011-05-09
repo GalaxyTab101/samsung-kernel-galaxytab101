@@ -60,45 +60,43 @@ struct tegra_i2s_property {
 
 /* APIs */
 void i2s_dump_registers(int ifc);
-void i2s_suspend(int ifc);
-void i2s_resume(int ifc);
-void i2s_fifo_enable(int ifc, int fifo, int on);
-void i2s_fifo_clear(int ifc, int fifo);
-
-void i2s_set_loopback(int ifc, int on);
-void i2s_set_master(int ifc, int master);
-void i2s_set_left_right_control_polarity(int ifc, int left_low);
-
-int i2s_set_channel_bit_count(int ifc, int sampling, int bitclk);
+int i2s_suspend(int ifc);
+int i2s_resume(int ifc);
+int i2s_fifo_enable(int ifc, int fifo, int on);
+int i2s_fifo_clear(int ifc, int fifo);
 int i2s_fifo_set_attention_level(int ifc, int fifo, unsigned level);
-
-int i2s_init(int ifc, struct tegra_i2s_property* pi2sprop);
 int i2s_get_dma_requestor(int ifc, int fifo_mode);
 int i2s_free_dma_requestor(int ifc, int fifo_mode);
+phys_addr_t i2s_get_fifo_phy_base(int ifc, int fifo);
+u32 i2s_get_status(int ifc, int fifo);
+
+int i2s_set_loopback(int ifc, int on);
+int i2s_set_master(int ifc, int master);
+int i2s_set_left_right_control_polarity(int ifc, int left_low);
+int i2s_set_channel_bit_count(int ifc, int sampling, int bitclk);
+int i2s_init(int ifc, struct tegra_i2s_property* pi2sprop);
 int i2s_set_bit_format(int ifc, unsigned format);
 int i2s_set_bit_size(int ifc, unsigned bit_size);
-phys_addr_t i2s_get_fifo_phy_base(int ifc, int fifo);
 
-void i2s_set_fifo_irq_on_err(int ifc, int fifo, int on);
-void i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on);
+int i2s_set_fifo_irq_on_err(int ifc, int fifo, int on);
+int i2s_set_fifo_irq_on_qe(int ifc, int fifo, int on);
 
-void i2s_fifo_write(int ifc, int fifo, u32 data);
+int i2s_fifo_write(int ifc, int fifo, u32 data);
 u32 i2s_fifo_read(int ifc, int fifo);
-u32 i2s_get_status(int ifc, int fifo);
+
 u32 i2s_get_control(int ifc);
-void i2s_ack_status(int ifc);
+int i2s_ack_status(int ifc);
 u32 i2s_get_fifo_scr(int ifc);
 u32 i2s_get_fifo_full_empty_count(int ifc, int fifo);
 struct clk *i2s_get_clock_by_name(const char *name);
 
-void i2s_set_fifo_attention(int ifc, int buffersize, int fifo_mode);
+int i2s_set_fifo_attention(int ifc, int fifo_mode, int buffersize);
 int i2s_set_samplerate(int ifc, int samplerate);
 int i2s_set_channels(int ifc, int channels);
 
-int i2s_clock_disable(int ifc);
-int i2s_clock_enable(int ifc);
+int i2s_clock_disable(int ifc, int fifo_mode);
+int i2s_clock_enable(int ifc, int fifo_mode);
 int i2s_close(int ifc);
-int i2s_clock_set_parent(int ifc, int parent);
-int i2s_clock_rate(int ifc, int rate);
-
+int i2s_clock_set_parent(int ifc, int mode, int parent);
+int i2s_clock_set_rate(int ifc, int mode, int rate);
 #endif /* __ARCH_ARM_MACH_TEGRA_I2S_H */
