@@ -65,9 +65,17 @@ struct board_info {
 	u8  minor_revision;
 };
 
+enum panel_type {
+	panel_type_lvds = 0,
+	panel_type_dsi,
+};
+
 void tegra_get_board_info(struct board_info *);
 void cpufreq_save_default_governor(void);
 void cpufreq_restore_default_governor(void);
 void cpufreq_set_conservative_governor(void);
+
+int get_core_edp(void);
+enum panel_type get_panel_type(void);
 
 #endif
