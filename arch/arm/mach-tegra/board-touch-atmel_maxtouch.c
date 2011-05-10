@@ -63,15 +63,24 @@ static struct mxt_platform_data atmel_mxt_info = {
 	// TODO: no need for any hw-specific things at init/exit?
 	.init_platform_hw = NULL,
 	.exit_platform_hw = NULL,
+#if defined (CONFIG_MACH_TEGRA_ENTERPRISE)
+	.max_x = 540,
+	.max_y = 960,
+#else
 	.max_x = 1366,
 	.max_y = 768,
+#endif
 	.valid_interrupt = &valid_interrupt,
 	.read_chg = &read_chg,
 };
 
 static struct i2c_board_info __initdata atmxt_i2c_info[] = {
 	{
+#if defined (CONFIG_MACH_TEGRA_ENTERPRISE)
+	 I2C_BOARD_INFO("maXTouch", MXT224_I2C_ADDR1),
+#else
 	 I2C_BOARD_INFO("maXTouch", MXT_I2C_ADDRESS),
+#endif
 	 .irq = TEGRA_GPIO_TO_IRQ(TOUCH_GPIO_IRQ_ATMEL_T9),
 	 .platform_data = &atmel_mxt_info,
 	 },
