@@ -92,6 +92,7 @@ struct tegra_usb_phy {
 	enum tegra_usb_phy_type usb_phy_type;
 	bool regulator_on;
 	struct otg_transceiver *ulpi;
+	int initialized;
 };
 
 typedef int (*tegra_phy_fp)(struct tegra_usb_phy *phy);

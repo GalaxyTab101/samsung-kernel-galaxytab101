@@ -1420,7 +1420,6 @@ static bool _tegra_dc_controller_enable(struct tegra_dc *dc)
 		dc->out->enable();
 
 	tegra_dc_setup_clk(dc, dc->clk);
-	tegra_periph_reset_assert(dc->clk);
 	clk_enable(dc->clk);
 	clk_enable(dc->emc_clk);
 #ifndef CONFIG_TEGRA_FPGA_PLATFORM
