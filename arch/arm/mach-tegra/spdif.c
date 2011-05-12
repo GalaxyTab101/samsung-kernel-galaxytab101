@@ -248,7 +248,7 @@ int spdif_initialize(unsigned long base, int mode)
 	spdif_set_bit_mode(base, SPDIF_BIT_MODE_MODE16BIT);
 	spdif_set_fifo_packed(base, 1);
 
-	spdif_set_sample_rate(0, mode, 44100);
+	spdif_set_sample_rate(0, mode, 48000);
 
 	return 0;
 }

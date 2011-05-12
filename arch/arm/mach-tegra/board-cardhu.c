@@ -221,9 +221,9 @@ static __initdata struct tegra_clk_init_table cardhu_clk_init_table[] = {
 	{ "hda2codec_2x","pll_p",	48000000,	false},
 	{ "pwm",	"clk_32k",	32768,		false},
 	{ "blink",	"clk_32k",	32768,		true},
-	{ "pll_a",	NULL,		56448000,	false},
-	{ "pll_a_out0",	NULL,		11289600,	false},
-	{ "d_audio","pll_a_out0",	11289600,	false},
+	{ "pll_a",	NULL,		73728000,	false},
+	{ "pll_a_out0",	NULL,		12288000,	false},
+	{ "d_audio","pll_a_out0",	12288000,	false},
 	{ NULL,		NULL,		0,		0},
 };
 
@@ -321,8 +321,8 @@ static struct tegra_audio_platform_data tegra_i2s_pdata[] = {
 	[0] = {
 		.i2s_master	= true,
 		.dma_on		= true,  /* use dma by default */
-		.i2s_master_clk = 44100,
-		.dev_clk_rate	= 11289600,
+		.i2s_master_clk = 48000,
+		.dev_clk_rate	= 12288000,
 		.mode		= AUDIO_FRAME_FORMAT_I2S,
 		.fifo_fmt	= AUDIO_FIFO_PACK_16,
 		.bit_size	= AUDIO_BIT_SIZE_16,
@@ -355,7 +355,7 @@ static struct tegra_audio_platform_data tegra_i2s_pdata[] = {
 
 static struct tegra_audio_platform_data tegra_spdif_pdata = {
 	.dma_on = true,  /* use dma by default */
-	.dev_clk_rate = 5644800,
+	.dev_clk_rate = 6144000,
 	.mode = SPDIF_BIT_MODE_MODE16BIT,
 	.fifo_fmt = AUDIO_FIFO_PACK_16,
 };
