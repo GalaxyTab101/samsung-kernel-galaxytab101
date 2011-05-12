@@ -45,8 +45,10 @@
 
 #define BQ27500_REG_SOC			0x2c
 #define BQ27500_FLAG_DSC		BIT(0)
+#define BQ27500_FLAG_SOCF		BIT(1)
 #define BQ27500_FLAG_BAT_DET		BIT(3)
 #define BQ27500_FLAG_FC			BIT(9)
+#define BQ27500_FLAG_OTC		BIT(15)
 
 #define BQ27510_CNTL			0x00
 #define BQ27510_ATRATE			0x02
@@ -103,6 +105,7 @@ static enum power_supply_property bq27x00_battery_props[] = {
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 	POWER_SUPPLY_PROP_SERIAL_NUMBER,
+	POWER_SUPPLY_PROP_HEALTH,
 };
 
 /*
@@ -113,6 +116,31 @@ static int bq27x00_read(u8 reg, int *rt_value, int b_single,
 			struct bq27x00_device_info *di)
 {
 	return di->bus->read(reg, rt_value, b_single, di);
+}
+
+static int bq27510_battery_health(struct bq27x00_device_info *di,
+				int reg_offset)
+{
+	int ret;
+	int status;
+
+	if (di->chip == BQ27500 || di->chip == BQ27510) {
+		ret = i2c_smbus_read_word_data(di->client, reg_offset);
+		if (ret  < 0) {
+			dev_err(di->dev, "read failure\n");
+			return ret;
+		}
+
+		if (ret & BQ27500_FLAG_SOCF)
+			status = POWER_SUPPLY_HEALTH_DEAD;
+		else if (ret & BQ27500_FLAG_OTC)
+			status = POWER_SUPPLY_HEALTH_OVERHEAT;
+		else
+			status = POWER_SUPPLY_HEALTH_GOOD;
+		return status;
+	}
+
+	return -1;
 }
 
 /*
@@ -406,6 +434,9 @@ static int bq27x00_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_SERIAL_NUMBER:
 		if (bq27510_get_battery_serial_number(di, val))
 			return -EINVAL;
+		break;
+	case POWER_SUPPLY_PROP_HEALTH:
+		val->intval = bq27510_battery_health(di, BQ27x00_REG_FLAGS);
 		break;
 	default:
 		return -EINVAL;
