@@ -125,8 +125,6 @@
 #define TPS6591X_IRQ_BASE	TEGRA_NR_IRQS
 #define TPS6591X_IRQ_END	(TPS6591X_IRQ_BASE + 24)
 
-
-
 int cardhu_charge_init(void);
 int cardhu_regulator_init(void);
 int cardhu_suspend_init(void);
@@ -142,6 +140,7 @@ int cardhu_gpio_switch_regulator_init(void);
 int cardhu_pins_state_init(void);
 int cardhu_emc_init(void);
 int cardhu_power_off_init(void);
+int cardhu_edp_init(void);
 
 /* Touchscreen GPIO addresses   */
 #ifdef CONFIG_TOUCHSCREEN_PANJIT_I2C

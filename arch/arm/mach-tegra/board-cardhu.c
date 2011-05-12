@@ -604,6 +604,9 @@ static void __init tegra_cardhu_init(void)
 	cardhu_pinmux_init();
 	cardhu_i2c_init();
 	cardhu_usb_init();
+#ifdef CONFIG_TEGRA_EDP_LIMITS
+	cardhu_edp_init();
+#endif
 	snprintf(serial, sizeof(serial), "%llx", tegra_chip_uid());
 	andusb_plat.serial_number = kstrdup(serial, GFP_KERNEL);
 	platform_add_devices(cardhu_devices, ARRAY_SIZE(cardhu_devices));
