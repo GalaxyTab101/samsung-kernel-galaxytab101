@@ -33,6 +33,7 @@
 
 #include <mach/iomap.h>
 #include <mach/suspend.h>
+#include <mach/edp.h>
 
 #include "clock.h"
 #include "fuse.h"
