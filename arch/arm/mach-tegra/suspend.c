@@ -875,6 +875,7 @@ static int tegra_suspend_enter(suspend_state_t state)
 
 	pr_info("Entering suspend state LP%d\n", lp_state);
 	if (do_lp0) {
+		tegra_lp0_cpu_mode(true);
 		tegra_irq_suspend();
 		tegra_dma_suspend();
 		tegra_debug_uart_suspend();
@@ -931,6 +932,7 @@ static int tegra_suspend_enter(suspend_state_t state)
 		tegra_debug_uart_resume();
 		tegra_dma_resume();
 		tegra_irq_resume();
+		tegra_lp0_cpu_mode(false);
 	}
 
 	secs = rtc_after - rtc_before;

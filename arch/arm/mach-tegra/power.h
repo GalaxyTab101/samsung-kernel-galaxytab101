@@ -196,6 +196,7 @@ static inline bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 { return true; }
 #define tegra_lp0_suspend_mc() do {} while (0)
 #define tegra_lp0_resume_mc() do {} while (0)
+#define tegra_lp0_cpu_mode(enter) do {} while (0)
 #else
 #define INSTRUMENT_CLUSTER_SWITCH 1	/* Should be zero for shipping code */
 #define DEBUG_CLUSTER_SWITCH 1		/* Should be zero for shipping code */
@@ -221,6 +222,7 @@ bool tegra_lp2_is_allowed(struct cpuidle_device *dev,
 	struct cpuidle_state *state);
 void tegra_lp0_suspend_mc(void);
 void tegra_lp0_resume_mc(void);
+void tegra_lp0_cpu_mode(bool enter);
 #endif
 #if DEBUG_CLUSTER_SWITCH
 extern unsigned int tegra_cluster_debug;

@@ -270,6 +270,7 @@ int tegra_cluster_control(unsigned int us, unsigned int flags)
 	unsigned int current_cluster = is_lp_cluster()
 					? TEGRA_POWER_CLUSTER_LP
 					: TEGRA_POWER_CLUSTER_G;
+	unsigned long irq_flags;
 
 	if ((target_cluster == TEGRA_POWER_CLUSTER_MASK) || !target_cluster)
 		return -EINVAL;
@@ -296,7 +297,7 @@ int tegra_cluster_control(unsigned int us, unsigned int flags)
 		(flags & TEGRA_POWER_CLUSTER_FORCE) ? "force" : "",
 	        us));
 
-	local_irq_disable();
+	local_irq_save(irq_flags);
 #ifdef CONFIG_PM
 	if (flags & TEGRA_POWER_SDRAM_SELFREFRESH) {
 		if (us)
@@ -309,7 +310,7 @@ int tegra_cluster_control(unsigned int us, unsigned int flags)
 	} else
 #endif
 		tegra_suspend_lp2(us, flags);
-	local_irq_enable();
+	local_irq_restore(irq_flags);
 
 	DEBUG_CLUSTER(("%s: %s\r\n", __func__, is_lp_cluster() ? "LP" : "G"));
 
@@ -404,4 +405,19 @@ void tegra_lp0_resume_mc(void)
 	void __iomem *mc = IO_ADDRESS(TEGRA_MC_BASE);
 	writel(mc_reserved_rsv, mc + MC_RESERVED_RSV);
 	writel(mc_emem_arb_override, mc + MC_EMEM_ARB_OVERRIDE);
+}
+
+void tegra_lp0_cpu_mode(bool enter)
+{
+	static bool entered_on_g = false;
+	unsigned int flags;
+
+	if (enter)
+		entered_on_g = !is_lp_cluster();
+
+	if (entered_on_g) {
+		flags = enter ? TEGRA_POWER_CLUSTER_LP : TEGRA_POWER_CLUSTER_G;
+		flags |= TEGRA_POWER_CLUSTER_IMMEDIATE;
+		tegra_cluster_control(0, flags);
+	}
 }
