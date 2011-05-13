@@ -94,8 +94,9 @@ Check your _defconfig file and remove all but one touch screen driver instances.
 #if defined(CONFIG_TOUCHSCREEN_ATMEL_MT_T9)
 #include <linux/i2c/atmel_maxtouch.h>
 extern struct tegra_touchscreen_init atmel_mxt_init_data;
-#define ATMEL_TOUCHSCREEN_SKU	0x0A00
-#define ATMEL_TOUCHSCREEN_T25	0x0B00
+#define ATMEL_TOUCHSCREEN_SKU		0x0A00
+#define ATMEL_TOUCHSCREEN_T25		0x0B00
+#define ATMEL_TOUCHSCREEN_ENTERPRISE	0x0C00
 #if defined(DEFAULT_SKU) && (MULTI_SKU == 0)
 #error ERROR!  When MULTI_SKU=0, only one touch screen driver is supported at a time.\
 Check your _defconfig file and remove all but one touch screen driver instances.
@@ -176,6 +177,7 @@ int __init touch_init(void)
 #if defined(CONFIG_TOUCHSCREEN_ATMEL_MT_T9)
 	case ATMEL_TOUCHSCREEN_SKU:
 	case ATMEL_TOUCHSCREEN_T25:
+	case ATMEL_TOUCHSCREEN_ENTERPRISE:
 		retval = generic_touch_init(&atmel_mxt_init_data);
 		break;
 #endif
