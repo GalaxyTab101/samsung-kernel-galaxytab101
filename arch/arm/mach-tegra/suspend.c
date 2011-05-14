@@ -307,6 +307,7 @@ enum tegra_suspend_mode tegra_get_suspend_mode(void)
 static void set_power_timers(unsigned long us_on, unsigned long us_off,
 			     long rate)
 {
+	static unsigned long last_us_off = 0;
 	static int last_pclk = 0;
 	unsigned long long ticks;
 	unsigned long long pclk;
@@ -316,7 +317,7 @@ static void set_power_timers(unsigned long us_on, unsigned long us_off,
 	else
 		pclk = rate;
 
-	if (rate != last_pclk) {
+	if ((rate != last_pclk) || (us_off != last_us_off)) {
 		ticks = (us_on * pclk) + 999999ull;
 		do_div(ticks, 1000000);
 		writel((unsigned long)ticks, pmc + PMC_CPUPWRGOOD_TIMER);
@@ -327,6 +328,7 @@ static void set_power_timers(unsigned long us_on, unsigned long us_off,
 		wmb();
 	}
 	last_pclk = pclk;
+	last_us_off = us_off;
 }
 #endif
 
@@ -530,11 +532,15 @@ unsigned int tegra_suspend_lp2(unsigned int us, unsigned int flags)
 	/* pr_info_ratelimited("CPU %d entering LP2\n", cpu); */
 	tegra_cluster_switch_time(flags, tegra_cluster_switch_time_id_start);
 
-	set_power_timers(pdata->cpu_timer, pdata->cpu_off_timer,
-			 clk_get_rate_all_locked(tegra_pclk));
-
-	if (flags & TEGRA_POWER_CLUSTER_MASK)
+	if (flags & TEGRA_POWER_CLUSTER_MASK) {
+		/* power_off time is overlapped with LP mode residency */
+		set_power_timers(pdata->cpu_timer, 0,
+				 clk_get_rate_all_locked(tegra_pclk));
 		tegra_cluster_switch_prolog(mode);
+	} else {
+		set_power_timers(pdata->cpu_timer, pdata->cpu_off_timer,
+				 clk_get_rate_all_locked(tegra_pclk));
+	}
 
 	if (us)
 		tegra_lp2_set_trigger(us);
