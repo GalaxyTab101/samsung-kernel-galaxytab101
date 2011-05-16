@@ -138,3 +138,4 @@ obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise-sdhci.o
 obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-touch.o
 obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise-memory.o
 obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise-power.o
+obj-${CONFIG_MACH_TEGRA_ENTERPRISE}     += board-enterprise-baseband.o
