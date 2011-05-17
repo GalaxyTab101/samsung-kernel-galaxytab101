@@ -479,8 +479,12 @@ emcself:
 
 	emc_timing_update r1, r0
 
+	tst	sp, #TEGRA_POWER_EFFECT_LP0
+	bne	pmc_io_dpd_skip
 	mov32	r1, 0x8EC00000
 	str	r1, [r4, #PMC_IO_DPD_REQ]
+pmc_io_dpd_skip:
+
 	ldr	r1, [r5, #CLK_RESET_SCLK_BURST]
 	str	r1, [r8, #0x4]		@ end of pad list + 4
 	dsb
