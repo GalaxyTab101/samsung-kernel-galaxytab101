@@ -348,11 +348,11 @@ static int tegra_spdif_driver_probe(struct platform_device *pdev)
 
 	info->spdev_info.dev_type = AUDIO_SPDIF_DEVICE;
 	info->spdev_info.dev_id = pdev->id;
-	info->spdev_info.fifo_mode = AUDIO_TX_MODE;
-
-	am_device_init(&info->spdev_info, (void *)&dev_fmt, 0);
 
 	info->spdev_info.fifo_mode = AUDIO_RX_MODE;
+	am_device_init(&info->spdev_info, (void *)&dev_fmt, 0);
+
+	info->spdev_info.fifo_mode = AUDIO_TX_MODE;
 	am_device_init(&info->spdev_info, (void *)&dev_fmt, 0);
 
 	tegra_spdif_dai.dev = &pdev->dev;
