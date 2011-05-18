@@ -34,6 +34,8 @@
 #include <mach/suspend.h>
 #include <asm/hardware/gic.h>
 
+#include <trace/events/power.h>
+
 #include "clock.h"
 #include "gpio-names.h"
 #include "power.h"
@@ -288,6 +290,8 @@ int tegra_cluster_control(unsigned int us, unsigned int flags)
 	if (target_cluster == TEGRA_POWER_CLUSTER_G)
 		if (!is_g_cluster_present())
 			return -EPERM;
+
+	trace_power_start(POWER_PSTATE, target_cluster, 0);
 
 	if (flags & TEGRA_POWER_CLUSTER_IMMEDIATE)
 		us = 0;

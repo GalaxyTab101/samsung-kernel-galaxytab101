@@ -47,6 +47,8 @@
 #include <mach/legacy_irq.h>
 #include <mach/suspend.h>
 
+#include <trace/events/power.h>
+
 #include "power.h"
 #include "reset.h"
 #include "clock.h"
@@ -210,6 +212,8 @@ void tegra_idle_enter_lp2_cpu_0(struct cpuidle_device *dev,
 		idle_stats.lp2_count++;
 		idle_stats.lp2_count_bin[bin]++;
 
+		trace_power_start(POWER_CSTATE, 2, dev->cpu);
+
 		if (tegra_suspend_lp2(sleep_time, 0) == 0)
 			sleep_completed = true;
 		else
@@ -276,6 +280,8 @@ void tegra_idle_enter_lp2_cpu_n(struct cpuidle_device *dev,
 	tegra_lp2_set_trigger(sleep_time);
 
 	idle_stats.tear_down_count[cpu_number(dev->cpu)]++;
+
+	trace_power_start(POWER_CSTATE, 2, dev->cpu);
 
 	/* Save time this CPU must be awakened by. */
 	tegra_cpu_wake_by_time[dev->cpu] = ktime_to_us(ktime_get()) + request;
