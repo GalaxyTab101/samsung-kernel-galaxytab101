@@ -6,7 +6,11 @@ obj-y                                   += io.o
 obj-y                                   += irq.o legacy_irq.o
 obj-y                                   += syncpt.o
 obj-y                                   += clock.o
+ifneq ($(CONFIG_TEGRA_FPGA_PLATFORM),y)
 obj-y                                   += dvfs.o
+obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_dvfs.o
+obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += tegra3_dvfs.o
+endif
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += timer-t2.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += timer-t3.o
 obj-y                                   += gpio.o
@@ -40,13 +44,11 @@ obj-$(CONFIG_TEGRA_ARB_SEMAPHORE)       += arb_sema.o
 obj-y                                   += clock.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_clocks.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += tegra3_clocks.o
-obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_dvfs.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_fuse.o
 ifneq ($(CONFIG_TEGRA_FPGA_PLATFORM),y)
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += tegra2_speedo.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += tegra3_speedo.o
 endif
-obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += tegra3_dvfs.o
 obj-$(CONFIG_ARCH_TEGRA_2x_SOC)         += suspend-t2.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += suspend-t3.o
 obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += sysfs-cluster.o
