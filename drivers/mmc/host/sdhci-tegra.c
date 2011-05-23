@@ -56,6 +56,9 @@
 
 #define SDMMC_AUTO_CAL_CONFIG	0x1E4
 #define SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_ENABLE	0x20000000
+#define SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_PD_OFFSET_SHIFT	0x8
+#define SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_PD_OFFSET	0x70
+#define SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_PU_OFFSET	0x62
 #endif
 
 struct tegra_sdhci_host {
@@ -213,8 +216,14 @@ static void tegra_sdhci_set_signalling_voltage(struct sdhci_host *sdhci,
 			/* Do Auto Calibration */
 			val = sdhci_readl(sdhci, SDMMC_AUTO_CAL_CONFIG);
 			val |= SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_ENABLE;
+			/* Program Auto cal PD offset(bits 8:14) */
+			val &= ~(0x7F << SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_PD_OFFSET_SHIFT);
+			val |= (SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_PD_OFFSET <<
+				SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_PD_OFFSET_SHIFT);
+			/* Program Auto cal PU offset(bits 0:6) */
+			val &= ~0x7F;
+			val |= SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_PU_OFFSET;
 			sdhci_writel(sdhci, val, SDMMC_AUTO_CAL_CONFIG);
-
 		}
 #endif
 	}
