@@ -224,6 +224,7 @@ static __initdata struct tegra_clk_init_table cardhu_clk_init_table[] = {
 	{ "pll_a",	NULL,		73728000,	false},
 	{ "pll_a_out0",	NULL,		12288000,	false},
 	{ "d_audio","pll_a_out0",	12288000,	false},
+	{ "se", "pll_p",	216000000,	true},
 	{ NULL,		NULL,		0,		0},
 };
 
@@ -426,6 +427,36 @@ static struct platform_device tegra_rtc_device = {
 };
 #endif
 
+#if defined(CONFIG_CRYPTO_DEV_TEGRA_SE)
+
+static u64 tegra_se_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource tegra_se_resources[] = {
+	[0] = {
+		.start = TEGRA_SE_BASE,
+		.end = TEGRA_SE_BASE + TEGRA_SE_SIZE - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = INT_SE,
+		.end = INT_SE,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device tegra_se_device = {
+	.name = "tegra-se",
+	.id = 0,
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		.dma_mask = &tegra_se_dma_mask,
+	},
+	.resource = tegra_se_resources,
+	.num_resources = ARRAY_SIZE(tegra_se_resources),
+};
+
+#endif
+
 static struct platform_device tegra_camera = {
 	.name = "tegra_camera",
 	.id = -1,
@@ -451,6 +482,10 @@ static struct platform_device *cardhu_devices[] __initdata = {
 	&tegra_avp_device,
 	&tegra_camera,
 	&tegra_spi_device4,
+#if defined(CONFIG_CRYPTO_DEV_TEGRA_SE)
+	&tegra_se_device,
+#endif
+
 };
 
 static struct usb_phy_plat_data tegra_usb_phy_pdata[] = {
