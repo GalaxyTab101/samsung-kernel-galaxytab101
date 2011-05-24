@@ -79,7 +79,13 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "pll_p_out1",	"pll_p",	28800000,	true },
 	{ "pll_p_out2",	"pll_p",	48000000,	true },
 	{ "pll_p_out3",	"pll_p",	72000000,	true },
-#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
+	{ "pll_m",	"clk_m",	600000000,	true },
+	{ "pll_m_out1",	"pll_m",	120000000,	true },
+	{ "sclk",	"pll_m_out1",	40000000,	true },
+	{ "hclk",	"sclk",		40000000,	true },
+	{ "pclk",	"hclk",		40000000,	true },
+#else
 	{ "pll_m_out1",	"pll_m",	275000000,	true },
 	{ "pll_c",	NULL,		ULONG_MAX,	false },
 	{ "pll_c_out1",	"pll_c",	208000000,	false },
@@ -87,12 +93,6 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "sclk",	"pll_p_out4",	108000000,	true },
 	{ "hclk",	"sclk",		108000000,	true },
 	{ "pclk",	"hclk",		54000000,	true },
-#else
-	{ "pll_m",	"clk_m",	600000000,	true },
-	{ "pll_m_out1",	"pll_m",	120000000,	true },
-	{ "sclk",	"pll_m_out1",	40000000,	true },
-	{ "hclk",	"sclk",		40000000,	true },
-	{ "pclk",	"hclk",		40000000,	true },
 #endif
 	{ "pll_x",	NULL,		0,		true },
 	{ "cpu",	NULL,		0,		true },
@@ -107,7 +107,7 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "sdmmc1",	"pll_c",	48000000,	false},
 	{ "sdmmc3",	"pll_p",	48000000,	false},
 	{ "sdmmc4",	"pll_p",	48000000,	false},
-#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
 	{ "vde",	"pll_c",	ULONG_MAX,	false },
 	{ "host1x",	"pll_c",	0,		false },
 	{ "mpe",	"pll_c",	0,		false },
@@ -133,7 +133,7 @@ void __init tegra_init_cache(void)
             When called form Normal we obtain an abort.
             Instructions that must be called in Secure :
                - Tag and Data RAM Latency Control Registers (0x108 & 0x10C) must be written in Secure.
-        
+
    The following section of code has been regrouped in the implementation of "l2x0_init".
    The "l2x0_init" will in fact call an SMC intruction to switch from Normal context to Secure context.
    The configuration and activation will be done in Secure.
@@ -174,8 +174,7 @@ static void __init tegra_init_power(void)
 {
 	tegra_powergate_power_off(TEGRA_POWERGATE_MPE);
 	tegra_powergate_power_off(TEGRA_POWERGATE_3D);
-#ifndef CONFIG_ARCH_TEGRA_3x_SOC
-	/* for TEGRA_3x_SOC it will be handled seperately */
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	tegra_powergate_power_off(TEGRA_POWERGATE_PCIE);
 #endif
 }

@@ -94,7 +94,7 @@
 #define AUDIO_FIFO_32     3
 #define AUDIO_FIFO_PACKED 7
 
-#elif defined(CONFIG_ARCH_TEGRA_3x_SOC)
+#else
 
 #define AUDIO_BIT_SIZE_4		0
 #define AUDIO_BIT_SIZE_8		1

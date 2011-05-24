@@ -39,7 +39,7 @@
 #define SDHCI_TEGRA_MIN_CONTROLLER_CLOCK	12000000
 #define SDHCI_VENDOR_CLOCK_CNTRL       0x100
 
-#if defined (CONFIG_ARCH_TEGRA_3x_SOC)
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
 #define SDHCI_VENDOR_CLOCK_CNTRL_SDR50_TUNING_OVERRIDE	0x20
 #define SDHCI_VENDOR_CLOCK_CNTRL_SDMMC_CLK_ENABLE	0x1
 #define SDHCI_VENDOR_CLOCK_CNTRL_INPUT_IO_CLOCK_INTERNAL	0x2
@@ -111,7 +111,7 @@ static int tegra_sdhci_enable_dma(struct sdhci_host *host)
 	return 0;
 }
 
-#if defined (CONFIG_ARCH_TEGRA_3x_SOC)
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
 static void tegra_sdhci_configure_tap_value(struct sdhci_host *sdhci, unsigned int tap_delay)
 {
 	u32 ctrl;
@@ -127,7 +127,7 @@ static void tegra_sdhci_configure_tap_value(struct sdhci_host *sdhci, unsigned i
 
 static void tegra_sdhci_configure_capabilities(struct sdhci_host *sdhci)
 {
-#if defined (CONFIG_ARCH_TEGRA_3x_SOC)
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
 	u32 ctrl;
 	struct tegra_sdhci_host *host = sdhci_priv(sdhci);
 
@@ -196,9 +196,6 @@ static void tegra_sdhci_set_signalling_voltage(struct sdhci_host *sdhci,
 	struct tegra_sdhci_host *host = sdhci_priv(sdhci);
 	unsigned int minV = 3280000;
 	unsigned int maxV = 3320000;
-#if defined (CONFIG_ARCH_TEGRA_3x_SOC)
-	unsigned int val;
-#endif
 	unsigned int rc;
 
 	if (signalling_voltage == MMC_1_8_VOLT_SIGNALLING) {
@@ -211,8 +208,9 @@ static void tegra_sdhci_set_signalling_voltage(struct sdhci_host *sdhci,
 		printk(KERN_ERR "%s switching to %dV failed %d\n",
 			mmc_hostname(sdhci->mmc), (maxV/1000000), rc);
 	else {
-#if defined (CONFIG_ARCH_TEGRA_3x_SOC)
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
 		if (signalling_voltage == MMC_1_8_VOLT_SIGNALLING) {
+			unsigned int val;
 			/* Do Auto Calibration */
 			val = sdhci_readl(sdhci, SDMMC_AUTO_CAL_CONFIG);
 			val |= SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_ENABLE;
@@ -367,7 +365,7 @@ static int __devinit tegra_sdhci_probe(struct platform_device *pdev)
 			SDHCI_QUIRK_NO_HISPD_BIT |
 			SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
 			SDHCI_QUIRK_RUNTIME_DISABLE;
-#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
 	sdhci->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 #endif
 

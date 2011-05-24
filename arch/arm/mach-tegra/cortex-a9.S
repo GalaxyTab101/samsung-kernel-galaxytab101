@@ -448,7 +448,7 @@ ENTRY(__cortex_a9_restore)
 	orrne	r3, r3, #(2<<8)		@ set MAXCLKLATENCY to 2 on LP
 #endif
 #ifndef CONFIG_TRUSTED_FOUNDATIONS
-	//TL : moved to secure 
+	//TL : moved to secure
 	mcr	p15, 0, r3, c15, c0, 0	@ pctlr
 #endif
 
@@ -555,7 +555,7 @@ ENTRY(__cortex_a9_restore)
 	mcr	p15, 0, lr, c1, c0, 2	@ cpacr (loaded before VFP)
 
 #ifndef CONFIG_TRUSTED_FOUNDATIONS
-	//TL : moved to secure 
+	//TL : moved to secure
 	ldr	r9, [r8, #CTX_DIAGNOSTIC]
 	mcr	p15, 0, r9, c15, c0, 1	@ diag
 #endif
@@ -610,7 +610,7 @@ ENTRY(__cortex_a9_l2x0_restart)
 	mov32	r9, (TEGRA_ARM_PL310_BASE-IO_CPU_PHYS+IO_CPU_VIRT)
 	add	r10, r8, #CTX_L2_CTRL
 	ldmia	r10, {r3-r7}
-#ifdef  CONFIG_ARCH_TEGRA_3x_SOC
+#ifndef  CONFIG_ARCH_TEGRA_2x_SOC
 #ifndef CONFIG_TEGRA_FPGA_PLATFORM
 	mov32	r5, (TEGRA_FLOW_CTRL_BASE-IO_PPSB_PHYS+IO_PPSB_VIRT)
 	ldr	r5, [r5, #0x2C]		@ FLOW_CTRL_CLUSTER_CONTROL
@@ -649,7 +649,7 @@ __reenable_l2x0:
 #else
 	cmp r3, #0        @ only call SMC if L2 was enable
 	beq l2_done
-	
+
 	cmp	r0, #0      @ if invalidate, call SMC with R1=1, else R1=4
 	moveq r1, #4
 	movne r1, #1

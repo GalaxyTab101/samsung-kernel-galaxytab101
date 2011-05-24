@@ -164,7 +164,7 @@ unsigned long tegra_wfi_fail_count[CONFIG_NR_CPUS];
 #define FLOW_CTRL_BITMAP_CPU0	(1<<8)	/* CPU0 WFI bitmap */
 #endif
 
-#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
 #define PMC_SCRATCH4_WAKE_CLUSTER_MASK	(1<<31)
 #endif
 
@@ -664,7 +664,7 @@ void tegra_suspend_dram(bool do_lp0)
 	if (!do_lp0)
 		tegra_cpu_lp1_map = 1;
 	else {
-#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+#ifndef CONFIG_ARCH_TEGRA_2x_SOC
 		reg = readl(pmc + PMC_SCRATCH4);
 		if (is_lp_cluster())
 			reg |= PMC_SCRATCH4_WAKE_CLUSTER_MASK;
