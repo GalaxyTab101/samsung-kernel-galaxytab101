@@ -132,7 +132,9 @@ struct ehci_hcd {			/* one per controller */
 	unsigned		need_io_watchdog:1;
 	unsigned		broken_periodic:1;
 	unsigned		fs_i_thresh:1;	/* Intel iso scheduling */
+#ifdef CONFIG_USB_EHCI_TEGRA
 	unsigned		controller_resets_phy:1;
+#endif
 	unsigned		port_reset_no_wait:1;
 
 	/* required for usb32 quirk */
