@@ -377,7 +377,6 @@ static struct usb_phy_plat_data tegra_usb_phy_pdata[] = {
 	[0] = {
 			.instance = 0,
 			.vbus_gpio = -1,
-			.vbus_reg_supply = "vdd_vbus_micro_usb",
 	},
 	[1] = {
 			.instance = 1,
@@ -386,7 +385,6 @@ static struct usb_phy_plat_data tegra_usb_phy_pdata[] = {
 	[2] = {
 			.instance = 2,
 			.vbus_gpio = -1,
-			.vbus_reg_supply = "vdd_vbus_typea_usb",
 	},
 };
 
@@ -490,9 +488,9 @@ static void __init tegra_enterprise_init(void)
 	snprintf(serial, sizeof(serial), "%llx", tegra_chip_uid());
 	andusb_plat.serial_number = kstrdup(serial, GFP_KERNEL);
 	platform_add_devices(enterprise_devices, ARRAY_SIZE(enterprise_devices));
+	enterprise_regulator_init();
 	enterprise_audio_init();
 	enterprise_sdhci_init();
-	enterprise_regulator_init();
 	touch_init();
 	enterprise_usb_init();
 	enterprise_kbc_init();
