@@ -46,6 +46,7 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <mach/usb_phy.h>
+#include <sound/max98088.h>
 
 #include "board.h"
 #include "clock.h"
@@ -205,9 +206,100 @@ static struct platform_device androidusb_device = {
 	},
 };
 
+/* Equalizer filter coefs generated from the MAXIM MAX98088
+ * evkit software tool */
+static struct max98088_eq_cfg max98088_eq_cfg[] = {
+	{
+		.name = "FLAT",
+		.rate = 44100,
+		.band1 = {0x2000, 0xC002, 0x4000, 0x00E9, 0x0000},
+		.band2 = {0x2000, 0xC00F, 0x4000, 0x02BC, 0x0000},
+		.band3 = {0x2000, 0xC0A7, 0x4000, 0x0916, 0x0000},
+		.band4 = {0x2000, 0xC5C2, 0x4000, 0x1A87, 0x0000},
+		.band5 = {0x2000, 0xF6B0, 0x4000, 0x3F51, 0x0000},
+	},
+	{
+		.name = "LOWPASS1K",
+		.rate = 44100,
+		.band1 = {0x205D, 0xC001, 0x3FEF, 0x002E, 0x02E0},
+		.band2 = {0x5B9A, 0xC093, 0x3AB2, 0x088B, 0x1981},
+		.band3 = {0x0D22, 0xC170, 0x26EA, 0x0D79, 0x32CF},
+		.band4 = {0x0894, 0xC612, 0x01B3, 0x1B34, 0x3FFA},
+		.band5 = {0x0815, 0x3FFF, 0xCF78, 0x0000, 0x29B7},
+	},
+	{ /* BASS=-12dB, TREBLE=+9dB, Fc=5KHz */
+		.name = "HIBOOST",
+		.rate = 44100,
+		.band1 = {0x0815, 0xC001, 0x3AA4, 0x0003, 0x19A2},
+		.band2 = {0x0815, 0xC103, 0x092F, 0x0B55, 0x3F56},
+		.band3 = {0x0E0A, 0xC306, 0x1E5C, 0x136E, 0x3856},
+		.band4 = {0x2459, 0xF665, 0x0CAA, 0x3F46, 0x3EBB},
+		.band5 = {0x5BBB, 0x3FFF, 0xCEB0, 0x0000, 0x28CA},
+	},
+	{ /* BASS=12dB, TREBLE=+12dB */
+		.name = "LOUD12DB",
+		.rate = 44100,
+		.band1 = {0x7FC1, 0xC001, 0x3EE8, 0x0020, 0x0BC7},
+		.band2 = {0x51E9, 0xC016, 0x3C7C, 0x033F, 0x14E9},
+		.band3 = {0x1745, 0xC12C, 0x1680, 0x0C2F, 0x3BE9},
+		.band4 = {0x4536, 0xD7E2, 0x0ED4, 0x31DD, 0x3E42},
+		.band5 = {0x7FEF, 0x3FFF, 0x0BAB, 0x0000, 0x3EED},
+	},
+	{
+		.name = "FLAT",
+		.rate = 16000,
+		.band1 = {0x2000, 0xC004, 0x4000, 0x0141, 0x0000},
+		.band2 = {0x2000, 0xC033, 0x4000, 0x0505, 0x0000},
+		.band3 = {0x2000, 0xC268, 0x4000, 0x115F, 0x0000},
+		.band4 = {0x2000, 0xDA62, 0x4000, 0x33C6, 0x0000},
+		.band5 = {0x2000, 0x4000, 0x4000, 0x0000, 0x0000},
+	},
+	{
+		.name = "LOWPASS1K",
+		.rate = 16000,
+		.band1 = {0x2000, 0xC004, 0x4000, 0x0141, 0x0000},
+		.band2 = {0x5BE8, 0xC3E0, 0x3307, 0x15ED, 0x26A0},
+		.band3 = {0x0F71, 0xD15A, 0x08B3, 0x2BD0, 0x3F67},
+		.band4 = {0x0815, 0x3FFF, 0xCF78, 0x0000, 0x29B7},
+		.band5 = {0x0815, 0x3FFF, 0xCF78, 0x0000, 0x29B7},
+	},
+	{ /* BASS=-12dB, TREBLE=+9dB, Fc=2KHz */
+		.name = "HIBOOST",
+		.rate = 16000,
+		.band1 = {0x0815, 0xC001, 0x3BD2, 0x0009, 0x16BF},
+		.band2 = {0x080E, 0xC17E, 0xF653, 0x0DBD, 0x3F43},
+		.band3 = {0x0F80, 0xDF45, 0xEE33, 0x36FE, 0x3D79},
+		.band4 = {0x590B, 0x3FF0, 0xE882, 0x02BD, 0x3B87},
+		.band5 = {0x4C87, 0xF3D0, 0x063F, 0x3ED4, 0x3FB1},
+	},
+	{ /* BASS=12dB, TREBLE=+12dB */
+		.name = "LOUD12DB",
+		.rate = 16000,
+		.band1 = {0x7FC1, 0xC001, 0x3D07, 0x0058, 0x1344},
+		.band2 = {0x2DA6, 0xC013, 0x3CF1, 0x02FF, 0x138B},
+		.band3 = {0x18F1, 0xC08E, 0x244D, 0x0863, 0x34B5},
+		.band4 = {0x2BE0, 0xF385, 0x04FD, 0x3EC5, 0x3FCE},
+		.band5 = {0x7FEF, 0x4000, 0x0BAB, 0x0000, 0x3EED},
+	},
+};
+
+
+static struct max98088_pdata max98088_pdata = {
+	/* equalizer configuration */
+	.eq_cfg = max98088_eq_cfg,
+	.eq_cfgcnt = ARRAY_SIZE(max98088_eq_cfg),
+
+	/* microphone configuration */
+	.digmic_left_mode = 0,	/* 0 = normal analog mic */
+	.digmic_right_mode = 0,	/* 0 = normal analog mic */
+
+	/* receiver output configuration */
+	.receiver_mode = 0,	/* 0 = amplifier, 1 = line output */
+};
 static struct i2c_board_info __initdata enterprise_i2c_bus1_board_info[] = {
 	{
-		I2C_BOARD_INFO("wm8903", 0x1a),
+		I2C_BOARD_INFO("max98088", 0x10),
+		.platform_data = &max98088_pdata,
 	},
 };
 
@@ -297,8 +389,8 @@ static void enterprise_audio_init(void)
 	platform_device_register(&tegra_hda_device);
 #endif
 
-	tegra_i2s_device1.dev.platform_data = &tegra_i2s_pdata[0];
-	platform_device_register(&tegra_i2s_device1);
+	tegra_i2s_device0.dev.platform_data = &tegra_i2s_pdata[0];
+	platform_device_register(&tegra_i2s_device0);
 
 	tegra_i2s_device2.dev.platform_data = &tegra_i2s_pdata[1];
 	platform_device_register(&tegra_i2s_device2);
@@ -318,8 +410,8 @@ static void enterprise_i2c_init(void)
 	tegra_i2c_device4.dev.platform_data = &enterprise_i2c4_platform_data;
 	tegra_i2c_device5.dev.platform_data = &enterprise_i2c5_platform_data;
 
-	// setting audio codec on i2c_4
-	i2c_register_board_info(4, enterprise_i2c_bus1_board_info, 1);
+	i2c_register_board_info(0, enterprise_i2c_bus1_board_info,
+				ARRAY_SIZE(enterprise_i2c_bus1_board_info));
 
 	platform_device_register(&tegra_i2c_device5);
 	platform_device_register(&tegra_i2c_device4);
