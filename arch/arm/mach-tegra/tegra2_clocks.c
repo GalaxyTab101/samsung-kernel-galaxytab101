@@ -1410,6 +1410,30 @@ static struct clk tegra_clk_m = {
 };
 
 static struct clk_pll_freq_table tegra_pll_c_freq_table[] = {
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA /* add by kurt Yi Nvidia for LCD_PCLK 68.94Mhz */
+#ifdef CONFIG_MACH_SAMSUNG_P5
+	/* 480Mhz for 64Mhz */
+	{ 12000000, 480000000, 480, 12, 1, 8},
+	{ 13000000, 480000000, 480, 13, 1, 8},
+	{ 19200000, 480000000, 400, 16, 1, 8},
+	{ 26000000, 480000000, 480, 26, 1, 8},
+	/* 560Mhz for 70Mh */
+	{ 12000000, 560000000, 560, 12, 1, 8},
+	{ 13000000, 560000000, 560, 13, 1, 8},
+	{ 19200000, 560000000, 350, 12, 1, 6},
+	{ 26000000, 560000000, 560, 26, 1, 8},
+	/* 570Mhz for 76Mh */
+	{ 12000000, 570000000, 570, 12, 1, 8},
+	{ 13000000, 570000000, 570, 13, 1, 8},
+	{ 19200000, 570000000, 475, 16, 1, 8},
+	{ 26000000, 570000000, 570, 26, 1, 8},
+#else
+	/*586Mhz for 68941176Hz*/
+	{ 12000000, 586000000, 586, 12, 1, 8},
+	{ 13000000, 586000000, 586, 13, 1, 8},
+	{ 26000000, 586000000, 586, 26, 1, 8},
+#endif
+#endif
 	{ 0, 0, 0, 0, 0, 0 },
 };
 
@@ -2082,7 +2106,7 @@ static struct clk tegra_clk_emc = {
 		.parent = _parent,			\
 	}
 
-struct clk tegra_list_clks[] = {
+struct clk tegra_list_periph_clks[] = {
 	PERIPH_CLK("rtc",	"rtc-tegra",		NULL,	4,	0,	0x31E,	32768,     mux_clk_32k,			PERIPH_NO_RESET),
 	PERIPH_CLK("kbc",	"tegra-kbc",		NULL,	36, 	0,	0x31E,	32768,	   mux_clk_32k, PERIPH_NO_RESET),
 	PERIPH_CLK("timer",	"timer",		NULL,	5,	0,	0x31E,	26000000,  mux_clk_m,			0),
@@ -2143,13 +2167,18 @@ struct clk tegra_list_clks[] = {
 	PERIPH_CLK("disp1",	"tegradc.0",		NULL,	27,	0x138,	0x31E,	600000000, mux_pllp_plld_pllc_clkm,	MUX | DIV_U71), /* scales with voltage and process_id */
 	PERIPH_CLK("disp2",	"tegradc.1",		NULL,	26,	0x13c,	0x31E,	600000000, mux_pllp_plld_pllc_clkm,	MUX | DIV_U71), /* scales with voltage and process_id */
 	PERIPH_CLK("usbd",	"fsl-tegra-udc",	NULL,	22,	0,	0x31E,	480000000, mux_clk_m,			0), /* requires min voltage */
-	PERIPH_CLK("usb2",	"tegra-ehci.1",		NULL,	58,	0,	0x31E,	480000000, mux_clk_m,			0), /* requires min voltage */
-	PERIPH_CLK("usb3",	"tegra-ehci.2",		NULL,	59,	0,	0x31E,	480000000, mux_clk_m,			0), /* requires min voltage */
+	PERIPH_CLK("usb2",	"tegra-ehci.1",		"usb2",	58,	0,	0x31E,	480000000, mux_clk_m,			0), /* requires min voltage */
+	PERIPH_CLK("usb2min",	"tegra-ehci.1",		"usb2min",	95,	0,	0x31E,	60000000, mux_clk_m,			0), /* requires min voltage */
+	PERIPH_CLK("usb3",	"tegra-ehci.2",		"usb3",	59,	0,	0x31E,	480000000, mux_clk_m,			0), /* requires min voltage */
+	PERIPH_CLK("usb3min",	"tegra-ehci.2",		"usb3min",	96,	0,	0x31E,	60000000,  mux_clk_m,			0), /* requires min voltage */
 	PERIPH_CLK("dsi",	"dsi",			NULL,	48,	0,	0x31E,	500000000, mux_plld_out0,		0), /* scales with voltage */
 	PERIPH_CLK("csi",	"tegra_camera",		"csi",	52,	0,	0x31E,	72000000,  mux_pllp_out3,		0),
 	PERIPH_CLK("isp",	"tegra_camera",		"isp",	23,	0,	0x31E,	150000000, mux_clk_m,			0), /* same frequency as VI */
 	PERIPH_CLK("csus",	"tegra_camera",		"csus",	92,	0,	0x31E,	150000000, mux_clk_m,			PERIPH_NO_RESET),
+	PERIPH_CLK("stat_mon",	"tegra-stat-mon",	NULL,	37,	0,	0x31E,	26000000,  mux_clk_m,			0),
+};
 
+struct clk tegra_list_shared_clks[] = {
 	SHARED_CLK("avp.sclk",	"tegra-avp",		"sclk",	&tegra_clk_virtual_sclk),
 	SHARED_CLK("bsea.sclk",	"tegra-aes",		"sclk",	&tegra_clk_virtual_sclk),
 	SHARED_CLK("usbd.sclk",	"fsl-tegra-udc",	"sclk",	&tegra_clk_virtual_sclk),
@@ -2205,6 +2234,7 @@ struct clk_duplicate tegra_clk_duplicates[] = {
 	CLK_DUPLICATE("mpe", "tegra_grhost", "mpe"),
 	CLK_DUPLICATE("cop", "tegra-avp", "cop"),
 	CLK_DUPLICATE("vde", "tegra-aes", "vde"),
+	CLK_DUPLICATE("sbc1", "tegra_spi_slave.0", NULL),
 	CLK_DUPLICATE("bsea", "tegra-aes", "bsea"),
 };
 
@@ -2282,6 +2312,7 @@ static struct tegra_sku_rate_limit sku_limits[] =
 	RATE_LIMIT("sclk",	300000000, 0x14, 0x17, 0x18, 0x1B, 0x1C),
 	RATE_LIMIT("virt_sclk",	300000000, 0x14, 0x17, 0x18, 0x1B, 0x1C),
 	RATE_LIMIT("hclk",	300000000, 0x14, 0x17, 0x18, 0x1B, 0x1C),
+	RATE_LIMIT("pclk",	150000000, 0x14, 0x17, 0x18, 0x1B, 0x1C),
 	RATE_LIMIT("avp.sclk",	300000000, 0x14, 0x17, 0x18, 0x1B, 0x1C),
 	RATE_LIMIT("bsea.sclk",	300000000, 0x14, 0x17, 0x18, 0x1B, 0x1C),
 	RATE_LIMIT("vde",	300000000, 0x14, 0x17, 0x18, 0x1B, 0x1C),
@@ -2330,8 +2361,8 @@ void __init tegra2_init_clocks(void)
 	for (i = 0; i < ARRAY_SIZE(tegra_ptr_clks); i++)
 		tegra2_init_one_clock(tegra_ptr_clks[i]);
 
-	for (i = 0; i < ARRAY_SIZE(tegra_list_clks); i++)
-		tegra2_init_one_clock(&tegra_list_clks[i]);
+	for (i = 0; i < ARRAY_SIZE(tegra_list_periph_clks); i++)
+		tegra2_init_one_clock(&tegra_list_periph_clks[i]);
 
 	for (i = 0; i < ARRAY_SIZE(tegra_clk_duplicates); i++) {
 		c = tegra_get_clock_by_name(tegra_clk_duplicates[i].name);
@@ -2347,6 +2378,9 @@ void __init tegra2_init_clocks(void)
 
 	init_audio_sync_clock_mux();
 	tegra2_init_sku_limits();
+
+	for (i = 0; i < ARRAY_SIZE(tegra_list_shared_clks); i++)
+		tegra2_init_one_clock(&tegra_list_shared_clks[i]);
 }
 
 #ifdef CONFIG_CPU_FREQ

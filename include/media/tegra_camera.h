@@ -31,6 +31,14 @@ struct tegra_camera_clk_info {
 	unsigned long rate;
 };
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+int tegra_camera_enable_vi(void);
+int tegra_camera_disable_vi(void);
+int tegra_camera_enable_csi(void);
+int tegra_camera_disable_csi(void);
+int tegra_camera_clk_set_rate(struct tegra_camera_clk_info *info);
+#endif
+
 #define TEGRA_CAMERA_IOCTL_ENABLE		_IOWR('i', 1, uint)
 #define TEGRA_CAMERA_IOCTL_DISABLE		_IOWR('i', 2, uint)
 #define TEGRA_CAMERA_IOCTL_CLK_SET_RATE		\

@@ -486,6 +486,7 @@ out:
 static struct sk_buff *br_multicast_alloc_query(struct net_bridge *br,
 						struct br_ip *addr)
 {
+#ifndef CONFIG_MACH_SAMSUNG_P4LTE
 	switch (addr->proto) {
 	case htons(ETH_P_IP):
 		return br_ip4_multicast_alloc_query(br, addr->u.ip4);
@@ -494,6 +495,7 @@ static struct sk_buff *br_multicast_alloc_query(struct net_bridge *br,
 		return br_ip6_multicast_alloc_query(br, &addr->u.ip6);
 #endif
 	}
+#endif
 	return NULL;
 }
 

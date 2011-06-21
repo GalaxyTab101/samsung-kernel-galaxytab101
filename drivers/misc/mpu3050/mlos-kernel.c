@@ -1,20 +1,7 @@
 /*
- $License:
-    Copyright (C) 2010 InvenSense Corporation, All Rights Reserved.
-
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-  $
+ * $License:
+ *    Copyright (C) 2010 InvenSense Corporation, All Rights Reserved.
+ * $
  */
 /**
  * @defgroup
@@ -30,6 +17,7 @@
 #include "mlos.h"
 #include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/time.h>
 
 void *MLOSMalloc(unsigned int numBytes)
 {
@@ -84,6 +72,9 @@ void MLOSSleep(int mSecs)
 
 unsigned long MLOSGetTickCount(void)
 {
-	/* @todo implement if needed */
-	return ML_ERROR_FEATURE_NOT_IMPLEMENTED;
+	struct timespec now;
+
+	getnstimeofday(&now);
+
+	return (long)(now.tv_sec * 1000L + now.tv_nsec / 1000000L);
 }

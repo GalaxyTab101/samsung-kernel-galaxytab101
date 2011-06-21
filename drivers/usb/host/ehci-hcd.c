@@ -259,7 +259,8 @@ static int ehci_reset (struct ehci_hcd *ehci)
 
 	command |= CMD_RESET;
 	dbg_cmd (ehci, "reset", command);
-	ehci_writel(ehci, command, &ehci->regs->command);
+	if (!ehci->controller_resets_phy)
+		ehci_writel(ehci, command, &ehci->regs->command);
 	ehci_to_hcd(ehci)->state = HC_STATE_HALT;
 	ehci->next_statechange = jiffies;
 	retval = handshake (ehci, &ehci->regs->command,
@@ -1199,7 +1200,7 @@ MODULE_LICENSE ("GPL");
 
 #ifdef CONFIG_ARCH_TEGRA
 #include "ehci-tegra.c"
-#define PLATFORM_DRIVER		tegra_ehci_driver
+#define	PLATFORM_DRIVER         tegra_ehci_driver
 #endif
 
 #if !defined(PCI_DRIVER) && !defined(PLATFORM_DRIVER) && \
@@ -1294,7 +1295,11 @@ err_debug:
 	clear_bit(USB_EHCI_LOADED, &usb_hcds_loaded);
 	return retval;
 }
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+late_initcall(ehci_hcd_init);
+#else
 module_init(ehci_hcd_init);
+#endif
 
 static void __exit ehci_hcd_cleanup(void)
 {

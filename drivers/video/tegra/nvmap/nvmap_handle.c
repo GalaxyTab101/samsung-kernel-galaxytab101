@@ -35,8 +35,12 @@
 #include <mach/iovmm.h>
 #include <mach/nvmap.h>
 
+#include <linux/vmstat.h>
+#include <linux/swap.h>
+
 #include "nvmap.h"
 #include "nvmap_mru.h"
+#include "nvmap_common.h"
 
 #define NVMAP_SECURE_HEAPS	(NVMAP_HEAP_CARVEOUT_IRAM | NVMAP_HEAP_IOVMM)
 #ifdef CONFIG_NVMAP_HIGHMEM_ONLY
@@ -107,7 +111,8 @@ out:
 
 extern void __flush_dcache_page(struct address_space *, struct page *);
 
-static struct page *nvmap_alloc_pages_exact(gfp_t gfp, size_t size)
+static struct page *nvmap_alloc_pages_exact(gfp_t gfp,
+	size_t size, bool flush_inner)
 {
 	struct page *page, *p, *e;
 	unsigned int order;
@@ -127,8 +132,10 @@ static struct page *nvmap_alloc_pages_exact(gfp_t gfp, size_t size)
 		__free_page(p);
 
 	e = page + (size >> PAGE_SHIFT);
-	for (p = page; p < e; p++)
-		__flush_dcache_page(page_mapping(p), p);
+	if (flush_inner) {
+		for (p = page; p < e; p++)
+			__flush_dcache_page(page_mapping(p), p);
+	}
 
 	base = page_to_phys(page);
 	outer_flush_range(base, base + size);
@@ -143,6 +150,7 @@ static int handle_page_alloc(struct nvmap_client *client,
 	pgprot_t prot;
 	unsigned int i = 0;
 	struct page **pages;
+	bool flush_inner = true;
 
 	pages = altalloc(nr_page * sizeof(*pages));
 	if (!pages)
@@ -155,10 +163,14 @@ static int handle_page_alloc(struct nvmap_client *client,
 		contiguous = true;
 #endif
 
+	if (size >= FLUSH_CLEAN_BY_SET_WAY_THRESHOLD) {
+		inner_flush_cache_all();
+		flush_inner = false;
+	}
 	h->pgalloc.area = NULL;
 	if (contiguous) {
 		struct page *page;
-		page = nvmap_alloc_pages_exact(GFP_NVMAP, size);
+		page = nvmap_alloc_pages_exact(GFP_NVMAP, size, flush_inner);
 		if (!page)
 			goto fail;
 
@@ -167,7 +179,8 @@ static int handle_page_alloc(struct nvmap_client *client,
 
 	} else {
 		for (i = 0; i < nr_page; i++) {
-			pages[i] = nvmap_alloc_pages_exact(GFP_NVMAP, PAGE_SIZE);
+			pages[i] = nvmap_alloc_pages_exact(GFP_NVMAP, PAGE_SIZE,
+				flush_inner);
 			if (!pages[i])
 				goto fail;
 		}
@@ -193,6 +206,7 @@ fail:
 	while (i--)
 		__free_page(pages[i]);
 	altfree(pages, nr_page * sizeof(*pages));
+	wmb();
 	return -ENOMEM;
 }
 
@@ -275,6 +289,10 @@ static const unsigned int heap_policy_large[] = {
 	0,
 };
 
+/* Do not override single page policy if there is not much space to
+avoid invoking system oom killer. */
+#define NVMAP_SMALL_POLICY_SYSMEM_THRESHOLD 50000000
+
 int nvmap_alloc_handle_id(struct nvmap_client *client,
 			  unsigned long id, unsigned int heap_mask,
 			  size_t align, unsigned int flags)
@@ -286,10 +304,6 @@ int nvmap_alloc_handle_id(struct nvmap_client *client,
 
 	align = max_t(size_t, align, L1_CACHE_BYTES);
 
-	/* can't do greater than page size alignment with page alloc */
-	if (align > PAGE_SIZE)
-		heap_mask &= NVMAP_HEAP_CARVEOUT_MASK;
-
 	h = nvmap_get_handle_id(client, id);
 
 	if (!h)
@@ -298,9 +312,38 @@ int nvmap_alloc_handle_id(struct nvmap_client *client,
 	if (h->alloc)
 		goto out;
 
+	if (h->size > 8000000) {
+		heap_mask |= NVMAP_HEAP_CARVEOUT_GENERIC;
+		heap_mask &= ~NVMAP_HEAP_IOVMM;
+	}
+
 	nr_page = ((h->size + PAGE_SIZE - 1) >> PAGE_SHIFT);
 	h->secure = !!(flags & NVMAP_HANDLE_SECURE);
 	h->flags = (flags & NVMAP_HANDLE_CACHE_FLAG);
+
+#ifdef CONFIG_NVMAP_ALLOW_SYSMEM
+	/* Allow single pages allocations in system memory to save
+	 * carveout space and avoid extra iovm mappings */
+	if (nr_page == 1) {
+		if (heap_mask & NVMAP_HEAP_IOVMM)
+			heap_mask |= NVMAP_HEAP_SYSMEM;
+		else if (heap_mask & NVMAP_HEAP_CARVEOUT_GENERIC) {
+			/* Calculate size of free physical pages
+			 * managed by kernel */
+			unsigned long freeMem =
+				(global_page_state(NR_FREE_PAGES) +
+				global_page_state(NR_FILE_PAGES) -
+				total_swapcache_pages) << PAGE_SHIFT;
+
+			if (freeMem > NVMAP_SMALL_POLICY_SYSMEM_THRESHOLD)
+				heap_mask |= NVMAP_HEAP_SYSMEM;
+		}
+	}
+#endif
+
+	/* can't do greater than page size alignment with page alloc */
+	if (align > PAGE_SIZE)
+		heap_mask &= NVMAP_HEAP_CARVEOUT_MASK;
 
 	/* secure allocations can only be served from secure heaps */
 	if (h->secure)

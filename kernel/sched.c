@@ -7832,6 +7832,31 @@ void __init sched_init(void)
 	int i, j;
 	unsigned long alloc_size = 0, ptr;
 
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+	/* {{ Add GAForensicINFO-2/2 */
+	/*
+	* Add GAForensic init for preventing symbol removal for optimization.
+	*/
+	GAFINFO.rq_struct_curr = offsetof(struct rq, curr);
+	
+#ifdef CONFIG_FAIR_GROUP_SCHED
+	GAFINFO.cfs_rq_struct_rq_struct = offsetof(struct cfs_rq, rq);
+#else
+	GAFINFO.cfs_rq_struct_rq_struct = 0x1224;
+#endif
+	unsigned short *checksum = &(GAFINFO.GAFINFOCheckSum);
+	unsigned char *memory = &GAFINFO;
+	unsigned char address;
+	for (*checksum = 0,address = 0; address < (sizeof(GAFINFO) - sizeof(GAFINFO.GAFINFOCheckSum)); address++) {
+		if ((*checksum) & 0x8000)
+			(*checksum) = (( (*checksum) << 1) | 1 ) ^ memory[address];
+		else
+			(*checksum) = ((*checksum) << 1) ^ memory[address];
+	
+	}
+	/* }} Add GAForensicINFO-2/2 */
+#endif
+
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	alloc_size += 2 * nr_cpu_ids * sizeof(void **);
 #endif

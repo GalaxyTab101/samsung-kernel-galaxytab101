@@ -56,6 +56,28 @@
 #include "board.h"
 #include "power.h"
 
+#ifdef CONFIG_TRUSTED_FOUNDATIONS
+void callGenericSMC(u32 param0, u32 param1, u32 param2)
+{
+	__asm__ volatile(
+		"mov r0, %2\n"
+		"mov r1, %3\n"
+		"mov r2, %4\n"
+		"mov r3, #0\n"
+		"mov r4, #0\n"
+		".word    0xe1600070              @ SMC 0\n"
+		"mov %0, r0\n"
+		"mov %1, r1\n"
+		: "=r" (param0), "=r" (param1)
+		: "r" (param0), "r" (param1),
+		  "r" (param2)
+		: "r0", "r1", "r2", "r3", "r4");
+}
+u32 buffer_rdv[64];
+#endif
+
+/**************** END TL *********************/
+
 struct suspend_context {
 	/*
 	 * The next 7 values are referenced by offset in __restart_plls
@@ -379,6 +401,11 @@ unsigned int tegra_suspend_lp2(unsigned int us)
 	outer_flush_range(__pa(&tegra_sctx),__pa(&tegra_sctx+1));
 	barrier();
 
+#ifdef CONFIG_TRUSTED_FOUNDATIONS
+// TRUSTED LOGIC SMC_STOP/Save State
+	callGenericSMC(0xFFFFFFFC, 0xFFFFFFE4, virt_to_phys(buffer_rdv));
+#endif
+
 	__cortex_a9_save(mode);
 	/* return from __cortex_a9_restore */
 	barrier();
@@ -462,6 +489,10 @@ static void tegra_suspend_dram(bool do_lp0)
 	l2x0_shutdown();
 #endif
 
+#ifdef CONFIG_TRUSTED_FOUNDATIONS
+// TRUSTED LOGIC SMC_STOP/Save State
+	callGenericSMC(0xFFFFFFFC, 0xFFFFFFE3, virt_to_phys(buffer_rdv));
+#endif
 	__cortex_a9_save(mode);
 	restore_cpu_complex();
 
@@ -572,6 +603,118 @@ static void tegra_debug_uart_resume(void)
 #define MC_SECURITY_SIZE	0x70
 #define MC_SECURITY_CFG2	0x7c
 
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+#define AHB_ARBITRATION_DISABLE		0x00
+#define AHB_ARBITRATION_PRIORITY_CTRL	0x04
+#define AHB_GIZMO_AHB_MEM		0x0c
+#define AHB_GIZMO_APB_DMA		0x10
+#define AHB_GIZMO_IDE			0x18
+#define AHB_GIZMO_USB			0x1c
+#define AHB_GIZMO_AHB_XBAR_BRIDGE	0x20
+#define AHB_GIZMO_CPU_AHB_BRIDGE	0x24
+#define AHB_GIZMO_COP_AHB_BRIDGE	0x28
+#define AHB_GIZMO_XBAR_APB_CTLR		0x2c
+#define AHB_GIZMO_VCP_AHB_BRIDGE	0x30
+#define AHB_GIZMO_NAND			0x3c
+#define AHB_GIZMO_SDMMC4		0x44
+#define AHB_GIZMO_XIO			0x48
+#define AHB_GIZMO_BSEV			0x60
+#define AHB_GIZMO_BSEA			0x70
+#define AHB_GIZMO_NOR			0x74
+#define AHB_GIZMO_USB2			0x78
+#define AHB_GIZMO_USB3			0x7c
+#define AHB_GIZMO_SDMMC1		0x80
+#define AHB_GIZMO_SDMMC2		0x84
+#define AHB_GIZMO_SDMMC3		0x88
+#define AHB_MEM_PREFETCH_CFG_X		0xd8
+#define AHB_ARBITRATION_XBAR_CTRL	0xdc
+#define AHB_MEM_PREFETCH_CFG3		0xe0
+#define AHB_MEM_PREFETCH_CFG4		0xe4
+#define AHB_MEM_PREFETCH_CFG1		0xec
+#define AHB_MEM_PREFETCH_CFG2		0xf0
+#define AHB_ARBITRATION_AHB_MEM_WRQUE_MST_ID	0xf8
+
+static inline unsigned long gizmo_readl(unsigned long offset)
+{
+	return readl(IO_TO_VIRT(TEGRA_AHB_GIZMO_BASE + offset));
+}
+
+static inline void gizmo_writel(unsigned long value, unsigned long offset)
+{
+	writel(value, IO_TO_VIRT(TEGRA_AHB_GIZMO_BASE + offset));
+}
+
+static u32 ahb_gizmo[29];
+
+void tegra_ahbgizmo_suspend(void)
+{
+	ahb_gizmo[0] = gizmo_readl(AHB_ARBITRATION_DISABLE);
+	ahb_gizmo[1] = gizmo_readl(AHB_ARBITRATION_PRIORITY_CTRL);
+	ahb_gizmo[2] = gizmo_readl(AHB_GIZMO_AHB_MEM);
+	ahb_gizmo[3] = gizmo_readl(AHB_GIZMO_APB_DMA);
+	ahb_gizmo[4] = gizmo_readl(AHB_GIZMO_IDE);
+	ahb_gizmo[5] = gizmo_readl(AHB_GIZMO_USB);
+	ahb_gizmo[6] = gizmo_readl(AHB_GIZMO_AHB_XBAR_BRIDGE);
+	ahb_gizmo[7] = gizmo_readl(AHB_GIZMO_CPU_AHB_BRIDGE);
+	ahb_gizmo[8] = gizmo_readl(AHB_GIZMO_COP_AHB_BRIDGE);
+	ahb_gizmo[9] = gizmo_readl(AHB_GIZMO_XBAR_APB_CTLR);
+	ahb_gizmo[10] = gizmo_readl(AHB_GIZMO_VCP_AHB_BRIDGE);
+	ahb_gizmo[11] = gizmo_readl(AHB_GIZMO_NAND);
+	ahb_gizmo[12] = gizmo_readl(AHB_GIZMO_SDMMC4);
+	ahb_gizmo[13] = gizmo_readl(AHB_GIZMO_XIO);
+	ahb_gizmo[14] = gizmo_readl(AHB_GIZMO_BSEV);
+	ahb_gizmo[15] = gizmo_readl(AHB_GIZMO_BSEA);
+	ahb_gizmo[16] = gizmo_readl(AHB_GIZMO_NOR);
+	ahb_gizmo[17] = gizmo_readl(AHB_GIZMO_USB2);
+	ahb_gizmo[18] = gizmo_readl(AHB_GIZMO_USB3);
+	ahb_gizmo[19] = gizmo_readl(AHB_GIZMO_SDMMC1);
+	ahb_gizmo[20] = gizmo_readl(AHB_GIZMO_SDMMC2);
+	ahb_gizmo[21] = gizmo_readl(AHB_GIZMO_SDMMC3);
+	ahb_gizmo[22] = gizmo_readl(AHB_MEM_PREFETCH_CFG_X);
+	ahb_gizmo[23] = gizmo_readl(AHB_ARBITRATION_XBAR_CTRL);
+	ahb_gizmo[24] = gizmo_readl(AHB_MEM_PREFETCH_CFG3);
+	ahb_gizmo[25] = gizmo_readl(AHB_MEM_PREFETCH_CFG4);
+	ahb_gizmo[26] = gizmo_readl(AHB_MEM_PREFETCH_CFG1);
+	ahb_gizmo[27] = gizmo_readl(AHB_MEM_PREFETCH_CFG2);
+	ahb_gizmo[28] = gizmo_readl(AHB_ARBITRATION_AHB_MEM_WRQUE_MST_ID);
+}
+
+void tegra_ahbgizmo_resume(void)
+{
+	gizmo_writel(ahb_gizmo[0], AHB_ARBITRATION_DISABLE);
+	gizmo_writel(ahb_gizmo[1], AHB_ARBITRATION_PRIORITY_CTRL);
+	gizmo_writel(ahb_gizmo[2], AHB_GIZMO_AHB_MEM);
+	gizmo_writel(ahb_gizmo[3], AHB_GIZMO_APB_DMA);
+	gizmo_writel(ahb_gizmo[4], AHB_GIZMO_IDE);
+	gizmo_writel(ahb_gizmo[5], AHB_GIZMO_USB);
+	gizmo_writel(ahb_gizmo[6], AHB_GIZMO_AHB_XBAR_BRIDGE);
+	gizmo_writel(ahb_gizmo[7], AHB_GIZMO_CPU_AHB_BRIDGE);
+	gizmo_writel(ahb_gizmo[8], AHB_GIZMO_COP_AHB_BRIDGE);
+	gizmo_writel(ahb_gizmo[9], AHB_GIZMO_XBAR_APB_CTLR);
+	gizmo_writel(ahb_gizmo[10],AHB_GIZMO_VCP_AHB_BRIDGE);
+	gizmo_writel(ahb_gizmo[11],AHB_GIZMO_NAND);
+	gizmo_writel(ahb_gizmo[12],AHB_GIZMO_SDMMC4);
+	gizmo_writel(ahb_gizmo[13],AHB_GIZMO_XIO);
+	gizmo_writel(ahb_gizmo[14],AHB_GIZMO_BSEV);
+	gizmo_writel(ahb_gizmo[15],AHB_GIZMO_BSEA);
+	gizmo_writel(ahb_gizmo[16],AHB_GIZMO_NOR);
+	gizmo_writel(ahb_gizmo[17],AHB_GIZMO_USB2);
+	gizmo_writel(ahb_gizmo[18],AHB_GIZMO_USB3);
+	gizmo_writel(ahb_gizmo[19],AHB_GIZMO_SDMMC1);
+	gizmo_writel(ahb_gizmo[20],AHB_GIZMO_SDMMC2);
+	gizmo_writel(ahb_gizmo[21],AHB_GIZMO_SDMMC3);
+	gizmo_writel(ahb_gizmo[22],AHB_MEM_PREFETCH_CFG_X);
+	gizmo_writel(ahb_gizmo[23],AHB_ARBITRATION_XBAR_CTRL);
+	gizmo_writel(ahb_gizmo[24],AHB_MEM_PREFETCH_CFG3);
+	gizmo_writel(ahb_gizmo[25],AHB_MEM_PREFETCH_CFG4);
+	gizmo_writel(ahb_gizmo[26],AHB_MEM_PREFETCH_CFG1);
+	gizmo_writel(ahb_gizmo[27],AHB_MEM_PREFETCH_CFG2);
+	gizmo_writel(ahb_gizmo[28],AHB_ARBITRATION_AHB_MEM_WRQUE_MST_ID);
+}
+#endif
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+extern int Is_call_active(void);
+#endif
 static int tegra_suspend_enter(suspend_state_t state)
 {
 	struct irq_desc *desc;
@@ -602,6 +745,9 @@ static int tegra_suspend_enter(suspend_state_t state)
 	if (do_lp0) {
 		tegra_irq_suspend();
 		tegra_dma_suspend();
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+		tegra_ahbgizmo_suspend();
+#endif
 		tegra_debug_uart_suspend();
 		tegra_pinmux_suspend();
 		tegra_timer_suspend();
@@ -654,6 +800,9 @@ static int tegra_suspend_enter(suspend_state_t state)
 		tegra_timer_resume();
 		tegra_pinmux_resume();
 		tegra_debug_uart_resume();
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+		tegra_ahbgizmo_resume();
+#endif
 		tegra_dma_resume();
 		tegra_irq_resume();
 	}
@@ -670,8 +819,29 @@ static int tegra_suspend_enter(suspend_state_t state)
 	return 0;
 }
 
+/*
+ * Function pointers to optional board specific function
+ */
+void (*tegra_deep_sleep)(int);
+EXPORT_SYMBOL(tegra_deep_sleep);
+
+static int tegra_suspend_prepare(void)
+{
+	if ((current_suspend_mode == TEGRA_SUSPEND_LP0) && tegra_deep_sleep)
+		tegra_deep_sleep(1);
+	return 0;
+}
+
+static void tegra_suspend_finish(void)
+{
+	if ((current_suspend_mode == TEGRA_SUSPEND_LP0) && tegra_deep_sleep)
+		tegra_deep_sleep(0);
+}
+
 static struct platform_suspend_ops tegra_suspend_ops = {
 	.valid		= suspend_valid_only_mem,
+	.prepare	= tegra_suspend_prepare,
+	.finish		= tegra_suspend_finish,
 	.begin		= tegra_suspend_begin,
 	.prepare_late	= tegra_suspend_prepare_late,
 	.wake		= tegra_suspend_wake,
@@ -743,7 +913,9 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 	pmc_32kwritel(reg, PMC_CTRL);
 
 	/* now enable requests */
+#ifndef CONFIG_MACH_SAMSUNG_P4LTE    
 	reg |= (TEGRA_POWER_SYSCLK_OE << TEGRA_POWER_PMC_SHIFT);
+#endif
 	if (pdata->separate_req)
 		reg |= (TEGRA_POWER_PWRREQ_OE << TEGRA_POWER_PMC_SHIFT);
 	writel(reg, pmc + PMC_CTRL);
@@ -752,6 +924,11 @@ void __init tegra_init_suspend(struct tegra_suspend_platform_data *plat)
 		lp0_suspend_init();
 
 	suspend_set_ops(&tegra_suspend_ops);
+#endif
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	pr_info("[PM] P3 suspend mode set as TEGRA_SUSPEND_%s\n", 
+		(plat->suspend_mode==3)?"LP0":((plat->suspend_mode==2)?"LP1":"LP2") );
 #endif
 
 	current_suspend_mode = plat->suspend_mode;

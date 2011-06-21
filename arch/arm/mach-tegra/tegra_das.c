@@ -3,7 +3,7 @@
  *
  * Digital audio switch driver for tegra soc
  *
- * Copyright (C) 2010 NVIDIA Corporation
+ * Copyright (C) 2010-2011 NVIDIA Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,9 +28,15 @@
 #include <linux/slab.h>
 #include <linux/mutex.h>
 
+#include "clock.h"
 #include <mach/iomap.h>
 #include <mach/pinmux.h>
 #include <mach/tegra_das.h>
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#include <linux/clk.h>
+#include "clock.h"
+#endif
 
 #define TOTAL_DAP_PORTS		5
 
@@ -250,10 +256,12 @@ static int das_set_pin_state(bool normal)
 			/* Enable the DAP outputs */
 			tegra_pinmux_set_tristate(TEGRA_PINGROUP_DAP1,
 						TEGRA_TRI_NORMAL);
-			tegra_pinmux_set_tristate(TEGRA_PINGROUP_CDEV1,
-					TEGRA_TRI_NORMAL);
-			tegra_pinmux_set_tristate(TEGRA_PINGROUP_CDEV2,
-					TEGRA_TRI_NORMAL);
+			tegra_pinmux_set_tristate(TEGRA_PINGROUP_DAP2,
+						TEGRA_TRI_NORMAL);
+			tegra_pinmux_set_tristate(TEGRA_PINGROUP_DAP3,
+						TEGRA_TRI_NORMAL);
+			tegra_pinmux_set_tristate(TEGRA_PINGROUP_DAP4,
+						TEGRA_TRI_NORMAL);
 		}
 		das_drv_data->tristate_count++;
 	} else {
@@ -262,9 +270,11 @@ static int das_set_pin_state(bool normal)
 		if (das_drv_data->tristate_count == 0) {
 			tegra_pinmux_set_tristate(TEGRA_PINGROUP_DAP1,
 					TEGRA_TRI_TRISTATE);
-			tegra_pinmux_set_tristate(TEGRA_PINGROUP_CDEV1,
+			tegra_pinmux_set_tristate(TEGRA_PINGROUP_DAP2,
 					TEGRA_TRI_TRISTATE);
-			tegra_pinmux_set_tristate(TEGRA_PINGROUP_CDEV2,
+			tegra_pinmux_set_tristate(TEGRA_PINGROUP_DAP3,
+					TEGRA_TRI_TRISTATE);
+			tegra_pinmux_set_tristate(TEGRA_PINGROUP_DAP4,
 					TEGRA_TRI_TRISTATE);
 		}
 	}
@@ -373,10 +383,133 @@ int tegra_das_get_connection(void)
 }
 EXPORT_SYMBOL_GPL(tegra_das_get_connection);
 
+bool tegra_das_is_port_master(enum tegra_audio_codec_type codec_type)
+{
+	const struct tegra_das_con *con_table =
+		&das_drv_data->pdata->tegra_das_con_table[0];
+	const struct tegra_dap_property *dap_info =
+		&das_drv_data->pdata->tegra_dap_port_info_table[0];
+	int con_id, i;
+	tegra_das_port dap_port = 0;
+
+	con_id = tegra_das_get_connection();
+	for (i = 0; i < tegra_das_port_con_id_max; i++, con_table++) {
+		if (con_id == con_table->con_id)
+			break;
+	}
+
+	if (i == tegra_das_port_con_id_max)
+		return false;
+
+	for (i = 0; i < MAX_DAP_PORTS; i++) {
+		if (dap_info[i].codec_type == codec_type) {
+			dap_port = dap_info[i].dap_port;
+			break;
+		}
+	}
+
+	if (i == MAX_DAP_PORTS)
+		return false;
+
+	for (i = 0; i < con_table->num_entries; i++) {
+		const struct tegra_das_con_line* con = &con_table->con_line[i];
+
+		if ((con->src == dap_port) && con->src_master)
+			return true;
+		else if((con->dest == dap_port) && !con->src_master)
+			return true;
+	}
+
+	return false;
+}
+EXPORT_SYMBOL_GPL(tegra_das_is_port_master);
+
+int tegra_das_get_codec_data_fmt(enum tegra_audio_codec_type codec_type)
+{
+	const struct tegra_das_con *con_table =
+		&das_drv_data->pdata->tegra_das_con_table[0];
+	const struct tegra_dap_property *dap_info =
+		das_drv_data->pdata->tegra_dap_port_info_table;
+	int con_id, i;
+	tegra_das_port dap_a = 0, dap_b = 0;
+	enum dac_dap_data_format data_fmt = dac_dap_data_format_all;
+
+	con_id = tegra_das_get_connection();
+	for (i = 0; i < tegra_das_port_con_id_max; i++, con_table++) {
+		if (con_id == con_table->con_id)
+			break;
+	}
+
+	if (i == tegra_das_port_con_id_max)
+		return data_fmt;
+
+	for (i = 0; i < MAX_DAP_PORTS; i++) {
+		if (dap_info[i].codec_type == codec_type) {
+			dap_a = dap_info[i].dap_port;
+			data_fmt = dap_info[i].device_property.
+						dac_dap_data_comm_format;
+			break;
+		}
+	}
+
+	if (i == MAX_DAP_PORTS)
+		return data_fmt;
+
+
+	for (i = 0; i < con_table->num_entries; i++) {
+		const struct tegra_das_con_line* con = &con_table->con_line[i];
+
+		if (con->src == dap_a) {
+			dap_b = con->dest;
+			break;
+		}
+		else if (con->dest == dap_a) {
+			dap_b = con->src;
+			break;
+		}
+	}
+
+	/* For dac-dap connection return codec data format */
+	if (dap_b > tegra_das_port_dap5)
+		return data_fmt;
+
+	/* For dap-dap bypass connection return data format
+	   supported by codecs connected to each dap port */
+	for (i = 0; i < MAX_DAP_PORTS; i++) {
+		if (dap_info[i].dap_port == dap_b) {
+			data_fmt &= dap_info[i].device_property.
+						dac_dap_data_comm_format;
+			break;
+		}
+	}
+
+	return data_fmt;
+}
+EXPORT_SYMBOL_GPL(tegra_das_get_codec_data_fmt);
+
+struct clk* tegra_das_get_dap_mclk(void)
+{
+	return tegra_get_clock_by_name(das_drv_data->pdata->dap_clk);
+}
+EXPORT_SYMBOL_GPL(tegra_das_get_dap_mclk);
+
 /* if is_normal is true then power mode is normal else tristated */
 int tegra_das_power_mode(bool is_normal)
 {
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	/* This code is intended to prevent pop noise when i2s port is closed */
+	struct clk * dap_mclk1 = tegra_get_clock_by_name("clk_dev1");
+
+	if (is_normal) {
+		das_set_pin_state(is_normal);
+		clk_enable(dap_mclk1);
+	} else {
+		clk_disable(dap_mclk1);
+		das_set_pin_state(is_normal);
+	}
+#else
 	das_set_pin_state(is_normal);
+#endif
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tegra_das_power_mode);
@@ -456,26 +589,26 @@ static int tegra_das_probe(struct platform_device *pdev)
 		/* Obtain the port index for each codec type */
 		switch(dap_prop->codec_type) {
 		case tegra_audio_codec_type_hifi:
-			das_ctx->hifi_port_idx = i;
+			das_ctx->hifi_port_idx = dap_prop->dap_port;
 			break;
 		case tegra_audio_codec_type_voice:
-			das_ctx->voice_codec_idx = i;
+			das_ctx->voice_codec_idx = dap_prop->dap_port;
 			break;
 		case tegra_audio_codec_type_bluetooth:
-			das_ctx->bt_port_idx = i;
+			das_ctx->bt_port_idx = dap_prop->dap_port;
 			break;
 		case tegra_audio_codec_type_baseband:
-			das_ctx->bb_port_idx = i;
+			das_ctx->bb_port_idx = dap_prop->dap_port;
 			break;
 		case tegra_audio_codec_type_fm_radio:
-			das_ctx->fm_radio_port_idx = i;
+			das_ctx->fm_radio_port_idx = dap_prop->dap_port;
 			break;
 		default:
 			found = false;
 			break;
 		}
 		if (found) {
-			tegra_dap_default_settings(i);
+			tegra_dap_default_settings(dap_prop->dap_port);
 		}
 	}
 

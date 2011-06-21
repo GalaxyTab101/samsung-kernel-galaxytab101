@@ -38,7 +38,7 @@ enum {
 	AVP_DBG_TRACE_SVC		= 1U << 0,
 };
 
-static u32 debug_mask = 0;
+static u32 debug_mask;
 module_param_named(debug_mask, debug_mask, uint, S_IWUSR | S_IRUGO);
 
 #define DBG(flag, args...) \
@@ -686,6 +686,7 @@ struct avp_svc_info *avp_svc_init(struct platform_device *pdev,
 		ret = -ENOENT;
 		goto err_get_clks;
 	}
+	clk_set_rate(avp_svc->sclk, ULONG_MAX);
 
 	avp_svc->emcclk = clk_get(&pdev->dev, "emc");
 	if (IS_ERR(avp_svc->emcclk)) {

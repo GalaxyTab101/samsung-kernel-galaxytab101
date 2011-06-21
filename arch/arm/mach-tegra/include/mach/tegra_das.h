@@ -3,7 +3,7 @@
  *
  * Declarations of Tegra Digital Audio Switch (das)
  *
- * Copyright (c) 2010, NVIDIA Corporation.
+ * Copyright (c) 2010-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,7 +51,17 @@
 #define APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0		(0xc40)
 #define APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_1		(0xc44)
 #define APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_2		(0xc48)
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#define APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_3		(0xc4c)
 
+/*DAP control register bit*/
+#define DAP_MS_SEL_SLAVE	(0<<31)
+#define DAP_MS_SEL_MASTER	(1<<31)
+#define DAP_SDATA1_TX		(0<<30)
+#define DAP_SDATA1_RX		(1<<30)
+#define DAP_SDATA2_TX		(0<<29)
+#define DAP_SDATA2_RX		(1<<29)
+#endif
 #define DAP_MS_SEL_SHIFT		(31)
 #define DAP_MS_SEL_DEFAULT_MASK		(0x1)
 #define DAP_SDATA1_TX_RX_SHIFT		(30)
@@ -67,7 +77,25 @@
 #define DAC_SDATA1_SEL_DEFAULT_MASK	(0xf)
 #define DAC_CLK_SEL_SHIFT		(0)
 #define DAC_CLK_SEL_DEFAULT_MASK	(0xf)
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+/*DAC input data selection bit*/
+#define DAC_SDATA2_SEL_DAP1	(0<<28)
+#define DAC_SDATA2_SEL_DAP2	(1<<28)
+#define DAC_SDATA2_SEL_DAP3	(2<<28)
+#define DAC_SDATA2_SEL_DAP4	(3<<28)
+#define DAC_SDATA2_SEL_DAP5	(4<<28)
+#define DAC_SDATA1_SEL_DAP1	(0<<24)
+#define DAC_SDATA1_SEL_DAP2	(1<<24)
+#define DAC_SDATA1_SEL_DAP3	(2<<24)
+#define DAC_SDATA1_SEL_DAP4	(3<<24)
+#define DAC_SDATA1_SEL_DAP5	(4<<24)
 
+#define DAC_CLK_SEL_DAP1	0
+#define DAC_CLK_SEL_DAP2	1
+#define DAC_CLK_SEL_DAP3	2
+#define DAC_CLK_SEL_DAP4	3
+#define DAC_CLK_SEL_DAP5	4
+#endif
 
 #define DAP_CTRL_SEL_DAC1		(0)
 #define DAP_CTRL_SEL_DAC2		(1)
@@ -144,20 +172,20 @@ enum tegra_das_port_con_id {
 
 /* data format supported */
 enum dac_dap_data_format {
+	dac_dap_data_format_none = 0x0,
 	dac_dap_data_format_i2s = 0x1,
-	dac_dap_data_format_rjm,
-	dac_dap_data_format_ljm,
-	dac_dap_data_format_dsp,
-	dac_dap_data_format_pcm,
-	dac_dap_data_format_nw,
-	dac_dap_data_format_tdm,
+	dac_dap_data_format_dsp = 0x2,
+	dac_dap_data_format_rjm = 0x4,
+	dac_dap_data_format_ljm = 0x8,
+
+	dac_dap_data_format_all = 0x7FFFFFFF
 };
 
 struct audio_dev_property {
 	unsigned int num_channels;
 	unsigned int bits_per_sample;
 	unsigned int rate;
-	enum dac_dap_data_format  dac_dap_data_comm_format;
+	unsigned int dac_dap_data_comm_format;
 };
 
 /*
@@ -167,6 +195,7 @@ struct audio_dev_property {
  */
 struct tegra_dap_property {
 	tegra_das_port dac_port;
+	tegra_das_port dap_port;
 	enum  tegra_audio_codec_type codec_type;
 	struct audio_dev_property device_property;
 };
@@ -231,6 +260,22 @@ int tegra_das_set_connection(enum tegra_das_port_con_id new_con_id);
  * Function to get current port connection for das
  */
 int tegra_das_get_connection(void);
+
+/*
+ * Function to query if certain das port need to be
+ * configured as master for current das connection
+ */
+bool tegra_das_is_port_master(enum tegra_audio_codec_type codec_type);
+
+/*
+ * Function to get data format for certain codec for current das connection
+ */
+int tegra_das_get_codec_data_fmt(enum tegra_audio_codec_type codec_type);
+
+/*
+ * Function to get dap Mclk handle
+ */
+struct clk* tegra_das_get_dap_mclk(void);
 
 /*
  * Function to set power state on das's dap port

@@ -56,6 +56,12 @@ static struct map_desc tegra_io_desc[] __initdata = {
 		.type = MT_DEVICE,
 	},
 	{
+		.virtual = IO_DPRAM_VIRT,
+		.pfn = __phys_to_pfn(IO_DPRAM_PHYS),
+		.length = IO_DPRAM_SIZE,
+		.type = MT_DEVICE,
+	},
+	{
 		.virtual = IO_HOST1X_VIRT,
 		.pfn = __phys_to_pfn(IO_HOST1X_PHYS),
 		.length = IO_HOST1X_SIZE,

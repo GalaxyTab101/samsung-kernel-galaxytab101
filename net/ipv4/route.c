@@ -2586,10 +2586,21 @@ static int ip_route_output_slow(struct net *net, struct rtable **rp,
 			goto out;
 
 		/* RACE: Check return value of inet_select_addr instead. */
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+		/* patch - ipv4: don't create routes on down devices
+		   refer to http://www.spinics.net/lists/netdev/msg150802.html
+		*/
+		if (!(dev_out->flags & IFF_UP) || !__in_dev_get_rcu(dev_out)) {
+			dev_put(dev_out);
+			err = -ENETUNREACH;
+			goto out;
+		}
+#else
 		if (__in_dev_get_rtnl(dev_out) == NULL) {
 			dev_put(dev_out);
 			goto out;	/* Wrong error code */
 		}
+#endif
 
 		if (ipv4_is_local_multicast(oldflp->fl4_dst) ||
 		    oldflp->fl4_dst == htonl(0xFFFFFFFF)) {

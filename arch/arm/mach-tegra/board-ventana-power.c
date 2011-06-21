@@ -28,6 +28,8 @@
 #include <mach/iomap.h>
 #include <mach/irqs.h>
 
+#include <generated/mach-types.h>
+
 #include "gpio-names.h"
 #include "fuse.h"
 #include "power.h"
@@ -82,10 +84,7 @@ static struct regulator_consumer_supply tps658621_ldo4_supply[] = {
 };
 static struct regulator_consumer_supply tps658621_ldo5_supply[] = {
 	REGULATOR_SUPPLY("vdd_ldo5", NULL),
-	REGULATOR_SUPPLY("disabled_vmmc", "sdhci-tegra.0"),
-	REGULATOR_SUPPLY("disabled_vmmc", "sdhci-tegra.1"),
-	REGULATOR_SUPPLY("disabled_vmmc", "sdhci-tegra.2"),
-	REGULATOR_SUPPLY("disabled_vmmc", "sdhci-tegra.3"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-tegra.3"),
 };
 static struct regulator_consumer_supply tps658621_ldo6_supply[] = {
 	REGULATOR_SUPPLY("vdd_ldo6", NULL),
@@ -107,7 +106,15 @@ static struct regulator_consumer_supply tps658621_ldo9_supply[] = {
 	REGULATOR_SUPPLY("avdd_amp", NULL),
 };
 
-#define REGULATOR_INIT(_id, _minmv, _maxmv, on)				\
+/*
+ * Current TPS6586x is known for having a voltage glitch if current load changes
+ * from low to high in auto PWM/PFM mode for CPU's Vdd line.
+ */
+static struct tps6586x_settings sm1_config = {
+	.sm_pwm_mode = PWM_ONLY,
+};
+
+#define REGULATOR_INIT(_id, _minmv, _maxmv, on, config)			\
 	{								\
 		.constraints = {					\
 			.min_uV = (_minmv)*1000,			\
@@ -121,24 +128,25 @@ static struct regulator_consumer_supply tps658621_ldo9_supply[] = {
 		},							\
 		.num_consumer_supplies = ARRAY_SIZE(tps658621_##_id##_supply),\
 		.consumer_supplies = tps658621_##_id##_supply,		\
+		.driver_data = config,					\
 	}
 
 #define ON	1
 #define OFF	0
 
-static struct regulator_init_data sm0_data = REGULATOR_INIT(sm0, 725, 1500, ON);
-static struct regulator_init_data sm1_data = REGULATOR_INIT(sm1, 725, 1500, ON);
-static struct regulator_init_data sm2_data = REGULATOR_INIT(sm2, 3000, 4550, ON);
-static struct regulator_init_data ldo0_data = REGULATOR_INIT(ldo0, 1250, 3300, OFF);
-static struct regulator_init_data ldo1_data = REGULATOR_INIT(ldo1, 725, 1500, ON);
-static struct regulator_init_data ldo2_data = REGULATOR_INIT(ldo2, 725, 1500, OFF);
-static struct regulator_init_data ldo3_data = REGULATOR_INIT(ldo3, 1250, 3300, OFF);
-static struct regulator_init_data ldo4_data = REGULATOR_INIT(ldo4, 1700, 2475, OFF);
-static struct regulator_init_data ldo5_data = REGULATOR_INIT(ldo5, 1250, 3300, ON);
-static struct regulator_init_data ldo6_data = REGULATOR_INIT(ldo6, 1250, 1800, OFF);
-static struct regulator_init_data ldo7_data = REGULATOR_INIT(ldo7, 1250, 3300, OFF);
-static struct regulator_init_data ldo8_data = REGULATOR_INIT(ldo8, 1250, 3300, OFF);
-static struct regulator_init_data ldo9_data = REGULATOR_INIT(ldo9, 1250, 3300, OFF);
+static struct regulator_init_data sm0_data = REGULATOR_INIT(sm0, 725, 1500, ON, NULL);
+static struct regulator_init_data sm1_data = REGULATOR_INIT(sm1, 725, 1500, ON, &sm1_config);
+static struct regulator_init_data sm2_data = REGULATOR_INIT(sm2, 3000, 4550, ON, NULL);
+static struct regulator_init_data ldo0_data = REGULATOR_INIT(ldo0, 1250, 3300, OFF, NULL);
+static struct regulator_init_data ldo1_data = REGULATOR_INIT(ldo1, 725, 1500, ON, NULL);
+static struct regulator_init_data ldo2_data = REGULATOR_INIT(ldo2, 725, 1500, OFF, NULL);
+static struct regulator_init_data ldo3_data = REGULATOR_INIT(ldo3, 1250, 3300, OFF, NULL);
+static struct regulator_init_data ldo4_data = REGULATOR_INIT(ldo4, 1700, 2475, OFF, NULL);
+static struct regulator_init_data ldo5_data = REGULATOR_INIT(ldo5, 1250, 3300, ON, NULL);
+static struct regulator_init_data ldo6_data = REGULATOR_INIT(ldo6, 1250, 1800, OFF, NULL);
+static struct regulator_init_data ldo7_data = REGULATOR_INIT(ldo7, 1250, 3300, OFF, NULL);
+static struct regulator_init_data ldo8_data = REGULATOR_INIT(ldo8, 1250, 3300, OFF, NULL);
+static struct regulator_init_data ldo9_data = REGULATOR_INIT(ldo9, 1250, 3300, OFF, NULL);
 
 static struct tps6586x_rtc_platform_data rtc_data = {
 	.irq = TEGRA_NR_IRQS + TPS6586X_INT_RTC_ALM1,
@@ -146,7 +154,8 @@ static struct tps6586x_rtc_platform_data rtc_data = {
 		.year = 2009,
 		.month = 1,
 		.day = 1,
-	}
+	},
+	.cl_sel = TPS6586X_RTC_CL_SEL_1_5PF /* use lowest (external 20pF cap) */
 };
 
 #define TPS_REG(_id, _data)			\
@@ -240,6 +249,9 @@ int __init ventana_regulator_init(void)
 static int __init ventana_pcie_init(void)
 {
 	int ret;
+
+	if (!machine_is_ventana())
+		return 0;
 
 	ret = gpio_request(TPS6586X_GPIO_BASE, "pcie_vdd");
 	if (ret < 0)

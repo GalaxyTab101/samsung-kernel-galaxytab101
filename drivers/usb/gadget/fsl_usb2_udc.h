@@ -589,6 +589,9 @@ void fsl_udc_clk_finalize(struct platform_device *pdev);
 void fsl_udc_clk_release(void);
 void fsl_udc_clk_suspend(void);
 void fsl_udc_clk_resume(void);
+void fsl_udc_dtd_prepare(void);
+void fsl_udc_ep_barrier(void);
+
 #else
 static inline int fsl_udc_clk_init(struct platform_device *pdev)
 {

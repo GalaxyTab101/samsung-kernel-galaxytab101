@@ -21,6 +21,8 @@
 #include <linux/i2c.h>
 #include <linux/wait.h>
 
+//#define	CONFIG_MACH_SAMSUNG_HDMI_EDID_FORCE_PASS
+
 struct tegra_edid;
 
 struct tegra_edid *tegra_edid_create(int bus);

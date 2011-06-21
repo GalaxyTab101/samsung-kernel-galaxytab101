@@ -113,4 +113,9 @@ source "drivers/xen/Kconfig"
 source "drivers/staging/Kconfig"
 
 source "drivers/platform/Kconfig"
+
+source "drivers/accessory/Kconfig"
+
+source "drivers/samsung/Kconfig"
+
 endmenu

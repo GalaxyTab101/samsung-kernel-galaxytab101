@@ -67,10 +67,10 @@ static int pn_socket_create(struct net *net, struct socket *sock, int protocol,
 	struct pn_sock *pn;
 	struct phonet_protocol *pnp;
 	int err;
-
+#ifndef CONFIG_MACH_SAMSUNG_P4LTE
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
-
+#endif
 	if (protocol == 0) {
 		/* Default protocol selection */
 		switch (sock->type) {

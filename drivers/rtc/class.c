@@ -1,3 +1,4 @@
+
 /*
  * RTC subsystem, base class
  *
@@ -51,12 +52,36 @@ static int rtc_suspend(struct device *dev, pm_message_t mesg)
 	struct timespec		ts;
 	struct timespec		new_delta;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+        struct rtc_time         sys_tm;
+        struct rtc_time         aprtc_tm;
+        struct timespec         aprtc_ts;
+#endif /* CONFIG_MACH_SAMSUNG_VARIATION_TEGRA */
 	if (strcmp(dev_name(&rtc->dev), CONFIG_RTC_HCTOSYS_DEVICE) != 0)
 		return 0;
 
 	getnstimeofday(&ts);
 	rtc_read_time(rtc, &tm);
 	rtc_tm_to_time(&tm, &oldtime);
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	read_persistent_clock(&aprtc_ts);
+        rtc_time_to_tm(aprtc_ts.tv_sec, &aprtc_tm);
+        rtc_time_to_tm(ts.tv_sec, &sys_tm);
+
+        pr_info("[%s] AP RTC TIME: %04d.%02d.%02d - %02d:%02d:%02d called\n",
+                __func__, aprtc_tm.tm_year+1900, aprtc_tm.tm_mon+1, aprtc_tm.tm_mday,
+                aprtc_tm.tm_hour, aprtc_tm.tm_min, aprtc_tm.tm_sec);
+
+        pr_info("[%s] PMIC RTC TIME: %04d.%02d.%02d - %02d:%02d:%02d called\n",
+                __func__, tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
+                tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+        pr_info("[%s] SYSTEM TIME: %04d.%02d.%02d - %02d:%02d:%02d called\n",
+                __func__, sys_tm.tm_year+1900, sys_tm.tm_mon+1, sys_tm.tm_mday,
+                sys_tm.tm_hour, sys_tm.tm_min, sys_tm.tm_sec);
+
+#endif /* CONFIG_MACH_SAMSUNG_VARIATION_TEGRA */
 
 	/* RTC precision is 1 second; adjust delta for avg 1/2 sec err */
 	set_normalized_timespec(&new_delta,
@@ -76,10 +101,18 @@ static int rtc_resume(struct device *dev)
 	struct rtc_time		tm;
 	time_t			newtime;
 	struct timespec		time;
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	struct rtc_time		sys_tm;
+	struct rtc_time		aprtc_tm;
+	struct timespec		aprtc_ts;
+#endif /* CONFIG_MACH_SAMSUNG_VARIATION_TEGRA */
 
 	if (strcmp(dev_name(&rtc->dev), CONFIG_RTC_HCTOSYS_DEVICE) != 0)
 		return 0;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	read_persistent_clock(&aprtc_ts);
+#endif
 	rtc_read_time(rtc, &tm);
 	if (rtc_valid_tm(&tm) != 0) {
 		pr_debug("%s:  bogus resume time\n", dev_name(&rtc->dev));
@@ -101,6 +134,27 @@ static int rtc_resume(struct device *dev)
 				newtime + delta.tv_sec,
 				(NSEC_PER_SEC >> 1) + delta.tv_nsec);
 	do_settimeofday(&time);
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	rtc_time_to_tm(time.tv_sec, &sys_tm);
+	rtc_time_to_tm(aprtc_ts.tv_sec, &aprtc_tm);
+	pr_info("[%s] AP RTC TIME: %04d.%02d.%02d - %02d:%02d:%02d called\n",
+		__func__,
+		aprtc_tm.tm_year+1900, aprtc_tm.tm_mon+1, aprtc_tm.tm_mday,
+		aprtc_tm.tm_hour, aprtc_tm.tm_min, aprtc_tm.tm_sec);
+
+	pr_info("[%s] PMIC RTC TIME: %04d.%02d.%02d - %02d:%02d:%02d called\n",
+		__func__, tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
+		tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+	pr_info("[%s] SYSTEM TIME: %04d.%02d.%02d - %02d:%02d:%02d called\n",
+		__func__, sys_tm.tm_year+1900, sys_tm.tm_mon+1, sys_tm.tm_mday,
+		sys_tm.tm_hour, sys_tm.tm_min, sys_tm.tm_sec);
+
+	pr_info("[%s] delta.tv_sec: %d delta.tv_nsec: %d\n", __func__,
+		delta.tv_sec, delta.tv_nsec);
+	pr_info("[%s] delta_delta.tv_sec: %d delta_delta.tv_nsec: %d\n",
+		__func__, delta_delta.tv_sec, delta_delta.tv_nsec);
+#endif /* CONFIG_MACH_SAMSUNG_VARIATION_TEGRA */
 
 	return 0;
 }

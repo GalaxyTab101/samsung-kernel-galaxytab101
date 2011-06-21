@@ -215,6 +215,25 @@ struct tegra_pingroup_desc {
 	s8 pupd_bit;	/* offset into the PULL_UPDOWN_REG_* register bit */
 };
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+
+struct tegra_sleep_pingroup_config {
+	enum tegra_pingroup		pingroup;
+	int						pupd_ctrl;
+	enum tegra_pullupdown	pupd;
+	int						tristate_ctrl;
+	enum tegra_tristate		tristate;
+};
+
+#define NO  0
+#define YES 1
+
+int tegra_pinmux_set_func(const struct tegra_pingroup_config *);
+void tegra_pinmux_sleep_config_table(const struct tegra_sleep_pingroup_config *config, int len);
+
+#endif /* CONFIG_MACH_SAMSUNG_VARIATION_TEGRA */
+
+
 extern const struct tegra_pingroup_desc tegra_soc_pingroups[];
 extern const struct tegra_drive_pingroup_desc tegra_soc_drive_pingroups[];
 

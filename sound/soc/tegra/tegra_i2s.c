@@ -19,7 +19,12 @@
 
 #include "tegra_soc.h"
 
+int en_dmic;
+
 /* i2s controller */
+
+static void *das_base = IO_ADDRESS(TEGRA_APB_MISC_BASE);
+
 struct tegra_i2s_info {
 	struct platform_device *pdev;
 	struct tegra_audio_platform_data *pdata;
@@ -346,6 +351,9 @@ static int i2s_configure(struct tegra_i2s_info *info )
 	i2s_set_bit_size(i2s_id, pdata->bit_size);
 	i2s_set_fifo_format(i2s_id, pdata->fifo_fmt);
 
+	if (i2s_id == 0)
+		en_dmic = pdata->en_dmic;
+
 	return 0;
 }
 
@@ -380,11 +388,16 @@ static int tegra_i2s_startup(struct snd_pcm_substream *substream,
 {
 	struct tegra_i2s_info *info = dai->private_data;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	/* This code is intended to prevent pop noise when i2s port is closed */
+	clk_enable(info->audio_sync_clk);
+#else
 	clk_enable(info->dap_mclk);
 	clk_enable(info->audio_sync_clk);
 
 	/* set das pins state to normal */
 	tegra_das_power_mode(true);
+#endif
 
 	return 0;
 }
@@ -394,18 +407,33 @@ static void tegra_i2s_shutdown(struct snd_pcm_substream *substream,
 {
 	struct tegra_i2s_info *info = dai->private_data;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	/* This code is intended to prevent pop noise when i2s port is closed */
+	clk_disable(info->audio_sync_clk);
+#else
 	/* set das pins state to tristate */
 	tegra_das_power_mode(false);
 
 	clk_disable(info->dap_mclk);
 	clk_disable(info->audio_sync_clk);
-
+#endif
 	return;
 }
 
 static int tegra_i2s_probe(struct platform_device *pdev,
 				struct snd_soc_dai *dai)
 {
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	writel(0, das_base+APB_MISC_DAS_DAP_CTRL_SEL_0);
+	writel(0, das_base+APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0);
+	writel(DAP_CTRL_SEL_DAP3, das_base + APB_MISC_DAS_DAP_CTRL_SEL_1);
+/*	writel(DAP_CTRL_SEL_DAP3,das_base+ APB_MISC_DAS_DAP_CTRL_SEL_3); */
+/*	writel(((1<<31) | DAP_CTRL_SEL_DAP2 | DAP_CTRL_SEL_DAP4),
+			das_base + APB_MISC_DAS_DAP_CTRL_SEL_2);*/
+	writel(((1<<31) | DAP_CTRL_SEL_DAP2),
+			das_base + APB_MISC_DAS_DAP_CTRL_SEL_2);
+#endif
+
 	return 0;
 }
 
@@ -432,7 +460,11 @@ struct snd_soc_dai tegra_i2s_dai[] = {
 			.formats = SNDRV_PCM_FMTBIT_S16_LE,
 		},
 		.capture = {
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+			.channels_min = 1,
+#else
 			.channels_min = 2,
+#endif
 			.channels_max = 2,
 			.rates = TEGRA_SAMPLE_RATES,
 			.formats = SNDRV_PCM_FMTBIT_S16_LE,

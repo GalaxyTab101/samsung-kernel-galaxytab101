@@ -218,7 +218,7 @@ static void debug_not_idle(struct nvhost_module *mod)
 		printk("tegra_grhost: all locks released\n");
 }
 
-void nvhost_module_suspend(struct nvhost_module *mod, bool system_suspend)
+int nvhost_module_suspend(struct nvhost_module *mod, bool system_suspend)
 {
 	int ret;
 
@@ -236,7 +236,12 @@ void nvhost_module_suspend(struct nvhost_module *mod, bool system_suspend)
 	flush_delayed_work(&mod->powerdown);
 	if (system_suspend)
 		printk("tegra_grhost: flushed delayed work\n");
+
+	if(mod->powered)
+		return -EBUSY;
+
 	BUG_ON(mod->powered);
+	return 0;
 }
 
 void nvhost_module_deinit(struct nvhost_module *mod)

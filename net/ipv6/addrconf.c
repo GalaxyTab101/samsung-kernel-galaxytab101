@@ -1498,6 +1498,16 @@ static int addrconf_ifid_eui48(u8 *eui, struct net_device *dev)
 {
 	if (dev->addr_len != ETH_ALEN)
 		return -1;
+
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+	if((memcmp(dev->name, "pdp", 3) == 0) ||
+			(memcmp(dev->name, "hrpd", 4)==0)) {
+		memcpy(eui, dev->interface_iden, 8);
+
+		return 0;		
+	} else {
+#endif
+
 	memcpy(eui, dev->dev_addr, 3);
 	memcpy(eui + 5, dev->dev_addr + 3, 3);
 
@@ -1523,6 +1533,9 @@ static int addrconf_ifid_eui48(u8 *eui, struct net_device *dev)
 		eui[0] ^= 2;
 	}
 	return 0;
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+	}
+#endif
 }
 
 static int addrconf_ifid_arcnet(u8 *eui, struct net_device *dev)
@@ -2107,6 +2120,25 @@ err_exit:
 	return err;
 }
 
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+static int inet6_ifid_add(struct net *net, int ifindex, struct in6_addr *pfx, unsigned int plen)
+{
+	struct net_device *dev;
+
+	if (plen > 128)
+		return -EINVAL;
+
+	dev = __dev_get_by_index(net, ifindex);
+	
+	if (!dev)
+		return -ENODEV;
+
+	memcpy(dev->interface_iden, ((pfx->s6_addr)+8), 8);
+
+	return 0;
+}
+#endif
+
 /*
  *	Manual configuration of address on an interface
  */
@@ -2222,6 +2254,27 @@ static int inet6_addr_del(struct net *net, int ifindex, struct in6_addr *pfx,
 	return -EADDRNOTAVAIL;
 }
 
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+int addrconf_add_ifid(struct net *net, void __user *arg)
+{
+	struct in6_ifreq ireq;
+	int err;
+
+	if (!capable(CAP_NET_ADMIN))
+		return -EPERM;
+
+	if (copy_from_user(&ireq, arg, sizeof(struct in6_ifreq)))
+		return -EFAULT;
+
+	rtnl_lock();
+
+	err= inet6_ifid_add(net, ireq.ifr6_ifindex, &ireq.ifr6_addr,
+			     ireq.ifr6_prefixlen);
+	
+	rtnl_unlock();
+	return err;
+}
+#endif
 
 int addrconf_add_ifaddr(struct net *net, void __user *arg)
 {

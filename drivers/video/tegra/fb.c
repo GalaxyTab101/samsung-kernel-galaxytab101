@@ -417,12 +417,28 @@ static int tegra_fb_set_windowattr(struct tegra_fb_info *tegra_fb,
 	win->out_w = flip_win->attr.out_w;
 	win->out_h = flip_win->attr.out_h;
 
-	if (((win->out_x + win->out_w) > xres) && (win->out_x < xres)) {
-		win->out_w = xres - win->out_x;
-	}
+	WARN_ONCE(win->out_x >= xres,
+		"%s:application window x offset exceeds display width(%d)\n",
+		dev_name(&win->dc->ndev->dev), win->out_x, xres);
+	WARN_ONCE(win->out_y >= yres,
+		"%s:application window y offset exceeds display height(%d)\n",
+		dev_name(&win->dc->ndev->dev), win->out_y, yres);
+	WARN_ONCE(win->out_x + win->out_w > xres && win->out_x < xres,
+		"%s:application window width(%d) exceeds display width(%d)\n",
+		dev_name(&win->dc->ndev->dev), win->out_x + win->out_w, xres);
+	WARN_ONCE(win->out_y + win->out_h > yres && win->out_y < yres,
+		"%s:application window height(%d) exceeds display height(%d)\n",
+		dev_name(&win->dc->ndev->dev), win->out_y + win->out_h, yres);
 
+	if (((win->out_x + win->out_w) > xres) && (win->out_x < xres)) {
+		long new_w = xres - win->out_x;
+		win->w = win->w * new_w / win->out_w;
+	        win->out_w = new_w;
+	}
 	if (((win->out_y + win->out_h) > yres) && (win->out_y < yres)) {
-		win->out_h = yres - win->out_y;
+		long new_h = yres - win->out_y;
+		win->h = win->h * new_h / win->out_h;
+	        win->out_h = new_h;
 	}
 
 	win->z = flip_win->attr.z;
@@ -603,6 +619,11 @@ static int tegra_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long 
 
 			if (i >= modedb.modedb_len)
 				break;
+
+			/* fb_videomode_to_var doesn't fill out all the members
+			   of fb_var_screeninfo */
+			memset(&var, 0x0, sizeof(var));
+
 			fb_videomode_to_var(&var, &modelist->mode);
 
 			if (copy_to_user((void __user *)&modedb.modedb[i],
@@ -651,7 +672,8 @@ static struct fb_ops tegra_fb_ops = {
 
 void tegra_fb_update_monspecs(struct tegra_fb_info *fb_info,
 			      struct fb_monspecs *specs,
-			      bool (*mode_filter)(struct fb_videomode *mode))
+			      bool (*mode_filter)(const struct tegra_dc *dc, struct fb_videomode *mode))
+
 {
 	struct fb_event event;
 	struct fb_modelist *m;
@@ -677,7 +699,8 @@ void tegra_fb_update_monspecs(struct tegra_fb_info *fb_info,
 
 	for (i = 0; i < specs->modedb_len; i++) {
 		if (mode_filter) {
-			if (mode_filter(&specs->modedb[i]))
+			if (mode_filter(fb_info->win->dc, &specs->modedb[i]))
+
 				fb_add_videomode(&specs->modedb[i],
 						 &fb_info->info->modelist);
 		} else {
@@ -697,6 +720,10 @@ void tegra_fb_update_monspecs(struct tegra_fb_info *fb_info,
 		m->mode.flag |= FB_MODE_IS_FIRST;
 		fb_info->info->mode = (struct fb_videomode *)
 			fb_find_best_display(specs, &fb_info->info->modelist);
+
+		/* fb_videomode_to_var doesn't fill out all the members
+		   of fb_var_screeninfo */
+		memset(&fb_info->info->var, 0x0, sizeof(fb_info->info->var));
 
 		fb_videomode_to_var(&fb_info->info->var, fb_info->info->mode);
 		tegra_fb_set_par(fb_info->info);

@@ -44,4 +44,7 @@ obj-$(CONFIG_INPUT_WINBOND_CIR)		+= winbond-cir.o
 obj-$(CONFIG_INPUT_WISTRON_BTNS)	+= wistron_btns.o
 obj-$(CONFIG_INPUT_WM831X_ON)		+= wm831x-on.o
 obj-$(CONFIG_INPUT_YEALINK)		+= yealink.o
-
+obj-$(CONFIG_SENSORS_BH1721FVC)		+= bh1721fvc.o
+obj-$(CONFIG_SENSORS_AK8975C)		+= ak8975c.o
+obj-$(CONFIG_SENSORS_KXSD9)		+= kxsd9.o
+obj-$(CONFIG_SENSORS_KXTF9)		+= kxtf9.o

@@ -18,9 +18,11 @@
 #ifndef __MACH_USB_PHY_H
 #define __MACH_USB_PHY_H
 
+#include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/regulator/consumer.h>
-#include <linux/usb/otg.h>
+
+#define USB_PHY_MAX_CONTEXT_REGS 10
 
 struct tegra_utmip_config {
 	u8 hssync_start_delay;
@@ -65,7 +67,7 @@ struct tegra_uhsic_config {
 enum tegra_usb_phy_port_speed {
 	TEGRA_USB_PHY_PORT_SPEED_FULL = 0,
 	TEGRA_USB_PHY_PORT_SPEED_LOW,
-	TEGRA_USB_PHY_PORT_SPEED_HIGH,
+	TEGRA_USB_PHY_PORT_HIGH,
 };
 
 enum tegra_usb_phy_mode {
@@ -77,14 +79,14 @@ struct usb_phy_plat_data {
 	int instance;
 	int vbus_irq;
 	int vbus_gpio;
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	void (*usb_ldo_en)(int, int);
+#endif
 };
-
-struct tegra_xtal_freq;
 
 struct tegra_usb_phy {
 	int instance;
 	int freq_sel;
-	const struct tegra_xtal_freq *freq;
 	void __iomem *regs;
 	void __iomem *pad_regs;
 	struct clk *clk;
@@ -94,7 +96,6 @@ struct tegra_usb_phy {
 	void *config;
 	struct regulator *reg_vdd;
 	bool regulator_on;
-	struct otg_transceiver *ulpi;
 };
 
 struct tegra_usb_phy *tegra_usb_phy_open(int instance, void __iomem *regs,
@@ -102,22 +103,42 @@ struct tegra_usb_phy *tegra_usb_phy_open(int instance, void __iomem *regs,
 
 int tegra_usb_phy_power_on(struct tegra_usb_phy *phy);
 
-void tegra_usb_phy_clk_disable(struct tegra_usb_phy *phy);
+int tegra_usb_phy_clk_disable(struct tegra_usb_phy *phy);
 
-void tegra_usb_phy_clk_enable(struct tegra_usb_phy *phy);
+int tegra_usb_phy_clk_enable(struct tegra_usb_phy *phy);
 
-void tegra_usb_phy_power_off(struct tegra_usb_phy *phy);
+int tegra_usb_phy_power_off(struct tegra_usb_phy *phy);
 
-void tegra_usb_phy_preresume(struct tegra_usb_phy *phy);
+int tegra_usb_phy_preresume(struct tegra_usb_phy *phy);
 
-void tegra_usb_phy_postresume(struct tegra_usb_phy *phy);
+int tegra_usb_phy_postresume(struct tegra_usb_phy *phy);
 
-void tegra_ehci_phy_restore_start(struct tegra_usb_phy *phy,
+int tegra_ehci_phy_restore_start(struct tegra_usb_phy *phy,
 				 enum tegra_usb_phy_port_speed port_speed);
 
-void tegra_ehci_phy_restore_end(struct tegra_usb_phy *phy);
+int tegra_usb_phy_bus_connect(struct tegra_usb_phy *phy);
+int tegra_ehci_phy_restore_start(struct tegra_usb_phy *phy,
+				 enum tegra_usb_phy_port_speed port_speed);
 
-void tegra_usb_phy_close(struct tegra_usb_phy *phy);
+int tegra_usb_phy_bus_reset(struct tegra_usb_phy *phy);
+int tegra_ehci_phy_restore_start(struct tegra_usb_phy *phy,
+				 enum tegra_usb_phy_port_speed port_speed);
+int tegra_ehci_phy_restore_end(struct tegra_usb_phy *phy);
+
+int tegra_usb_phy_suspend_resume(struct tegra_usb_phy *phy, bool issuspend);
+
+int tegra_usb_phy_bus_idle(struct tegra_usb_phy *phy);
+
+bool tegra_usb_phy_is_device_connected(struct tegra_usb_phy *phy);
+
+int tegra_usb_set_phy_clock(struct tegra_usb_phy *phy, char clock_on);
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+void tegra_acc_power(u8 token, bool active);
+int check_modem_alive(void);
+#endif
+
+int tegra_usb_phy_close(struct tegra_usb_phy *phy);
 
 int tegra_usb_phy_bus_connect(struct tegra_usb_phy *phy);
 
@@ -127,6 +148,11 @@ int tegra_usb_phy_bus_idle(struct tegra_usb_phy *phy);
 
 bool tegra_usb_phy_is_device_connected(struct tegra_usb_phy *phy);
 
-int __init tegra_usb_phy_init(struct usb_phy_plat_data *pdata, int size);
+void  __init tegra_usb_phy_init(struct usb_phy_plat_data *pdata, int size);
 
-#endif /* __MACH_USB_PHY_H */
+void tegra_usb_phy_memory_prefetch_on(struct tegra_usb_phy *phy);
+
+void tegra_usb_phy_memory_prefetch_off(struct tegra_usb_phy *phy);
+
+
+#endif /*__MACH_USB_PHY_H */

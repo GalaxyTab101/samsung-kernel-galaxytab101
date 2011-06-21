@@ -172,6 +172,7 @@ static struct dvfs dvfs_init[] = {
 	/* Core voltages (mV):           950,    1000,   1100,   1200,   1225,   1275,   1300 */
 	CORE_DVFS("emc",     -1, 1, KHZ, 57000,  333000, 380000, 666000, 666000, 666000, 760000),
 
+
 #if 0
 	/*
 	 * The sdhci core calls the clock ops with a spinlock held, which
@@ -189,9 +190,15 @@ static struct dvfs dvfs_init[] = {
 	CORE_DVFS("nor",     -1, 1, KHZ, 0,      92000,  92000,  92000,  92000,  92000,  92000),
 	CORE_DVFS("ide",     -1, 1, KHZ, 0,      0,      100000, 100000, 100000, 100000, 100000),
 	CORE_DVFS("mipi",    -1, 1, KHZ, 0,      40000,  40000,  40000,  40000,  60000,  60000),
-	CORE_DVFS("usbd",    -1, 1, KHZ, 0,      0,      0,      480000, 480000, 480000, 480000),
-	CORE_DVFS("usb2",    -1, 1, KHZ, 0,      0,      0,      480000, 480000, 480000, 480000),
-	CORE_DVFS("usb3",    -1, 1, KHZ, 0,      0,      0,      480000, 480000, 480000, 480000),
+	CORE_DVFS("usbd",    -1, 1, KHZ, 0,      0,      480000,      480000, 480000, 480000, 480000),
+	CORE_DVFS("usb2",    -1, 1, KHZ, 0,      0,      480000,      480000, 480000, 480000, 480000),
+	/*
+	 * usb2min will ensure when USB2 is suspended, the USB core can still
+	 * run at 60Mhz for minimum.
+	 */
+	CORE_DVFS("usb2min",    -1, 1, KHZ, 0,  0,   60000,      60000, 60000, 60000, 60000),
+	CORE_DVFS("usb3",    -1, 1, KHZ, 0,      0,      480000,      480000, 480000, 480000, 480000),
+	CORE_DVFS("usb3min",    -1, 1, KHZ, 0,  0,   60000,      60000, 60000, 60000, 60000),
 	CORE_DVFS("pcie",    -1, 1, KHZ, 0,      0,      0,      250000, 250000, 250000, 250000),
 	CORE_DVFS("dsi",     -1, 1, KHZ, 100000, 100000, 100000, 500000, 500000, 500000, 500000),
 	CORE_DVFS("tvo",     -1, 1, KHZ, 0,      0,      0,      250000, 250000, 250000, 250000),
@@ -353,3 +360,12 @@ void __init tegra2_init_dvfs(void)
 	if (tegra_dvfs_cpu_disabled)
 		tegra_dvfs_rail_disable(&tegra2_dvfs_rail_vdd_cpu);
 }
+void tegra_dvfs_disable_core_cpu(void)
+{
+	printk("tegra_dvfs: disable core & cpu dvfs\n");
+	tegra_dvfs_core_disabled = false;
+	tegra_dvfs_cpu_disabled = false;
+	tegra_dvfs_rail_disable(&tegra2_dvfs_rail_vdd_core);
+	tegra_dvfs_rail_disable(&tegra2_dvfs_rail_vdd_cpu);
+}
+EXPORT_SYMBOL(tegra_dvfs_disable_core_cpu);

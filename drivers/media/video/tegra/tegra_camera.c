@@ -59,7 +59,11 @@ static int tegra_camera_disable_isp(void)
 	return 0;
 }
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+int tegra_camera_enable_vi(void)
+#else
 static int tegra_camera_enable_vi(void)
+#endif
 {
 	clk_enable(vi_clk);
 	clk_enable(vi_sensor_clk);
@@ -67,7 +71,11 @@ static int tegra_camera_enable_vi(void)
 	return 0;
 }
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+int tegra_camera_disable_vi(void)
+#else
 static int tegra_camera_disable_vi(void)
+#endif
 {
 	clk_disable(vi_clk);
 	clk_disable(vi_sensor_clk);
@@ -75,24 +83,35 @@ static int tegra_camera_disable_vi(void)
 	return 0;
 }
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+int tegra_camera_enable_csi(void)
+#else
 static int tegra_camera_enable_csi(void)
+#endif
 {
+#ifndef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
 	int ret;
 
 	ret = regulator_enable(tegra_camera_regulator_csi);
 	if (ret)
 		return ret;
+#endif
 	clk_enable(csi_clk);
 	return 0;
 }
-
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+int tegra_camera_disable_csi(void)
+#else
 static int tegra_camera_disable_csi(void)
+#endif
 {
+#ifndef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
 	int ret;
 
 	ret = regulator_disable(tegra_camera_regulator_csi);
 	if (ret)
 		return ret;
+#endif
 	clk_disable(csi_clk);
 	return 0;
 }
@@ -110,8 +129,11 @@ struct tegra_camera_block tegra_camera_block[] = {
 #define TEGRA_CAMERA_VI_CLK_SEL_EXTERNAL (1<<24)
 #define TEGRA_CAMERA_PD2VI_CLK_SEL_VI_SENSOR_CLK (1<<25)
 #define TEGRA_CAMERA_PD2VI_CLK_SEL_PD2VI_CLK 0
-
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+int tegra_camera_clk_set_rate(struct tegra_camera_clk_info *info)
+#else
 static int tegra_camera_clk_set_rate(struct tegra_camera_clk_info *info)
+#endif
 {
 	u32 offset;
 	struct clk *clk;
@@ -137,6 +159,11 @@ static int tegra_camera_clk_set_rate(struct tegra_camera_clk_info *info)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	if (info->clk_id == TEGRA_CAMERA_VI_SENSOR_CLK)
+		clk_set_rate(clk, 24000000);
+	else
+#endif
 	clk_set_rate(clk, info->rate);
 
 	if (info->clk_id == TEGRA_CAMERA_VI_CLK) {
@@ -290,11 +317,13 @@ static int tegra_camera_probe(struct platform_device *pdev)
 	int err;
 
 	pr_info("%s: probe\n", TEGRA_CAMERA_NAME);
+#ifndef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
 	tegra_camera_regulator_csi = regulator_get(&pdev->dev, "vcsi");
 	if (IS_ERR_OR_NULL(tegra_camera_regulator_csi)) {
 		pr_err("%s: Couldn't get regulator vcsi\n", TEGRA_CAMERA_NAME);
 		return PTR_ERR(tegra_camera_regulator_csi);
 	}
+#endif
 
 	err = misc_register(&tegra_camera_device);
 	if (err) {

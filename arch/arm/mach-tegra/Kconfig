@@ -37,6 +37,54 @@ config MACH_WHISTLER
        help
          Support for NVIDIA Whistler development platform
 
+config MACH_SAMSUNG_VARIATION_TEGRA
+       bool "Samsung variations based on Tegra 2"
+       help
+         Support for Samsung board based on NVIDIA Tegra 2 BSP
+
+config MACH_SAMSUNG_P3
+       bool "Samsung P3 board"
+       depends on MACH_SAMSUNG_VARIATION_TEGRA
+       help
+          Support Samsung P3 board based on Tegra 2
+
+config MACH_SAMSUNG_P4
+       bool "Samsung P4 board"
+       depends on MACH_SAMSUNG_VARIATION_TEGRA
+       help
+          Support Samsung P4 board based on Tegra 2
+
+config MACH_SAMSUNG_P4WIFI
+       bool "Samsung P4-WiFi only board"
+       depends on MACH_SAMSUNG_VARIATION_TEGRA
+       help
+          Support Samsung P4-WiFi only board based on Tegra 2
+
+config MACH_SAMSUNG_P4LTE
+       bool "Samsung P4-LTE board"
+       depends on MACH_SAMSUNG_VARIATION_TEGRA
+       help
+          Support Samsung P4-LTE board based on Tegra 2   
+
+config MACH_SAMSUNG_P5
+       bool "Samsung P5 board"
+       depends on MACH_SAMSUNG_VARIATION_TEGRA
+       help
+          Support Samsung P5 board based on Tegra 2         
+
+config MACH_SAMSUNG_P5WIFI
+       bool "Samsung P5WIFI board"
+       depends on MACH_SAMSUNG_P5
+       help
+          Support Samsung P5 board based on Tegra 2         
+      
+
+config SAMSUNG_KEEP_CONSOLE
+       bool "Keep the console active"
+       depends on MACH_SAMSUNG_P3
+       help
+          Saying y here causes the shared UART to remain with the AP.
+
 choice
         prompt "Low-level debug console UART"
         default TEGRA_DEBUG_UART_NONE
@@ -61,12 +109,25 @@ config TEGRA_DEBUG_UARTE
 
 endchoice
 
+config TARGET_LOCALE_KOR
+        bool "KOR"
+	default n
+        help
+          Support Korea Board
+
 config TEGRA_SYSTEM_DMA
 	bool "Enable system DMA driver for NVIDIA Tegra SoCs"
 	default y
 	help
 	  Adds system DMA functionality for NVIDIA Tegra SoCs, used by
 	  several Tegra device drivers
+
+config TEGRA_SPI_SLAVE
+       tristate "Nvidia Tegra SPI slave driver"
+       depends on ARCH_TEGRA
+       select TEGRA_SYSTEM_DMA
+       help
+         SPI slave driver for NVIDIA Tegra SoCs
 
 config TEGRA_PWM
 	tristate "Enable PWM driver"
@@ -133,3 +194,13 @@ config TEGRA_MC_PROFILE
 	  When enabled, provides a mechanism to perform statistical
 	  sampling of the memory controller usage on a client-by-client
 	  basis, and report the log through sysfs.
+
+config TEGRA_CPU_FREQ_LOCK
+	bool "Enable locking and unlocking CPU frequency"
+	depends on CPU_FREQ
+	default n
+	help
+	  When enabled, provides a mechanism to change minimum CPU
+	  frequency with specific value. Once CPU frequency locked,
+	  CPU DVFS is working but its frequency doesn't go down to set value.	
+

@@ -103,7 +103,7 @@ config CRYPTO_MANAGER2
 
 config CRYPTO_MANAGER_DISABLE_TESTS
 	bool "Disable run-time self tests"
-	default y
+	default n
 	depends on CRYPTO_MANAGER2
 	help
 	  Disable run-time self tests that normally take place at
@@ -163,7 +163,7 @@ config CRYPTO_AUTHENC
 
 config CRYPTO_TEST
 	tristate "Testing module"
-	depends on m
+#	depends on m
 	select CRYPTO_MANAGER
 	help
 	  Quick & dirty crypto test module.

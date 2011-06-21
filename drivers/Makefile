@@ -114,5 +114,9 @@ obj-$(CONFIG_SSB)		+= ssb/
 obj-$(CONFIG_VHOST_NET)		+= vhost/
 obj-$(CONFIG_VLYNQ)		+= vlynq/
 obj-$(CONFIG_STAGING)		+= staging/
+obj-$(CONFIG_ACCESSORY)		+= accessory/
 obj-y				+= platform/
 obj-y				+= ieee802154/
+obj-$(CONFIG_SAMSUNG_MODULES) += samsung/
+
+obj-$(CONFIG_KERNEL_DEBUG_SEC)  += level/

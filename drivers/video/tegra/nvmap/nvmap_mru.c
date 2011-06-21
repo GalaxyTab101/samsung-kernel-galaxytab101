@@ -59,7 +59,7 @@ static inline struct list_head *mru_list(struct nvmap_share *share, size_t size)
 size_t nvmap_mru_vm_size(struct tegra_iovmm_client *iovmm)
 {
 	size_t vm_size = tegra_iovmm_get_vm_size(iovmm);
-	return (vm_size >> 2) * 3;
+	return (vm_size / 8) * 5;
 }
 
 /*  nvmap_mru_vma_lock should be acquired by the caller before calling this */

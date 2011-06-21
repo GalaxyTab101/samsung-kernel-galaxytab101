@@ -42,8 +42,10 @@
 #define I2C_STATUS				0x01C
 #define I2C_STATUS_BUSY				(1<<8)
 #define I2C_SL_CNFG				0x020
+#define I2C_SL_CNFG_NACK			(1<<1)
 #define I2C_SL_CNFG_NEWSL			(1<<2)
-#define I2C_SL_ADDR1				0x02c
+#define I2C_SL_ADDR1 				0x02c
+#define I2C_SL_ADDR2 				0x030
 #define I2C_TX_FIFO				0x050
 #define I2C_RX_FIFO				0x054
 #define I2C_PACKET_TRANSFER_STATUS		0x058
@@ -99,6 +101,9 @@
 #define I2C_HEADER_MASTER_ADDR_SHIFT		12
 #define I2C_HEADER_SLAVE_ADDR_SHIFT		1
 
+#define SL_ADDR1(addr) (addr & 0xff)
+#define SL_ADDR2(addr) ((addr >> 8) & 0xff)
+
 struct tegra_i2c_dev;
 
 struct tegra_i2c_bus {
@@ -120,6 +125,7 @@ struct tegra_i2c_dev {
 	int irq;
 	bool irq_disabled;
 	int is_dvc;
+	bool is_slave;
 	struct completion msg_complete;
 	int msg_err;
 	u8 *msg_buf;
@@ -136,10 +142,12 @@ struct tegra_i2c_dev {
 	const struct tegra_pingroup_config *last_mux;
 	int last_mux_len;
 	unsigned long last_bus_clk;
+	u16 slave_addr;
 	struct tegra_i2c_bus busses[1];
 };
 
-static void dvc_writel(struct tegra_i2c_dev *i2c_dev, u32 val, unsigned long reg)
+static void dvc_writel(struct tegra_i2c_dev *i2c_dev, u32 val,
+			unsigned long reg)
 {
 	writel(val, i2c_dev->base + reg);
 }
@@ -152,7 +160,8 @@ static u32 dvc_readl(struct tegra_i2c_dev *i2c_dev, unsigned long reg)
 /* i2c_writel and i2c_readl will offset the register if necessary to talk
  * to the I2C block inside the DVC block
  */
-static void i2c_writel(struct tegra_i2c_dev *i2c_dev, u32 val, unsigned long reg)
+static void i2c_writel(struct tegra_i2c_dev *i2c_dev, u32 val,
+			unsigned long reg)
 {
 	if (i2c_dev->is_dvc)
 		reg += (reg >= I2C_TX_FIFO) ? 0x10 : 0x40;
@@ -195,10 +204,11 @@ static int tegra_i2c_flush_fifos(struct tegra_i2c_dev *i2c_dev)
 	while (i2c_readl(i2c_dev, I2C_FIFO_CONTROL) &
 		(I2C_FIFO_CONTROL_TX_FLUSH | I2C_FIFO_CONTROL_RX_FLUSH)) {
 		if (time_after(jiffies, timeout)) {
-			dev_warn(i2c_dev->dev, "timeout waiting for fifo flush\n");
+			dev_warn(i2c_dev->dev,
+					"timeout waiting for fifo flush\n");
 			return -ETIMEDOUT;
 		}
-		msleep(1);
+		usleep_range(1000, 2000);
 	}
 	return 0;
 }
@@ -307,6 +317,20 @@ static void tegra_dvc_init(struct tegra_i2c_dev *i2c_dev)
 	dvc_writel(i2c_dev, val, DVC_CTRL_REG1);
 }
 
+static void tegra_i2c_slave_init(struct tegra_i2c_dev *i2c_dev)
+{
+	u32 val = I2C_SL_CNFG_NEWSL | I2C_SL_CNFG_NACK;
+
+	i2c_writel(i2c_dev, val, I2C_SL_CNFG);
+
+	if (i2c_dev->slave_addr) {
+		u16 addr = i2c_dev->slave_addr;
+
+		i2c_writel(i2c_dev, SL_ADDR1(addr), I2C_SL_ADDR1);
+		i2c_writel(i2c_dev, SL_ADDR2(addr), I2C_SL_ADDR2);
+	}
+}
+
 static int tegra_i2c_init(struct tegra_i2c_dev *i2c_dev)
 {
 	u32 val;
@@ -321,7 +345,8 @@ static int tegra_i2c_init(struct tegra_i2c_dev *i2c_dev)
 	if (i2c_dev->is_dvc)
 		tegra_dvc_init(i2c_dev);
 
-	val = I2C_CNFG_NEW_MASTER_FSM | I2C_CNFG_PACKET_MODE_EN | (0x2 << I2C_CNFG_DEBOUNCE_CNT_SHIFT);
+	val = I2C_CNFG_NEW_MASTER_FSM | I2C_CNFG_PACKET_MODE_EN |
+		(0x2 << I2C_CNFG_DEBOUNCE_CNT_SHIFT);
 	i2c_writel(i2c_dev, val, I2C_CNFG);
 	i2c_writel(i2c_dev, 0, I2C_INT_MASK);
 	tegra_i2c_set_clk(i2c_dev, i2c_dev->last_bus_clk);
@@ -329,6 +354,9 @@ static int tegra_i2c_init(struct tegra_i2c_dev *i2c_dev)
 	val = 7 << I2C_FIFO_CONTROL_TX_TRIG_SHIFT |
 		0 << I2C_FIFO_CONTROL_RX_TRIG_SHIFT;
 	i2c_writel(i2c_dev, val, I2C_FIFO_CONTROL);
+
+	if (i2c_dev->is_slave)
+		tegra_i2c_slave_init(i2c_dev);
 
 	if (tegra_i2c_flush_fifos(i2c_dev))
 		err = -ETIMEDOUT;
@@ -594,7 +622,11 @@ static u32 tegra_i2c_func(struct i2c_adapter *adap)
 {
 	/* FIXME: For now keep it simple and don't support protocol mangling
 	   features */
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_BYTE | I2C_FUNC_SMBUS_EMUL;
+#else
 	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_BYTE | I2C_FUNC_SMBUS_BYTE_DATA;
+#endif
 }
 
 static const struct i2c_algorithm tegra_i2c_algo = {
@@ -685,8 +717,12 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	i2c_dev->msgs_num = 0;
 	rt_mutex_init(&i2c_dev->dev_lock);
 
+	i2c_dev->slave_addr = plat->slave_addr;
 	i2c_dev->is_dvc = plat->is_dvc;
 	init_completion(&i2c_dev->msg_complete);
+
+	if (irq == INT_I2C || irq == INT_I2C2 || irq == INT_I2C3)
+		i2c_dev->is_slave = true;
 
 	platform_set_drvdata(pdev, i2c_dev);
 
@@ -772,25 +808,36 @@ static int tegra_i2c_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
-static int tegra_i2c_suspend(struct platform_device *pdev, pm_message_t state)
+static int tegra_i2c_suspend_noirq(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct tegra_i2c_dev *i2c_dev = platform_get_drvdata(pdev);
 
 	rt_mutex_lock(&i2c_dev->dev_lock);
 	i2c_dev->is_suspended = true;
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	pr_info("%s: for adapter %d\n",
+		__func__, i2c_dev->busses[0].adapter.nr);
+#endif
 	rt_mutex_unlock(&i2c_dev->dev_lock);
 
 	return 0;
 }
 
-static int tegra_i2c_resume(struct platform_device *pdev)
+static int tegra_i2c_resume_noirq(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct tegra_i2c_dev *i2c_dev = platform_get_drvdata(pdev);
 	int ret;
 
 	rt_mutex_lock(&i2c_dev->dev_lock);
 
 	ret = tegra_i2c_init(i2c_dev);
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	pr_info("%s: tegra_i2c_init() for adapter %d returned %d\n",
+		__func__, i2c_dev->busses[0].adapter.nr, ret);
+#endif
 
 	if (ret) {
 		rt_mutex_unlock(&i2c_dev->dev_lock);
@@ -803,18 +850,23 @@ static int tegra_i2c_resume(struct platform_device *pdev)
 
 	return 0;
 }
+
+static const struct dev_pm_ops tegra_i2c_dev_pm_ops = {
+	.suspend_noirq = tegra_i2c_suspend_noirq,
+	.resume_noirq = tegra_i2c_resume_noirq,
+};
+#define TEGRA_I2C_DEV_PM_OPS (&tegra_i2c_dev_pm_ops)
+#else
+#define TEGRA_I2C_DEV_PM_OPS NULL
 #endif
 
 static struct platform_driver tegra_i2c_driver = {
 	.probe   = tegra_i2c_probe,
 	.remove  = tegra_i2c_remove,
-#ifdef CONFIG_PM
-	.suspend = tegra_i2c_suspend,
-	.resume  = tegra_i2c_resume,
-#endif
 	.driver  = {
 		.name  = "tegra-i2c",
 		.owner = THIS_MODULE,
+		.pm    = TEGRA_I2C_DEV_PM_OPS,
 	},
 };
 

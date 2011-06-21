@@ -470,4 +470,37 @@ config INPUT_ALPS_GPIO_SCROLLWHEEL
 	  To compile this driver as a module, choose M here: the
 	  module will be called alps_gpio_scrollwheel.
 
+config SENSORS_BH1721FVC
+	tristate "ROHM BH1721FVC ambient light sensor"
+	depends on I2C
+	help
+	  Say Y here if you have ROHM BH1721FVC hooked to an I2C bus.
+
+	  This option eanbles the light sensor device driver for
+	  the ROHM BH1721FVC chip.
+
+config SENSORS_AK8975C
+	tristate "AK8975 magnetometer support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Asahi Kasei's
+	  magnetometer sensor AK8975C.
+
+config SENSORS_KXSD9
+	tristate "KXSD9 accelerometer support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Kionix's
+	  accelerometer sensor KXSD9.
+
+config SENSORS_KXTF9
+	tristate "KXTF9 accelerometer support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Kionix's
+	  accelerometer sensor KXTF9.
+
 endif

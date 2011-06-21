@@ -1121,6 +1121,11 @@ static int rfcomm_recv_ua(struct rfcomm_session *s, u8 dlci)
 			 * initiator rfcomm_process_rx already calls
 			 * rfcomm_session_put() */
 			if (s->sock->sk->sk_state != BT_CLOSED)
+
+// BEGIN SS_BLUEZ_BT +kjh 2011.03.15 : 
+// Never deallocate a session when some DLC points to it
+				if (list_empty(&s->dlcs))
+// END SS_BLUEZ_BT
 				rfcomm_session_put(s);
 			break;
 		}
@@ -1801,7 +1806,11 @@ static inline void rfcomm_process_rx(struct rfcomm_session *s)
 	}
 
 	if (sk->sk_state == BT_CLOSED) {
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+		if (!s->initiator && atomic_read(&s->refcnt) > 1)
+#else
 		if (!s->initiator)
+#endif
 			rfcomm_session_put(s);
 
 		rfcomm_session_close(s, sk->sk_err);

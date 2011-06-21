@@ -25,6 +25,9 @@
 #include <linux/mutex.h>
 #include <linux/freezer.h>
 #include <linux/pm_runtime.h>
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#include <linux/host_notify.h>
+#endif
 
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
@@ -147,7 +150,11 @@ EXPORT_SYMBOL_GPL(ehci_cf_port_reset_rwsem);
 
 #define HUB_DEBOUNCE_TIMEOUT	1500
 #define HUB_DEBOUNCE_STEP	  25
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#define HUB_DEBOUNCE_STABLE	 0
+#else
 #define HUB_DEBOUNCE_STABLE	 100
+#endif
 
 
 static int usb_reset_and_verify_device(struct usb_device *udev);
@@ -623,7 +630,11 @@ static int hub_port_disable(struct usb_hub *hub, int port1, int set_state)
  */
 static void hub_port_logical_disconnect(struct usb_hub *hub, int port1)
 {
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+	dev_err(hub->intfdev, "logical disconnect on port %d\n", port1);
+#else
 	dev_dbg(hub->intfdev, "logical disconnect on port %d\n", port1);
+#endif
 	hub_port_disable(hub, port1, 1);
 
 	/* FIXME let caller ask to power down the port:
@@ -717,6 +728,13 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)
 			return;		/* Continues at init2: below */
 		} else {
 			hub_power_on(hub, true);
+#ifdef CONFIG_SAMSUNG_PHONE_SVNET
+			if (type == HUB_RESET_RESUME) {
+				struct usb_hcd *hcd = bus_to_hcd(hdev->bus);
+				if (hcd->driver->wait_for_device)
+					hcd->driver->wait_for_device(hcd);
+			}
+#endif
 		}
 	}
  init2:
@@ -817,7 +835,11 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)
 	 * If any port-status changes do occur during this delay, khubd
 	 * will see them later and handle them normally.
 	 */
+#ifdef CONFIG_SAMSUNG_PHONE_SVNET
+	if (need_debounce_delay && type != HUB_RESET_RESUME) {
+#else
 	if (need_debounce_delay) {
+#endif
 		delay = HUB_DEBOUNCE_STABLE;
 
 		/* Don't do a long sleep inside a workqueue routine */
@@ -1648,6 +1670,9 @@ static inline void announce_device(struct usb_device *udev) { }
 #ifdef	CONFIG_USB_OTG
 #include "otg_whitelist.h"
 #endif
+#ifdef	CONFIG_USB_SEC_WHITELIST
+#include "sec_whitelist.h"
+#endif
 
 /**
  * usb_enumerate_device_otg - FIXME (usbcore-internal)
@@ -1658,7 +1683,18 @@ static inline void announce_device(struct usb_device *udev) { }
 static int usb_enumerate_device_otg(struct usb_device *udev)
 {
 	int err = 0;
-
+#ifdef	CONFIG_USB_SEC_WHITELIST
+	struct usb_hcd *hcd = bus_to_hcd(udev->bus);
+	if (hcd->sec_whlist_table_num) {
+		if (!is_seclist(udev, hcd->sec_whlist_table_num)) {
+			err = usb_port_suspend(udev, PMSG_SUSPEND);
+			if (err < 0)
+				dev_dbg(&udev->dev, "usb port suspend fail, %d\n", err);
+			err = -ENOTSUPP;
+			goto sec_fail;
+		}
+	}
+#endif
 #ifdef	CONFIG_USB_OTG
 	/*
 	 * OTG-aware devices on OTG-capable root hubs may be able to use SRP,
@@ -1720,6 +1756,9 @@ static int usb_enumerate_device_otg(struct usb_device *udev)
 		goto fail;
 	}
 fail:
+#endif
+#ifdef	CONFIG_USB_SEC_WHITELIST
+sec_fail:
 #endif
 	return err;
 }
@@ -2038,7 +2077,11 @@ static int hub_port_reset(struct usb_hub *hub, int port1,
 		switch (status) {
 		case 0:
 			/* TRSTRCY = 10 ms; plus some extra */
+#ifdef CONFIG_SAMSUNG_PHONE_SVNET
+			msleep(10);
+#else
 			msleep(10 + 40);
+#endif
 			update_address(udev, 0);
 			if (hcd->driver->reset_device) {
 				status = hcd->driver->reset_device(hcd, udev);
@@ -2264,23 +2307,47 @@ static int finish_port_resume(struct usb_device *udev)
 	 * and device drivers will know about any resume quirks.
 	 */
 	if (status == 0) {
+#ifdef CONFIG_SAMSUNG_PHONE_SVNET
+		/* if (!udev->reset_resume) { */
+		if (0) {
+#endif
 		devstatus = 0;
 		status = usb_get_status(udev, USB_RECIP_DEVICE, 0, &devstatus);
+
+
+#ifdef CONFIG_SAMSUNG_PHONE_SVNET
+			if (status < 0) {
+				dev_err(&udev->dev, "%s, status=%x, status=%d\n", __func__, status, status);
+				msleep(50);
+				status = usb_get_status(udev, USB_RECIP_DEVICE, 0, &devstatus);
+			}
+#endif			
 		if (status >= 0)
 			status = (status > 0 ? 0 : -ENODEV);
 
 		/* If a normal resume failed, try doing a reset-resume */
 		if (status && !udev->reset_resume && udev->persist_enabled) {
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+			dev_err(&udev->dev, "retry with reset-resume\n");
+#else
 			dev_dbg(&udev->dev, "retry with reset-resume\n");
+#endif
 			udev->reset_resume = 1;
 			goto retry_reset_resume;
 		}
+#ifdef CONFIG_SAMSUNG_PHONE_SVNET
+		}
+#endif		
 	}
 
 	if (status) {
 		dev_dbg(&udev->dev, "gone after usb resume? status %d\n",
 				status);
 	} else if (udev->actconfig) {
+#ifdef CONFIG_SAMSUNG_PHONE_SVNET
+		/* if (!udev->reset_resume) { */
+		if(0) {
+#endif
 		le16_to_cpus(&devstatus);
 		if (devstatus & (1 << USB_DEVICE_REMOTE_WAKEUP)) {
 			status = usb_control_msg(udev,
@@ -2295,6 +2362,9 @@ static int finish_port_resume(struct usb_device *udev)
 					"disable remote wakeup, status %d\n",
 					status);
 		}
+#ifdef CONFIG_SAMSUNG_PHONE_SVNET
+		}
+#endif
 		status = 0;
 	}
 	return status;
@@ -2354,13 +2424,23 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	status = clear_port_feature(hub->hdev,
 			port1, USB_PORT_FEAT_SUSPEND);
 	if (status) {
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+		dev_err(hub->intfdev, "can't resume port %d, status %d\n",
+				port1, status);
+#else
 		dev_dbg(hub->intfdev, "can't resume port %d, status %d\n",
 				port1, status);
+#endif
 	} else {
 		/* drive resume for at least 20 msec */
 		dev_dbg(&udev->dev, "usb %sresume\n",
 				(msg.event & PM_EVENT_AUTO ? "auto-" : ""));
+		
+#ifndef CONFIG_SAMSUNG_PHONE_SVNET
 		msleep(25);
+#else
+		msleep(25);
+#endif
 
 		/* Virtual root hubs can trigger on GET_PORT_STATUS to
 		 * stop resume signaling.  Then finish the resume
@@ -2368,8 +2448,18 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 		 */
 		status = hub_port_status(hub, port1, &portstatus, &portchange);
 
-		/* TRSMRCY = 10 msec */
-		msleep(10);
+		/* Original TRSMRCY is 10 mSec.
+		 * But sometimes disconnection occured 
+		 * at USB Selective-Suspend L2-L0 disconnection.
+		 * So add 10 mSec to solve this issue */
+		msleep(20);
+
+#ifdef CONFIG_SAMSUNG_PHONE_SVNET
+		/* If portstatus's still resuming, retry GET_PORT_STATUS */
+		if (portstatus & USB_PORT_STAT_SUSPEND)
+			status = hub_port_status(hub, port1, &portstatus,
+				&portchange);
+#endif
 	}
 
  SuspendCleared:
@@ -2386,7 +2476,11 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	if (status == 0)
 		status = finish_port_resume(udev);
 	if (status < 0) {
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+		dev_err(&udev->dev, "can't resume, status %d\n", status);
+#else
 		dev_dbg(&udev->dev, "can't resume, status %d\n", status);
+#endif
 		hub_port_logical_disconnect(hub, port1);
 	}
 	return status;
@@ -2784,10 +2878,11 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 			udev->descriptor.bMaxPacketSize0 =
 					buf->bMaxPacketSize0;
 			kfree(buf);
-
+#ifndef CONFIG_SAMSUNG_PHONE_SVNET
 			retval = hub_port_reset(hub, port1, udev, delay);
 			if (retval < 0)		/* error or disconnect */
 				goto fail;
+#endif
 			if (oldspeed != udev->speed) {
 				dev_dbg(&udev->dev,
 					"device reset changed speed!\n");
@@ -3182,6 +3277,12 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 				spin_lock_irq(&device_state_lock);
 				hdev->children[port1-1] = NULL;
 				spin_unlock_irq(&device_state_lock);
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#ifdef CONFIG_USB_HOST_NOTIFY
+				if(hcd->host_notify)
+					host_state_notify(&hcd->ndev, NOTIFY_HOST_UNKNOWN);
+#endif
+#endif	
 			}
 		}
 

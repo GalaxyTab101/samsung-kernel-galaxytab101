@@ -214,6 +214,18 @@ config TOUCHSCREEN_WACOM_W8001
 	  To compile this driver as a module, choose M here: the
 	  module will be called wacom_w8001.
 
+config TOUCHSCREEN_WACOM_G5
+	tristate "Wacom G5 penabled i2c touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have an Wacom G5 penabled i2c touchscreen
+	  connected to your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called wacom_G5.
+
 config TOUCHSCREEN_MCS5000
 	tristate "MELFAS MCS-5000 touchscreen"
 	depends on I2C
@@ -663,5 +675,20 @@ config TOUCHSCREEN_STMPE
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called stmpe-ts.
+
+config TOUCHSCREEN_MXT1386
+	tristate "ATMEL mXT1386 I2C touchscreen driver"
+	depends on I2C
+	default n
+	help
+	  Say Y here to enable mXT1386 I2C touchscreen support
+
+config TOUCHSCREEN_MELFAS
+  tristate "MELFAS touchscreen driver"
+  depends on I2C
+  help
+    Say Y here if you have a MELFAS touchscreen.
+
+    If unsure, say N.		
 
 endif

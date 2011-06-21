@@ -1050,6 +1050,24 @@ static inline void hci_auth_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 		else
 			conn->sec_level = BT_SECURITY_LOW;
 
+// BEGIN SS_BLUEZ_BT +kjh 2011.03.17 : 
+// workaround for nobonding. 
+// cond 1. local has link key. remote doesn't have link key.
+// cond 2. local & remote are ssp mode
+// cond 3. send opp file from local to remote
+// result -> pin or key missing err returned.
+// so send "HCI_OP_AUTH_REQUESTED" one more time. 
+		if (ev->status == 0x06 && hdev->ssp_mode > 0 &&
+				conn->ssp_mode > 0 && conn->out) {
+			struct hci_cp_auth_requested cp;
+			cp.handle = ev->handle;
+			hci_send_cmd(hdev, HCI_OP_AUTH_REQUESTED,
+				sizeof(cp), &cp);
+			printk(KERN_ERR "error code = 0x06, sspmode => HCI_OP_AUTH_REQUESTED");
+			goto done;
+		}
+// END SS_BLUEZ_BT
+
 		clear_bit(HCI_CONN_AUTH_PEND, &conn->pend);
 
 		if (conn->state == BT_CONFIG) {
@@ -1086,7 +1104,9 @@ static inline void hci_auth_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 			}
 		}
 	}
-
+// BEGIN SS_BLUEZ_BT +kjh 2011.03.17 : 
+done:
+// END SS_BLUEZ_BT
 	hci_dev_unlock(hdev);
 }
 

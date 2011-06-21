@@ -131,7 +131,9 @@ static void sdhci_set_card_detection(struct sdhci_host *host, bool enable)
 
 static void sdhci_enable_card_detection(struct sdhci_host *host)
 {
+#ifndef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
 	sdhci_set_card_detection(host, true);
+#endif
 }
 
 static void sdhci_disable_card_detection(struct sdhci_host *host)
@@ -1162,7 +1164,9 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		sdhci_writel(host, 0, SDHCI_SIGNAL_ENABLE);
 		sdhci_reinit(host);
 	}
-
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	sdhci_readl(host, SDHCI_INT_STATUS);
+#endif
 	sdhci_set_clock(host, ios->clock);
 
 	if (ios->power_mode == MMC_POWER_OFF)
@@ -1261,10 +1265,37 @@ out:
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
+int sdhci_enable(struct mmc_host *mmc)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	if (!mmc->card || mmc->card->type == MMC_TYPE_SDIO)
+		return 0;
+
+	if (mmc->ios.clock)
+		sdhci_set_clock(host, mmc->ios.clock);
+
+	return 0;
+}
+
+int sdhci_disable(struct mmc_host *mmc, int lazy)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	if (!mmc->card || mmc->card->type == MMC_TYPE_SDIO)
+		return 0;
+
+	sdhci_set_clock(host, 0);
+
+	return 0;
+}
+
 static const struct mmc_host_ops sdhci_ops = {
 	.request	= sdhci_request,
 	.set_ios	= sdhci_set_ios,
 	.get_ro		= sdhci_get_ro,
+	.enable	= sdhci_enable,
+	.disable	= sdhci_disable,
 	.enable_sdio_irq = sdhci_enable_sdio_irq,
 };
 
@@ -1870,6 +1901,9 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
 		mmc->caps |= MMC_CAP_NEEDS_POLL;
+
+	if (host->quirks & SDHCI_QUIRK_RUNTIME_DISABLE)
+		mmc->caps |= MMC_CAP_DISABLE;
 
 	mmc->caps |= MMC_CAP_ERASE;
 

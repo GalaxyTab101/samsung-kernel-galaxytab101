@@ -172,15 +172,19 @@ static const char *pupd_name(unsigned long val)
 
 static inline unsigned long pg_readl(unsigned long offset)
 {
-	return readl(IO_TO_VIRT(TEGRA_APB_MISC_BASE + offset));
+	return readl(IO_TO_VIRT(TEGRA_APB_MISC_BASE) + offset);
 }
 
 static inline void pg_writel(unsigned long value, unsigned long offset)
 {
-	writel(value, IO_TO_VIRT(TEGRA_APB_MISC_BASE + offset));
+	writel(value, IO_TO_VIRT(TEGRA_APB_MISC_BASE) + offset);
 }
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+int tegra_pinmux_set_func(const struct tegra_pingroup_config *config)
+#else
 static int tegra_pinmux_set_func(const struct tegra_pingroup_config *config)
+#endif
 {
 	int mux = -1;
 	int i;
@@ -330,7 +334,7 @@ static void tegra_pinmux_config_pingroup(const struct tegra_pingroup_config *con
 		err = tegra_pinmux_set_tristate(pingroup, tristate);
 		if (err < 0)
 			pr_err("pinmux: can't set pingroup %s tristate to %s: %d\n",
-			       pingroup_name(pingroup), tri_name(func), err);
+			       pingroup_name(pingroup), tri_name(tristate), err);
 	}
 }
 
@@ -341,6 +345,45 @@ void tegra_pinmux_config_table(const struct tegra_pingroup_config *config, int l
 	for (i = 0; i < len; i++)
 		tegra_pinmux_config_pingroup(&config[i]);
 }
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+
+static void tegra_pinmux_sleep_config_pingroup(const struct tegra_sleep_pingroup_config *config)
+{
+	enum tegra_pingroup pingroup = config->pingroup;
+	enum tegra_pullupdown pupd   = config->pupd;
+	enum tegra_tristate tristate = config->tristate;
+	int err;
+
+	if(config->pupd_ctrl == YES)
+	{
+		if (pingroups[pingroup].pupd_reg >= 0) {
+			err = tegra_pinmux_set_pullupdown(pingroup, pupd);
+			if (err < 0)
+				pr_err("pinmux: can't set pingroup %s pullupdown to %s: %d\n",
+				       pingroup_name(pingroup), pupd_name(pupd), err);
+		}
+	}
+	if(config->tristate_ctrl == YES)
+	{
+		if (pingroups[pingroup].tri_reg >= 0) {
+			err = tegra_pinmux_set_tristate(pingroup, tristate);
+			if (err < 0)
+				pr_err("pinmux: can't set pingroup %s tristate to %s: %d\n",
+				       pingroup_name(pingroup), tri_name(tristate), err);
+		}
+	}
+}
+
+void tegra_pinmux_sleep_config_table(const struct tegra_sleep_pingroup_config *config, int len)
+{
+	int i;
+
+	for (i = 0; i < len; i++)
+		tegra_pinmux_sleep_config_pingroup(&config[i]);
+}
+
+#endif
 
 static const char *drive_pinmux_name(enum tegra_drive_pingroup pg)
 {
@@ -481,8 +524,8 @@ static int tegra_drive_pinmux_set_pull_up(enum tegra_drive_pingroup pg,
 	spin_lock_irqsave(&mux_lock, flags);
 
 	reg = pg_readl(drive_pingroups[pg].reg);
-	reg &= ~(0x1f << 12);
-	reg |= pull_up << 12;
+	reg &= ~(0x1f << 20);
+	reg |= pull_up << 20;
 	pg_writel(reg, drive_pingroups[pg].reg);
 
 	spin_unlock_irqrestore(&mux_lock, flags);

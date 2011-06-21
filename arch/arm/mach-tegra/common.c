@@ -24,6 +24,9 @@
 #include <linux/delay.h>
 #include <linux/highmem.h>
 #include <linux/memblock.h>
+#include <linux/notifier.h>
+#include <linux/reboot.h>
+#include <linux/mqueue.h>
 
 #include <asm/hardware/cache-l2x0.h>
 #include <asm/system.h>
@@ -98,12 +101,23 @@ void __init tegra_init_cache(void)
 #ifdef CONFIG_CACHE_L2X0
 	void __iomem *p = IO_ADDRESS(TEGRA_ARM_PERIF_BASE) + 0x3000;
 
+#ifndef CONFIG_TRUSTED_FOUNDATIONS
+   /*
+   ISSUE : Some registers of PL310 controler must be called from Secure context!
+            When called form Normal we obtain an abort.
+            Instructions that must be called in Secure :
+               - Tag and Data RAM Latency Control Registers (0x108 & 0x10C) must be written in Secure.
+        
+   The following section of code has been regrouped in the implementation of "l2x0_init".
+   The "l2x0_init" will in fact call an SMC intruction to switch from Normal context to Secure context.
+   The configuration and activation will be done in Secure.
+   */
 	writel(0x331, p + L2X0_TAG_LATENCY_CTRL);
 	writel(0x441, p + L2X0_DATA_LATENCY_CTRL);
-	writel(7, p + L2X0_PREFETCH_OFFSET);
 	writel(2, p + L2X0_PWR_CTRL);
+#endif
 
-	l2x0_init(p, 0x7C480001, 0x8200c3fe);
+	l2x0_init(p, 0x6C480001, 0x8200c3fe);
 #endif
 
 }
@@ -112,21 +126,24 @@ static void __init tegra_init_power(void)
 {
 	tegra_powergate_power_off(TEGRA_POWERGATE_MPE);
 	tegra_powergate_power_off(TEGRA_POWERGATE_3D);
+	tegra_powergate_power_off(TEGRA_POWERGATE_PCIE);
 }
 
 static bool console_flushed;
 
-static void tegra_pm_flush_console(void)
+static int tegra_pm_flush_console(struct notifier_block *this,
+	unsigned long code,
+	void *unused)
 {
 	if (console_flushed)
-		return;
+		return NOTIFY_NONE;
 	console_flushed = true;
 
 	printk("\n");
 	pr_emerg("Restarting %s\n", linux_banner);
 	if (!try_acquire_console_sem()) {
 		release_console_sem();
-		return;
+		return NOTIFY_NONE;
 	}
 
 	mdelay(50);
@@ -137,17 +154,23 @@ static void tegra_pm_flush_console(void)
 	else
 		pr_emerg("tegra_restart: Console was locked!\n");
 	release_console_sem();
+
+	return NOTIFY_NONE;
 }
 
 static void tegra_pm_restart(char mode, const char *cmd)
 {
-	tegra_pm_flush_console();
 	arm_machine_restart(mode, cmd);
 }
+
+static struct notifier_block tegra_reboot_notifier = {
+	.notifier_call = tegra_pm_flush_console,
+};
 
 void __init tegra_common_init(void)
 {
 	arm_pm_restart = tegra_pm_restart;
+	register_reboot_notifier(&tegra_reboot_notifier);
 	tegra_init_fuse();
 	tegra_init_clock();
 	tegra_clk_init_from_table(common_clk_init_table);
@@ -155,9 +178,6 @@ void __init tegra_common_init(void)
 	tegra_init_cache();
 	tegra_dma_init();
 	tegra_init_apb_dma();
-#ifndef CONFIG_ARCH_TEGRA_2x_SOC
-	tegra_mc_init(); /* !!!FIXME!!! Change Tegra3 behavior to match Tegra2 */
-#endif
 }
 
 static int __init tegra_bootloader_fb_arg(char *options)

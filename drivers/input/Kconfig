@@ -180,6 +180,11 @@ config XEN_KBDDEV_FRONTEND
 	  keyboard and mouse device driver.  It communicates with a back-end
 	  in another domain.
 
+config SAMSUNG_INPUT
+	tristate "Samsung input devices"
+	depends on INPUT
+	default y
+
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"

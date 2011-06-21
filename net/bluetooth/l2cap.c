@@ -263,6 +263,15 @@ static void l2cap_chan_del(struct sock *sk, int err)
 		/* Unlink from channel list */
 		l2cap_chan_unlink(&conn->chan_list, sk);
 		l2cap_pi(sk)->conn = NULL;
+		
+// BEGIN SS_BLUEZ_BT +kjh 2011.03.16 : 
+// It takes long time to disconnect incoming ACL from local device. (40s) 
+// This is side effect of Google's workaround.
+// If you check "hci_conn_put", you can find timeo val changed.
+		if(conn->hcon) 
+			conn->hcon->out = 1;
+// END SS_BLUEZ_BT
+
 		hci_conn_put(conn->hcon);
 	}
 
@@ -3060,6 +3069,13 @@ sendresp:
 					L2CAP_INFO_REQ, sizeof(info), &info);
 	}
 
+// BEGIN SS_BLUEZ_BT +kjh 2011.03.28 : 
+// this is workaround for windows mobile phone.
+// maybe, conf negotiation has some problem in wm phone.
+// wm phone send first pdu over max size. (we expect 1013, but recved 1014)
+// * this code is mandatory for SIG CERTI 3.0
+// * this code is only for Honeycomb. Gingerbread doesn't have this part.
+/*
 	if (sk && !(l2cap_pi(sk)->conf_state & L2CAP_CONF_REQ_SENT) &&
 				result == L2CAP_CR_SUCCESS) {
 		u8 buf[128];
@@ -3068,6 +3084,8 @@ sendresp:
 					l2cap_build_conf_req(sk, buf), buf);
 		l2cap_pi(sk)->num_conf_req++;
 	}
+*/
+// END SS_BLUEZ_BT
 
 	return 0;
 }
@@ -3211,6 +3229,12 @@ static inline int l2cap_config_req(struct l2cap_conn *conn, struct l2cap_cmd_hdr
 
 	if (!(l2cap_pi(sk)->conf_state & L2CAP_CONF_REQ_SENT)) {
 		u8 buf[64];
+
+// BEGIN SS_BLUEZ_BT +kjh 2011.03.21 : 
+// Bluetooth: Update conf_state before send config_req out
+// Update conf_state with L2CAP_CONF_REQ_SENT before send config_req out in l2cap_config_req().
+		l2cap_pi(sk)->conf_state |= L2CAP_CONF_REQ_SENT;
+// END SS_BLUEZ_BT		
 		l2cap_send_cmd(conn, l2cap_get_ident(conn), L2CAP_CONF_REQ,
 					l2cap_build_conf_req(sk, buf), buf);
 		l2cap_pi(sk)->num_conf_req++;

@@ -31,6 +31,13 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/err.h>
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#ifdef CONFIG_USB_HOST_NOTIFY
+#include <linux/host_notify.h>
+#endif
+#include <linux/gpio.h>
+#include <linux/wakelock.h>
+#endif
 
 #define USB_PHY_WAKEUP		0x408
 #define  USB_ID_INT_EN		(1 << 0)
@@ -54,6 +61,13 @@ struct tegra_otg_data {
 	struct platform_device *pdev;
 	struct work_struct work;
 	unsigned int intr_reg_data;
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#ifdef CONFIG_USB_HOST_NOTIFY
+	struct host_notify_dev ndev;
+#endif
+	int currentlimit_irq;
+	struct wake_lock wake_lock;
+#endif
 };
 
 static inline unsigned long otg_readl(struct tegra_otg_data *tegra,
@@ -82,18 +96,43 @@ static const char *tegra_state_name(enum usb_otg_state state)
 void tegra_start_host(struct tegra_otg_data *tegra)
 {
 	struct tegra_otg_platform_data *pdata = tegra->otg.dev->platform_data;
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	unsigned int batt_level = 0;
+
+	dev_info(tegra->otg.dev, "tegra_start_host+\n");
+	wake_lock(&tegra->wake_lock);
+#if 0
+	if (*pdata->batt_level) {
+		batt_level = **pdata->batt_level;
+		if (batt_level < 15) {
+#ifdef CONFIG_USB_HOST_NOTIFY
+			host_state_notify(&tegra->ndev, NOTIFY_HOST_LOWBATT);
+#endif
+			dev_info(tegra->otg.dev, "LOW Battery=%d\n",
+					**pdata->batt_level);
+			return;
+		}
+	}
+#endif
+#endif
 	if (!tegra->pdev) {
 		tegra->pdev = pdata->host_register();
 	}
+	dev_info(tegra->otg.dev, "tegra_start_host-\n");
 }
 
 void tegra_stop_host(struct tegra_otg_data *tegra)
 {
 	struct tegra_otg_platform_data *pdata = tegra->otg.dev->platform_data;
+	dev_info(tegra->otg.dev, "tegra_stop_host+\n");
 	if (tegra->pdev) {
 		pdata->host_unregister(tegra->pdev);
 		tegra->pdev = NULL;
 	}
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	wake_unlock(&tegra->wake_lock);
+#endif
+	dev_info(tegra->otg.dev, "tegra_stop_host-\n");
 }
 
 static void irq_work(struct work_struct *work)
@@ -139,20 +178,45 @@ static void irq_work(struct work_struct *work)
 					      tegra_state_name(to));
 
 		if (to == OTG_STATE_A_SUSPEND) {
-			if (from == OTG_STATE_A_HOST)
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#ifdef CONFIG_USB_HOST_NOTIFY
+			tegra->ndev.mode = NOTIFY_NONE_MODE;
+#endif
+#endif
+			if (from == OTG_STATE_A_HOST) {
 				tegra_stop_host(tegra);
-			else if (from == OTG_STATE_B_PERIPHERAL && otg->gadget)
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#ifdef CONFIG_USB_HOST_NOTIFY
+				host_state_notify(&tegra->ndev,
+					 NOTIFY_HOST_REMOVE);
+#endif
+#endif
+			} else if (from == OTG_STATE_B_PERIPHERAL && otg->gadget)
 				usb_gadget_vbus_disconnect(otg->gadget);
 		} else if (to == OTG_STATE_B_PERIPHERAL && otg->gadget) {
-			if (from == OTG_STATE_A_SUSPEND)
+			if (from == OTG_STATE_A_SUSPEND || from == OTG_STATE_UNDEFINED)
 				usb_gadget_vbus_connect(otg->gadget);
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#ifdef CONFIG_USB_HOST_NOTIFY
+			tegra->ndev.mode = NOTIFY_PERIPHERAL_MODE;
+#endif
+#endif
 		} else if (to == OTG_STATE_A_HOST) {
 			if (from == OTG_STATE_A_SUSPEND)
 			tegra_start_host(tegra);
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+			else if (from == OTG_STATE_B_PERIPHERAL) {
+				usb_gadget_vbus_disconnect(otg->gadget);
+				tegra_start_host(tegra);
+			}
+#ifdef CONFIG_USB_HOST_NOTIFY
+			tegra->ndev.mode = NOTIFY_HOST_MODE;
+			host_state_notify(&tegra->ndev, NOTIFY_HOST_ADD);
+#endif
+#endif
 		}
 	}
 	clk_disable(tegra->clk);
-
 }
 
 static irqreturn_t tegra_otg_irq(int irq, void *data)
@@ -238,12 +302,55 @@ static int tegra_otg_set_suspend(struct otg_transceiver *otg, int suspend)
 	return 0;
 }
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+static int tegra_get_accpower_level(int irq)
+{
+	int gpio_ret;
+	gpio_ret = irq_to_gpio(irq);
+	if (gpio_ret < 0)
+		printk(KERN_ERR "%s get gpio error\n", __func__);
+	return __gpio_get_value((unsigned)gpio_ret);
+}
+
+static irqreturn_t tegra_currentlimit_irq_thread(int irq, void *data)
+{
+	struct tegra_otg_data *tegra = data;
+
+	if (tegra_get_accpower_level(tegra->currentlimit_irq)) {
+#ifdef CONFIG_USB_HOST_NOTIFY
+		tegra->ndev.booster = NOTIFY_POWER_ON;
+#endif
+		dev_info(tegra->otg.dev, "Acc power on detect\n");
+	} else {
+#ifdef CONFIG_USB_HOST_NOTIFY
+		if (tegra->ndev.mode == NOTIFY_HOST_MODE) {
+			host_state_notify(&tegra->ndev,
+				NOTIFY_HOST_OVERCURRENT);
+			dev_err(tegra->otg.dev, "OTG overcurrent!!!!!!\n");
+		}
+		tegra->ndev.booster = NOTIFY_POWER_OFF;
+#endif
+	}
+	return IRQ_HANDLED;
+}
+#endif
+
 static int tegra_otg_probe(struct platform_device *pdev)
 {
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	struct tegra_otg_platform_data *pdata;
+#endif
 	struct tegra_otg_data *tegra;
 	struct resource *res;
 	int err;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	pdata = pdev->dev.platform_data;
+	if (!pdata) {
+		dev_err(&pdev->dev, "Platform data missing\n");
+		return -EINVAL;
+	}
+#endif
 	tegra = kzalloc(sizeof(struct tegra_otg_data), GFP_KERNEL);
 	if (!tegra)
 		return -ENOMEM;
@@ -306,6 +413,35 @@ static int tegra_otg_probe(struct platform_device *pdev)
 	}
 	INIT_WORK (&tegra->work, irq_work);
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	if (pdata->currentlimit_irq) {
+		tegra->currentlimit_irq =
+			pdata->currentlimit_irq;
+		err = request_threaded_irq(tegra->currentlimit_irq,
+					NULL,
+					tegra_currentlimit_irq_thread,
+					(IRQF_TRIGGER_FALLING |
+						IRQF_TRIGGER_RISING),
+					dev_name(&pdev->dev),
+					tegra);
+		if (err) {
+			dev_err(&pdev->dev, "Failed to register IRQ\n");
+			goto err_irq;
+		}
+	}
+#ifdef CONFIG_USB_HOST_NOTIFY
+#define NOTIFY_DRIVER_NAME "usb_otg"
+	tegra->ndev.name = NOTIFY_DRIVER_NAME;
+	if (pdata->otg_en)
+		tegra->ndev.set_booster = pdata->otg_en;
+	err = host_notify_dev_register(&tegra->ndev);
+	if (err) {
+		dev_err(&pdev->dev, "Failed to host_notify_dev_register\n");
+		goto err_irq;
+	}
+#endif
+	wake_lock_init(&tegra->wake_lock, WAKE_LOCK_SUSPEND, "tegra-otg");
+#endif
 	dev_info(&pdev->dev, "otg transceiver registered\n");
 	return 0;
 
@@ -327,6 +463,13 @@ static int __exit tegra_otg_remove(struct platform_device *pdev)
 {
 	struct tegra_otg_data *tegra = platform_get_drvdata(pdev);
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#ifdef CONFIG_USB_HOST_NOTIFY
+	host_notify_dev_unregister(&tegra->ndev);
+#endif
+	if (tegra->currentlimit_irq)
+		free_irq(tegra->currentlimit_irq, tegra);
+#endif
 	free_irq(tegra->irq, tegra);
 	otg_set_transceiver(NULL);
 	iounmap(tegra->regs);

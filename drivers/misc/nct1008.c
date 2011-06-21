@@ -67,6 +67,12 @@ struct nct1008_data {
 	void (*alarm_fn)(bool raised);
 };
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#include <linux/regulator/driver.h>
+#include <linux/regulator/machine.h>
+#include <linux/delay.h>
+#endif
+
 static ssize_t nct1008_show_temp(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -129,6 +135,16 @@ static void nct1008_enable(struct i2c_client *client)
 {
 	struct nct1008_data *data = i2c_get_clientdata(client);
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	struct regulator *reg = regulator_get(NULL, "vdd_nct1008");
+	pr_debug("%s: regulator vdd_nct1008 is %s\n", __func__,
+		regulator_is_enabled(reg) ? "enabled" : "disabled");
+	pr_debug("%s: enabling regulator vdd_nct1008\n", __func__);
+	regulator_enable(reg);
+	regulator_put(reg);
+	udelay(10);
+#endif
+
 	i2c_smbus_write_byte_data(client, CONFIG_WR,
 				  data->config & ~STANDBY_BIT);
 }
@@ -139,6 +155,20 @@ static void nct1008_disable(struct i2c_client *client)
 
 	i2c_smbus_write_byte_data(client, CONFIG_WR,
 				  data->config | STANDBY_BIT);
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	{
+		struct regulator *reg = regulator_get(NULL, "vdd_nct1008");
+		pr_debug("%s: regulator vdd_nct1008 is %s\n", __func__,
+			regulator_is_enabled(reg) ? "enabled" : "disabled");
+		pr_debug("%s: disabling regulator vdd_nct1008\n", __func__);
+		regulator_disable(reg);
+		pr_debug("%s: regulator vdd_nct1008 is %s\n", __func__,
+			regulator_is_enabled(reg) ? "enabled" : "disabled");
+		regulator_put(reg);
+	}
+#endif
+
 }
 
 
@@ -269,8 +299,10 @@ static int __devinit nct1008_probe(struct i2c_client *client, const struct i2c_d
 		goto error;
 
 	err = nct1008_configure_irq(data);
-	if (err < 0)
+	if (err < 0) {
+		pr_err("nct1008 irq config error!\n");
 		goto error;
+	}
 
 	/* register sysfs hooks */
 	err = sysfs_create_group(&client->dev.kobj, &nct1008_attr_group);

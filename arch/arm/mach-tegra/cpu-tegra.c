@@ -54,6 +54,16 @@ unsigned int tegra_getspeed(unsigned int cpu);
 static int tegra_update_cpu_speed(unsigned long rate);
 static unsigned long tegra_cpu_highest_speed(void);
 
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
+static DEFINE_MUTEX(tegra_cpulock_lock);
+static bool is_cpufreq_locked;
+static int cpulock_freq;
+static int cpulock_debug_timeout;
+static struct hrtimer cpulock_timer;
+void tegra_cpu_lock_speed(int min_rate, int timeout_ms);
+void tegra_cpu_unlock_speed(void);
+#endif /* CONFIG_TEGRA_CPU_FREQ_LOCK */
+
 #ifdef CONFIG_TEGRA_THERMAL_THROTTLE
 /* CPU frequency is gradually lowered when throttling is enabled */
 #define THROTTLE_DELAY		msecs_to_jiffies(2000)
@@ -149,6 +159,44 @@ static int throttle_debug_get(void *data, u64 *val)
 
 DEFINE_SIMPLE_ATTRIBUTE(throttle_fops, throttle_debug_get, throttle_debug_set, "%llu\n");
 
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
+/*
+ * At first, set cpulock_debug_timeout,
+ * then set specific cpu frequency for locking
+ */
+static int cpulock_debug_set(void *data, u64 val)
+{
+	if (val)
+		tegra_cpu_lock_speed(val, cpulock_debug_timeout);
+	else {
+		/* if val == 0, cpufreq will be unlocked */
+		tegra_cpu_unlock_speed();
+	}
+
+
+	return 0;
+}
+static int cpulock_debug_get(void *data, u64 *val)
+{
+	*val = (u64) cpulock_freq;
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(cpulock_fops, cpulock_debug_get, cpulock_debug_set, "%llu\n");
+
+/* if timeout is 0, cpufreq will be locked infinitely */
+static int cpulock_timeout_debug_set(void *data, u64 timeout_ms)
+{
+	cpulock_debug_timeout = timeout_ms;
+	return 0;
+}
+static int cpulock_timeout_debug_get(void *data, u64 *val)
+{
+	*val = (u64) cpulock_debug_timeout;
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(cpulock_timeout_fops, cpulock_timeout_debug_get, cpulock_timeout_debug_set, "%llu\n");
+#endif /* CONFIG_TEGRA_CPU_FREQ_LOCK */
+
 static struct dentry *cpu_tegra_debugfs_root;
 
 static int __init tegra_cpu_debug_init(void)
@@ -160,6 +208,18 @@ static int __init tegra_cpu_debug_init(void)
 
 	if (!debugfs_create_file("throttle", 0644, cpu_tegra_debugfs_root, NULL, &throttle_fops))
 		goto err_out;
+
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK 
+	/*
+	 * root permission is required for testing
+	 * /d/cpu-tegra/cpulock
+	 * /d/cpu-tegra/cpulock_timeout
+	 */
+	if (!debugfs_create_file("cpulock", 0644, cpu_tegra_debugfs_root, NULL, &cpulock_fops))
+		goto err_out;
+	if (!debugfs_create_file("cpulock_timeout", 0644, cpu_tegra_debugfs_root, NULL, &cpulock_timeout_fops))
+		goto err_out;
+#endif /* CONFIG_TEGRA_CPU_FREQ_LOCK */
 
 	return 0;
 
@@ -209,7 +269,18 @@ static int tegra_update_cpu_speed(unsigned long rate)
 	struct cpufreq_freqs freqs;
 
 	freqs.old = tegra_getspeed(0);
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
+	/*
+	 * Thermal throttling supersedes cpufreq lock.
+	 * cpufreq goes down to minimum during the suspend mode.
+	 */
+	if (!tegra_cpu_is_throttling() && is_cpufreq_locked && !is_suspended && (rate < cpulock_freq))
+		freqs.new = cpulock_freq;
+	else
+		freqs.new = rate;
+#else
 	freqs.new = rate;
+#endif /* CONFIG_TEGRA_CPU_FREQ_LOCK */	
 
 	if (freqs.old == freqs.new)
 		return ret;
@@ -250,6 +321,69 @@ static int tegra_update_cpu_speed(unsigned long rate)
 	return 0;
 }
 
+
+
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
+/*
+ * c.f. cpufreq_frequency_table in tegra2_clocks.c
+ * 216000, 312000, 456000, 608000, 760000, 816000, 912000, 1000000 etc.
+ * min_rate is in KHz.
+ */
+void tegra_cpu_lock_speed(int min_rate, int timeout_ms)
+{
+	int idx = 0,found = 0;
+
+	/* cpu frequency validity test */
+	while (freq_table[idx].frequency != CPUFREQ_TABLE_END) {
+		if (freq_table[idx++].frequency == min_rate) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found) {
+		pr_err("cpu-tegra: Failed to lock cpu frequency to %d kHz\n", min_rate);
+		return;
+	}
+
+	mutex_lock(&tegra_cpulock_lock);
+
+	printk(KERN_DEBUG "%s: min_rate(%d),timeout(%d)\n",
+	       __func__, min_rate, timeout_ms);
+	cpulock_freq = min_rate;
+	is_cpufreq_locked = true;
+	tegra_update_cpu_speed(tegra_getspeed(0));
+	if (timeout_ms) {
+		hrtimer_cancel(&cpulock_timer);
+		hrtimer_start(&cpulock_timer,
+			ns_to_ktime((u64)timeout_ms * NSEC_PER_MSEC),
+			HRTIMER_MODE_REL);
+	}
+
+	mutex_unlock(&tegra_cpulock_lock);
+}
+EXPORT_SYMBOL_GPL(tegra_cpu_lock_speed);
+
+void tegra_cpu_unlock_speed(void)
+{
+	mutex_lock(&tegra_cpulock_lock);
+
+	cpulock_freq = 0;
+	is_cpufreq_locked = false;
+	hrtimer_cancel(&cpulock_timer);
+
+	mutex_unlock(&tegra_cpulock_lock);
+}
+EXPORT_SYMBOL_GPL(tegra_cpu_unlock_speed);
+
+static enum hrtimer_restart tegra_cpulock_timer_func(struct hrtimer *timer)
+{
+	cpulock_freq = 0;
+	is_cpufreq_locked = false;
+	printk(KERN_DEBUG "%s is called\n", __func__);
+
+	return HRTIMER_NORESTART;
+}
+#endif /* CONFIG_TEGRA_CPU_FREQ_LOCK */
 static unsigned long tegra_cpu_highest_speed(void) {
 	unsigned long rate = 0;
 	int i;
@@ -392,6 +526,10 @@ static int __init tegra_cpufreq_init(void)
 	throttle_lowest_index = table_data->throttle_lowest_index;
 	throttle_highest_index = table_data->throttle_highest_index;
 #endif
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
+	hrtimer_init(&cpulock_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	cpulock_timer.function = tegra_cpulock_timer_func;
+#endif /* CONFIG_TEGRA_CPU_FREQ_LOCK */
 	freq_table = table_data->freq_table;
 	return cpufreq_register_driver(&tegra_cpufreq_driver);
 }

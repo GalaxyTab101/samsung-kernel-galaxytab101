@@ -86,8 +86,8 @@ config SND_SOC_ALL_CODECS
 
 config SND_SOC_WM_HUBS
 	tristate
-	default y if SND_SOC_WM8993=y || SND_SOC_WM8994=y
-	default m if SND_SOC_WM8993=m || SND_SOC_WM8994=m
+	default y if SND_SOC_WM8993=y || SND_SOC_WM8994=y || SND_SOC_WM8994_P3=y || SND_SOC_WM8994_P5=y
+	default m if SND_SOC_WM8993=m || SND_SOC_WM8994=m || SND_SOC_WM8994_P3=m || SND_SOC_WM8994_P5=m
 
 config SND_SOC_AC97_CODEC
 	tristate
@@ -268,6 +268,12 @@ config SND_SOC_WM8993
 
 config SND_SOC_WM8994
 	tristate
+
+config SND_SOC_WM8994_P3
+	tristate "WM8994 for Samsung P3 codec"
+
+config SND_SOC_WM8994_P5
+	tristate "WM8994 for Samsung P5 codec"
 
 config SND_SOC_WM9081
 	tristate

@@ -30,6 +30,10 @@
 #include <linux/uaccess.h>
 #include <linux/random.h>
 
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+#include <linux/kernel_sec_common.h>
+#endif
+
 #include <asm/cacheflush.h>
 #include <asm/leds.h>
 #include <asm/processor.h>
@@ -37,6 +41,10 @@
 #include <asm/thread_notify.h>
 #include <asm/stacktrace.h>
 #include <asm/mach/time.h>
+
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+#include <linux/kernel_sec_common.h>
+#endif
 
 #ifdef CONFIG_CC_STACKPROTECTOR
 #include <linux/stackprotector.h>
@@ -92,10 +100,6 @@ __setup("hlt", hlt_setup);
 
 void arm_machine_restart(char mode, const char *cmd)
 {
-	/* Disable interrupts first */
-	local_irq_disable();
-	local_fiq_disable();
-
 	/*
 	 * Tell the mm system that we are going to reboot -
 	 * we may need it to insert some 1:1 mappings so that
@@ -105,6 +109,10 @@ void arm_machine_restart(char mode, const char *cmd)
 
 	/* Clean and invalidate caches */
 	flush_cache_all();
+
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+	outer_flush_all();
+#endif
 
 	/* Turn off caching */
 	cpu_proc_fin();
@@ -219,6 +227,39 @@ int __init reboot_setup(char *str)
 
 __setup("reboot=", reboot_setup);
 
+
+#define _SAFE_STOP_DVFS_
+#if defined(_SAFE_STOP_DVFS_)
+
+#if defined(CONFIG_KERNEL_DEBUG_SEC)
+static void flush_all_cpu_cache(void *info)
+{
+	flush_cache_all();
+}
+void flush_all_cpu_caches(void)
+{
+	on_each_cpu(flush_all_cpu_cache, NULL, 1);
+}
+#endif
+
+extern void tegra_dvfs_disable_core_cpu(void);
+static void post_action_stop_dvfs(void)
+{
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+	kernel_sec_upload_cause_type upload_cause = kernel_sec_get_upload_cause();
+	if (upload_cause == UPLOAD_CAUSE_INIT)
+		/* Clear the magic number because it's normal reboot */
+		kernel_sec_clear_upload_magic_number();
+#endif
+	tegra_dvfs_disable_core_cpu();
+
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+	flush_all_cpu_caches();
+#endif
+
+}
+#endif // _SAFE_STOP_DVFS_
+
 void machine_shutdown(void)
 {
 #ifdef CONFIG_SMP
@@ -228,12 +269,18 @@ void machine_shutdown(void)
 
 void machine_halt(void)
 {
+#if defined(_SAFE_STOP_DVFS_)
+	post_action_stop_dvfs();
+#endif
 	machine_shutdown();
 	while (1);
 }
 
 void machine_power_off(void)
 {
+#if defined(_SAFE_STOP_DVFS_)
+	post_action_stop_dvfs();
+#endif
 	machine_shutdown();
 	if (pm_power_off)
 		pm_power_off();
@@ -241,6 +288,14 @@ void machine_power_off(void)
 
 void machine_restart(char *cmd)
 {
+#if defined(_SAFE_STOP_DVFS_)
+	post_action_stop_dvfs();
+#endif
+
+	/* Disable interrupts first */
+	local_irq_disable();
+	local_fiq_disable();
+
 	machine_shutdown();
 	arm_pm_restart(reboot_mode, cmd);
 }

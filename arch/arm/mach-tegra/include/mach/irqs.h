@@ -180,7 +180,11 @@
 #define TEGRA_NR_IRQS			(INT_GPIO_BASE + INT_GPIO_NR)
 
 #define INT_BOARD_BASE			TEGRA_NR_IRQS
+#ifdef CONFIG_GPIO_STMPE1801
+#define NR_BOARD_IRQS			64
+#else
 #define NR_BOARD_IRQS			32
+#endif
 
 #define NR_IRQS				(INT_BOARD_BASE + NR_BOARD_IRQS)
 #endif

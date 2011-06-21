@@ -86,6 +86,36 @@ static int dvfs_solve_relationship(struct dvfs_relationship *rel)
 	return rel->solve(rel->from, rel->to);
 }
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+
+#if 0
+#define DVFS_SLEW_RATE		7  /* BUCK slew rate */
+#define DVFS_SETTLE_MARGIN	30 /* DVFS settle time + margin percent */
+static int dvfs_calc_settle_time(int old, int new, int slew)
+{
+	int delay;
+
+	slew = (slew <= 0) ? 1 : slew; /* Avoid divide by 0 */
+	delay = abs(old - new) / slew; /* Calc settle time */
+	/* Adding timing margin x percent */
+	delay = delay * (100 + DVFS_SETTLE_MARGIN) / 100;
+	delay += 20; /* Add additional delay */
+	return delay;
+}
+#else
+/* SM0/1 slew rate settings */
+#define TPS6586X_SMSL_1_110_NS      110  // 0x1     /* mV/us */
+#define TPS6586X_SMSL_2_220_NS      220  // 0x2
+#define TPS6586X_SMSL_3_440_NS      440  // 0x3
+#define TPS6586X_SMSL_4_880_NS      880  // 0x4
+#define TPS6586X_SMSL_5_1760_NS     1760 // 0x5
+#define TPS6586X_SMSL_6_3520_NS     3520 // 0x6
+#define TPS6586X_SMSL_7_7040_NS     7040 // 0x7
+#define TPS6586X_START_UP_TIME_US   210
+#endif
+
+#endif /* CONFIG_MACH_SAMSUNG_VARIATION_TEGRA */
+
 /* Sets the voltage on a dvfs rail to a specific value, and updates any
  * rails that depend on this rail. */
 static int dvfs_rail_set_voltage(struct dvfs_rail *rail, int millivolts)
@@ -95,6 +125,9 @@ static int dvfs_rail_set_voltage(struct dvfs_rail *rail, int millivolts)
 	int step = (millivolts > rail->millivolts) ? rail->step : -rail->step;
 	int i;
 	int steps;
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	int delay = 0;
+#endif
 
 	if (!rail->reg) {
 		if (millivolts == rail->millivolts)
@@ -105,6 +138,25 @@ static int dvfs_rail_set_voltage(struct dvfs_rail *rail, int millivolts)
 
 	if (rail->disabled)
 		return 0;
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+
+#if 0
+	delay = dvfs_calc_settle_time(rail->millivolts, millivolts, DVFS_SLEW_RATE);
+	pr_debug("dvfs regulator %s, old=%d, new=%d, delay=%d\n",
+		rail->reg_id, rail->millivolts, millivolts, delay);
+#else
+	/* caculate ramp delay time for vdd_cpu */
+	if (0 == strcmp(rail->reg_id, "vdd_cpu")) {
+		if (millivolts > rail->millivolts) {
+			delay = DIV_ROUND_UP((millivolts - rail->millivolts) *
+					1000, TPS6586X_SMSL_5_1760_NS)
+				+ TPS6586X_START_UP_TIME_US;
+		}
+	}
+#endif
+
+#endif /* CONFIG_MACH_SAMSUNG_VARIATION_TEGRA */
 
 	steps = DIV_ROUND_UP(abs(millivolts - rail->millivolts), rail->step);
 
@@ -148,6 +200,13 @@ static int dvfs_rail_set_voltage(struct dvfs_rail *rail, int millivolts)
 				return ret;
 		}
 	}
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	/* DVFS settle time */
+	if (delay > 0) {
+		udelay(delay);
+	}
+#endif /* CONFIG_MACH_SAMSUNG_VARIATION_TEGRA */
 
 	if (unlikely(rail->millivolts != millivolts)) {
 		pr_err("%s: rail didn't reach target %d in %d steps (%d)\n",

@@ -46,6 +46,10 @@
 
 /* ----- global variables ---------------------------------------------	*/
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#define SAMSUNG_HDMI_SW_I2C 13
+#endif
+
 static int bit_test;	/* see if the line-setting functions work	*/
 module_param(bit_test, bool, 0);
 MODULE_PARM_DESC(bit_test, "Test the lines of the bus to see if it is stuck");
@@ -105,7 +109,17 @@ static int sclhi(struct i2c_algo_bit_data *adap)
 		 */
 		if (time_after(jiffies, start + adap->timeout))
 			return -ETIMEDOUT;
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+		/* This is the woraround for MHL DDC S/W I2C.
+		 * We cannot help using spinlock during i2c_transfer.
+		 * 13 is the ID of MHL DDC.
+		 */
+		if (adap->nr != SAMSUNG_HDMI_SW_I2C)
+#endif
 		cond_resched();
+
+
 	}
 #ifdef DEBUG
 	if (jiffies != start && i2c_debug >= 3)
@@ -164,6 +178,10 @@ static int i2c_outb(struct i2c_adapter *i2c_adap, unsigned char c)
 	int ack;
 	struct i2c_algo_bit_data *adap = i2c_adap->algo_data;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	adap->nr = i2c_adap->nr;
+#endif
+
 	/* assert: scl is low */
 	for (i = 7; i >= 0; i--) {
 		sb = (c >> i) & 1;
@@ -210,6 +228,9 @@ static int i2c_inb(struct i2c_adapter *i2c_adap)
 	unsigned char indata = 0;
 	struct i2c_algo_bit_data *adap = i2c_adap->algo_data;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	adap->nr = i2c_adap->nr;
+#endif
 	/* assert: scl is low */
 	sdahi(adap);
 	for (i = 0; i < 8; i++) {
@@ -321,6 +342,9 @@ static int try_address(struct i2c_adapter *i2c_adap,
 	struct i2c_algo_bit_data *adap = i2c_adap->algo_data;
 	int i, ret = 0;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	adap->nr = i2c_adap->nr;
+#endif
 	for (i = 0; i <= retries; i++) {
 		ret = i2c_outb(i2c_adap, addr);
 		if (ret == 1 || i == retries)
@@ -328,6 +352,11 @@ static int try_address(struct i2c_adapter *i2c_adap,
 		bit_dbg(3, &i2c_adap->dev, "emitting stop condition\n");
 		i2c_stop(adap);
 		udelay(adap->udelay);
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+		if (i2c_adap->nr == SAMSUNG_HDMI_SW_I2C)
+			udelay(1000);
+		else
+#endif
 		yield();
 		bit_dbg(3, &i2c_adap->dev, "emitting start condition\n");
 		i2c_start(adap);
@@ -385,6 +414,9 @@ static int acknak(struct i2c_adapter *i2c_adap, int is_ack)
 {
 	struct i2c_algo_bit_data *adap = i2c_adap->algo_data;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	adap->nr = i2c_adap->nr;
+#endif
 	/* assert: sda is high */
 	if (is_ack)		/* send ack */
 		setsda(adap, 0);
@@ -466,6 +498,9 @@ static int bit_doAddress(struct i2c_adapter *i2c_adap, struct i2c_msg *msg)
 	unsigned char addr;
 	int ret, retries;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	adap->nr = i2c_adap->nr;
+#endif
 	retries = nak_ok ? 0 : i2c_adap->retries;
 
 	if (flags & I2C_M_TEN) {
@@ -521,6 +556,9 @@ static int bit_xfer(struct i2c_adapter *i2c_adap,
 	int i, ret;
 	unsigned short nak_ok;
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	adap->nr = i2c_adap->nr;
+#endif
 	if (adap->pre_xfer) {
 		ret = adap->pre_xfer(i2c_adap);
 		if (ret < 0)
@@ -603,6 +641,9 @@ static const struct i2c_algorithm i2c_bit_algo = {
 static int i2c_bit_prepare_bus(struct i2c_adapter *adap)
 {
 	struct i2c_algo_bit_data *bit_adap = adap->algo_data;
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	bit_adap->nr = adap->nr;
+#endif
 
 	if (bit_test) {
 		int ret = test_bus(bit_adap, adap->name);

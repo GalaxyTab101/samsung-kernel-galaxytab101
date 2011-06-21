@@ -68,6 +68,20 @@ config NVMAP_HIGHMEM_ONLY
 	  Say Y here to restrict nvmap system memory allocations (both
 	  physical system memory and IOVMM) to just HIGHMEM pages.
 
+config FB_TEGRA_CMC623
+	bool "Samsung CMC623"
+	depends on FB_TEGRA 
+	default y
+	help
+	  This enables support for Samsung CMC623 image converter
+
+config FB_TEGRA_CMC623_EXTEND
+	bool "Samsung CMC623 extend"
+	depends on FB_TEGRA_CMC623
+	default n
+	help
+	  This enables extended service for Samsung CMC623 image converter
+
 config NVMAP_CARVEOUT_KILLER
 	bool "Reclaim nvmap carveout by killing processes"
 	depends on TEGRA_NVMAP

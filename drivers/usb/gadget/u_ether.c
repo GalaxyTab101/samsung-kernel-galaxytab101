@@ -582,8 +582,9 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	 * though any robust network rx path ignores extra padding.
 	 * and some hardware doesn't like to write zlps.
 	 */
-	req->zero = 1;
-	if (!dev->zlp && (length % in->maxpacket) == 0)
+	if(dev->zlp)
+		req->zero = 1;
+	else if(length % in->maxpacket == 0)
 		length++;
 
 	req->length = length;
@@ -765,6 +766,11 @@ int gether_setup(struct usb_gadget *g, u8 ethaddr[ETH_ALEN])
 	net = alloc_etherdev(sizeof *dev);
 	if (!net)
 		return -ENOMEM;
+
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+	/* merged from S-V for tethering speed */
+	net->mtu = 1428;
+#endif
 
 	dev = netdev_priv(net);
 	spin_lock_init(&dev->lock);

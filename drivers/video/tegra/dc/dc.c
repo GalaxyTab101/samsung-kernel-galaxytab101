@@ -42,6 +42,11 @@
 #include "dc_priv.h"
 #include "overlay.h"
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+#include "../cmc623.h"
+#endif
+#include "edid.h" // for CONFIG_MACH_SAMSUNG_HDMI_EDID_FORCE_PASS
+
 static int no_vsync;
 
 module_param_named(no_vsync, no_vsync, int, S_IRUGO | S_IWUSR);
@@ -642,7 +647,8 @@ u32 tegra_dc_incr_syncpt_max(struct tegra_dc *dc)
 	u32 max;
 
 	mutex_lock(&dc->lock);
-	max = nvhost_syncpt_incr_max(&dc->ndev->host->syncpt, dc->syncpt_id, 1);
+	max = nvhost_syncpt_incr_max(&dc->ndev->host->syncpt, dc->syncpt_id,
+								 ((dc->enabled) ? 1 : 0));	
 	dc->syncpt_max = max;
 	mutex_unlock(&dc->lock);
 
@@ -652,9 +658,11 @@ u32 tegra_dc_incr_syncpt_max(struct tegra_dc *dc)
 void tegra_dc_incr_syncpt_min(struct tegra_dc *dc, u32 val)
 {
 	mutex_lock(&dc->lock);
-	while (dc->syncpt_min < val) {
-		dc->syncpt_min++;
-		nvhost_syncpt_cpu_incr(&dc->ndev->host->syncpt, dc->syncpt_id);
+	if (dc->enabled)
+		while (dc->syncpt_min < val) {
+			dc->syncpt_min++;
+			nvhost_syncpt_cpu_incr(&dc->ndev->host->syncpt,
+								   dc->syncpt_id);
 	}
 	mutex_unlock(&dc->lock);
 }
@@ -724,6 +732,36 @@ void tegra_dc_setup_clk(struct tegra_dc *dc, struct clk *clk)
 		if (clk_get_parent(clk) != pll_d_out0_clk)
 			clk_set_parent(clk, pll_d_out0_clk);
 	}
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA /* add by kurt Yi Nvidia for LCD_PCLK 68.94Mhz */
+	else {
+		unsigned long rate;
+
+		struct clk *pll_c_clk = clk_get_sys(NULL, "pll_c");
+
+		switch(dc->mode.pclk)
+		{
+			case 68941176:
+				rate = 586000000;
+				if (clk_get_parent(clk) != pll_c_clk)
+					clk_set_parent(clk, pll_c_clk);
+
+				if(rate != clk_get_rate(pll_c_clk))
+					clk_set_rate(pll_c_clk, rate);
+			break;
+
+			case 70000000:
+			case 74666667:
+				rate = 560000000;
+				if (clk_get_parent(clk) != pll_c_clk)
+					clk_set_parent(clk, pll_c_clk);
+
+				if(rate != clk_get_rate(pll_c_clk))
+					clk_set_rate(pll_c_clk, rate);
+			break;
+
+		}
+	}
+#endif
 
 	if (dc->out->type == TEGRA_DC_OUT_DSI) {
 		unsigned long rate;
@@ -741,6 +779,7 @@ void tegra_dc_setup_clk(struct tegra_dc *dc, struct clk *clk)
 	}
 
 	pclk = tegra_dc_pclk_round_rate(dc, dc->mode.pclk);
+	printk("tegra_dc_setup_clk :: set pclk to %d\n", pclk);
 	tegra_dvfs_set_rate(clk, pclk);
 }
 
@@ -834,6 +873,12 @@ tegra_dc_config_pwm(struct tegra_dc *dc, struct tegra_dc_pwm_params *cfg)
 {
 	unsigned int ctrl;
 
+	mutex_lock(&dc->lock);
+	if (!dc->enabled) {
+		mutex_unlock(&dc->lock);
+		return;
+	}
+
 	ctrl = ((cfg->period << PM_PERIOD_SHIFT) |
 		(cfg->clk_div << PM_CLK_DIVIDER_SHIFT) |
 		cfg->clk_select);
@@ -849,8 +894,9 @@ tegra_dc_config_pwm(struct tegra_dc *dc, struct tegra_dc_pwm_params *cfg)
 		break;
 	default:
 		dev_err(&dc->ndev->dev, "Error\n");
-		return;
+		break;
 	}
+	mutex_unlock(&dc->lock);
 }
 EXPORT_SYMBOL(tegra_dc_config_pwm);
 
@@ -950,7 +996,7 @@ static void tegra_dc_set_out(struct tegra_dc *dc, struct tegra_dc_out *out)
 
 }
 
-unsigned tegra_dc_get_out_height(struct tegra_dc *dc)
+unsigned tegra_dc_get_out_height(const struct tegra_dc *dc)
 {
 	if (dc->out)
 		return dc->out->height;
@@ -959,7 +1005,7 @@ unsigned tegra_dc_get_out_height(struct tegra_dc *dc)
 }
 EXPORT_SYMBOL(tegra_dc_get_out_height);
 
-unsigned tegra_dc_get_out_width(struct tegra_dc *dc)
+unsigned tegra_dc_get_out_width(const struct tegra_dc *dc)
 {
 	if (dc->out)
 		return dc->out->width;
@@ -967,6 +1013,15 @@ unsigned tegra_dc_get_out_width(struct tegra_dc *dc)
 		return 0;
 }
 EXPORT_SYMBOL(tegra_dc_get_out_width);
+
+unsigned tegra_dc_get_out_max_pixclock(const struct tegra_dc *dc)
+{
+	if (dc->out && dc->out->max_pixclock)
+		return dc->out->max_pixclock;
+	else
+		return 0;
+}
+EXPORT_SYMBOL(tegra_dc_get_out_max_pixclock);
 
 static irqreturn_t tegra_dc_irq(int irq, void *ptr)
 {
@@ -1095,6 +1150,12 @@ static void tegra_dc_set_color_control(struct tegra_dc *dc)
 		color_control |= DITHER_CONTROL_ORDERED;
 		break;
 	case TEGRA_DC_ERRDIFF_DITHER:
+		/* The line buffer for error-diffusion dither is limited
+		 * to 640 pixels per line. This limits the maximum
+		 * horizontal active area size to 640 pixels when error
+		 * diffusion is enabled.
+		 */
+		BUG_ON(dc->mode.h_active > 640);
 		color_control |= DITHER_CONTROL_ERRDIFF;
 		break;
 	}
@@ -1173,13 +1234,22 @@ static void tegra_dc_init(struct tegra_dc *dc)
 		tegra_dc_program_mode(dc, &dc->mode);
 }
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+static bool _tegra_dc_controller_enable(struct tegra_dc *dc, bool no_reset)
+#else
 static bool _tegra_dc_controller_enable(struct tegra_dc *dc)
+#endif
 {
 	if (dc->out->enable)
 		dc->out->enable();
 
 	tegra_dc_setup_clk(dc, dc->clk);
-
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	if (!no_reset)
+		tegra_periph_reset_assert(dc->clk);
+#else
+	tegra_periph_reset_assert(dc->clk);
+#endif
 	clk_enable(dc->clk);
 	clk_enable(dc->emc_clk);
 	tegra_periph_reset_deassert(dc->clk);
@@ -1205,6 +1275,25 @@ static bool _tegra_dc_controller_enable(struct tegra_dc *dc)
 	return true;
 }
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+/* In samsung device, the bootloader initialize LCD and draw device logo.
+ * If dc is reset, the device logo might be disappeared on screen.
+ * In addition, CMC623 chip is not tolerant of some change on input RGB interface signals.
+ */
+static bool _tegra_dc_enable_noreset(struct tegra_dc *dc)
+{
+	if (dc->mode.pclk == 0)
+		return false;
+
+	if (!dc->out)
+		return false;
+
+	tegra_dc_io_start(dc);
+
+	return _tegra_dc_controller_enable(dc, true);
+}
+#endif
+
 static bool _tegra_dc_enable(struct tegra_dc *dc)
 {
 	if (dc->mode.pclk == 0)
@@ -1215,7 +1304,11 @@ static bool _tegra_dc_enable(struct tegra_dc *dc)
 
 	tegra_dc_io_start(dc);
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	return _tegra_dc_controller_enable(dc, false);
+#else
 	return _tegra_dc_controller_enable(dc);
+#endif
 }
 
 void tegra_dc_enable(struct tegra_dc *dc)
@@ -1231,9 +1324,6 @@ void tegra_dc_enable(struct tegra_dc *dc)
 static void _tegra_dc_controller_disable(struct tegra_dc *dc)
 {
 	disable_irq(dc->irq);
-
-	if (dc->overlay)
-		tegra_overlay_disable(dc->overlay);
 
 	if (dc->out_ops && dc->out_ops->disable)
 		dc->out_ops->disable(dc);
@@ -1260,11 +1350,16 @@ static void _tegra_dc_disable(struct tegra_dc *dc)
 
 void tegra_dc_disable(struct tegra_dc *dc)
 {
+	if (dc->overlay)
+		tegra_overlay_disable(dc->overlay);
+
 	mutex_lock(&dc->lock);
 
 	if (dc->enabled) {
 		dc->enabled = false;
-		_tegra_dc_disable(dc);
+
+		if (!dc->suspended)
+			_tegra_dc_disable(dc);
 	}
 
 	switch_set_state(&dc->modeset_switch, 0);
@@ -1281,11 +1376,18 @@ static void tegra_dc_reset_worker(struct work_struct *work)
 
 	dev_warn(&dc->ndev->dev, "overlay stuck in underflow state.  resetting.\n");
 
+	if (dc->overlay)
+		tegra_overlay_disable(dc->overlay);
+
 	mutex_lock(&shared_lock);
 	mutex_lock(&dc->lock);
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	cmc623_suspend(NULL);
+#endif
+
 	if (dc->enabled == false)
-		return;
+			goto unlock;
 
 	dc->enabled = false;
 
@@ -1316,8 +1418,6 @@ static void tegra_dc_reset_worker(struct work_struct *work)
 	msleep(5);
 
 	tegra_periph_reset_assert(dc->clk);
-	udelay(100);
-	tegra_periph_reset_deassert(dc->clk);
 	msleep(2);
 
 	if (dc->ndev->id == 0 && tegra_dcs[1] != NULL) {
@@ -1328,9 +1428,18 @@ static void tegra_dc_reset_worker(struct work_struct *work)
 		mutex_unlock(&tegra_dcs[0]->lock);
 	}
 
+	/* _tegra_dc_enable deasserts reset */
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	_tegra_dc_controller_enable(dc, false);
+#else
 	_tegra_dc_controller_enable(dc);
+#endif
 
 	dc->enabled = true;
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	cmc623_resume(NULL);
+#endif
+unlock:
 	mutex_unlock(&dc->lock);
 	mutex_unlock(&shared_lock);
 }
@@ -1345,6 +1454,39 @@ static ssize_t switch_modeset_print_mode(struct switch_dev *sdev, char *buf)
 
 	return sprintf(buf, "%dx%d\n", dc->mode.h_active, dc->mode.v_active);
 }
+
+#ifdef	CONFIG_MACH_SAMSUNG_HDMI_EDID_FORCE_PASS
+extern	void set_edid_force_pass(int set);
+extern	int get_edid_force_pass();
+
+static ssize_t
+sysfs_hdmi_edid_force_pass_store(struct device *dev, struct device_attribute *attr,
+			  const char *buf, size_t count)
+{
+	if (NULL == buf || count == 0 || count > PAGE_SIZE)
+		return -1;
+
+	if (!memcmp(buf, "checker", 7))
+		set_edid_force_pass(1);
+	else if (!memcmp(buf, "normal", 6))
+		set_edid_force_pass(0);
+	else
+		printk("[HDMI][ERROR] %s() unknown command : %s !!", __func__, buf);
+
+	return count;
+}
+
+static ssize_t
+sysfs_hdmi_edid_force_pass_show(struct device *dev, struct device_attribute *attr,
+			     char *buf)
+{
+	return sprintf(buf, "%s", get_edid_force_pass()?"checker":"normal");
+}
+
+static DEVICE_ATTR(hdmi_edid_force_pass, S_IRWXUGO, sysfs_hdmi_edid_force_pass_show, sysfs_hdmi_edid_force_pass_store);
+
+#endif
+
 
 static int tegra_dc_probe(struct nvhost_device *ndev)
 {
@@ -1466,14 +1608,28 @@ static int tegra_dc_probe(struct nvhost_device *ndev)
 	dc->modeset_switch.print_state = switch_modeset_print_mode;
 	switch_dev_register(&dc->modeset_switch);
 
+#ifdef	CONFIG_MACH_SAMSUNG_HDMI_EDID_FORCE_PASS
+	ret = device_create_file(dc->modeset_switch.dev, &dev_attr_hdmi_edid_force_pass);
+	if (ret < 0) {
+		printk(KERN_ERR	"[HDMI][ERROR] failed to create device file(%s)!\n", dev_attr_hdmi_edid_force_pass.attr.name);
+		device_destroy(dc->modeset_switch.dev, 0);
+	}else
+		printk(KERN_INFO	"[HDMI] sucess device_create_file(%s)!\n", dev_attr_hdmi_edid_force_pass.attr.name);
+#endif
+
 	if (dc->pdata->default_out)
 		tegra_dc_set_out(dc, dc->pdata->default_out);
 	else
 		dev_err(&ndev->dev, "No default output specified.  Leaving output disabled.\n");
 
 	mutex_lock(&dc->lock);
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	if (dc->enabled)
+		_tegra_dc_enable_noreset(dc);
+#else
 	if (dc->enabled)
 		_tegra_dc_enable(dc);
+#endif
 	mutex_unlock(&dc->lock);
 
 	tegra_dc_dbg_add(dc);
@@ -1558,9 +1714,13 @@ static int tegra_dc_remove(struct nvhost_device *ndev)
 #ifdef CONFIG_PM
 static int tegra_dc_suspend(struct nvhost_device *ndev, pm_message_t state)
 {
+#ifndef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
 	struct tegra_dc *dc = nvhost_get_drvdata(ndev);
 
 	dev_info(&ndev->dev, "suspend\n");
+
+	if (dc->overlay)
+		tegra_overlay_disable(dc->overlay);
 
 	mutex_lock(&dc->lock);
 
@@ -1570,25 +1730,31 @@ static int tegra_dc_suspend(struct nvhost_device *ndev, pm_message_t state)
 	if (dc->enabled) {
 		tegra_fb_suspend(dc->fb);
 		_tegra_dc_disable(dc);
+
+		dc->suspended = true;
 	}
 	mutex_unlock(&dc->lock);
-
+#endif
 	return 0;
 }
 
 static int tegra_dc_resume(struct nvhost_device *ndev)
 {
+#ifndef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
 	struct tegra_dc *dc = nvhost_get_drvdata(ndev);
 
 	dev_info(&ndev->dev, "resume\n");
 
 	mutex_lock(&dc->lock);
+	dc->suspended = false;
+
 	if (dc->enabled)
 		_tegra_dc_enable(dc);
 
 	if (dc->out_ops && dc->out_ops->resume)
 		dc->out_ops->resume(dc);
 	mutex_unlock(&dc->lock);
+#endif
 
 	return 0;
 }
@@ -1618,10 +1784,62 @@ int suspend;
 
 module_param_call(suspend, suspend_set, suspend_get, &suspend, 0644);
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+static int tegra_dc_prepare(struct device *dev)
+{
+	struct nvhost_device *ndev = to_nvhost_device(dev);
+	struct tegra_dc *dc = nvhost_get_drvdata(ndev);
+
+	dev_info(&ndev->dev, "prepare\n");
+
+	if (dc->overlay)
+		tegra_overlay_disable(dc->overlay);
+
+	mutex_lock(&dc->lock);
+	if (dc->out_ops && dc->out_ops->suspend)
+		dc->out_ops->suspend(dc);
+
+	if (dc->enabled) {
+		tegra_fb_suspend(dc->fb);
+		_tegra_dc_disable(dc);
+
+		dc->suspended = true;
+	}
+	mutex_unlock(&dc->lock);
+
+	return 0;
+}
+
+static void tegra_dc_complete(struct device *dev)
+{
+	struct nvhost_device *ndev = to_nvhost_device(dev);
+	struct tegra_dc *dc = nvhost_get_drvdata(ndev);
+
+	dev_info(&ndev->dev, "complete\n");
+
+	mutex_lock(&dc->lock);
+	dc->suspended = false;
+
+	if (dc->enabled)
+		_tegra_dc_enable(dc);
+
+	if (dc->out_ops && dc->out_ops->resume)
+		dc->out_ops->resume(dc);
+	mutex_unlock(&dc->lock);
+}
+
+const struct dev_pm_ops tegra_dc_pm_ops = {
+	.prepare = tegra_dc_prepare,
+	.complete = tegra_dc_complete,
+};
+#endif
 struct nvhost_driver tegra_dc_driver = {
 	.driver = {
 		.name = "tegradc",
 		.owner = THIS_MODULE,
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+		.pm = &tegra_dc_pm_ops,
+#endif
 	},
 	.probe = tegra_dc_probe,
 	.remove = tegra_dc_remove,

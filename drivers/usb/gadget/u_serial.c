@@ -54,7 +54,11 @@
  * is managed in userspace ... OBEX, PTP, and MTP have been mentioned.
  */
 
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+#define PREFIX	"ttygs"  
+#else
 #define PREFIX	"ttyGS"
+#endif
 
 /*
  * gserial is the lifecycle interface, used by USB functions

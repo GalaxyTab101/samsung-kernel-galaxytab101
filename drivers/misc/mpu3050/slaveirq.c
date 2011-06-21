@@ -1,20 +1,7 @@
 /*
- $License:
-    Copyright (C) 2010 InvenSense Corporation, All Rights Reserved.
-
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-  $
+ * $License:
+ *    Copyright (C) 2010 InvenSense Corporation, All Rights Reserved.
+ * $
  */
 #include <linux/interrupt.h>
 #include <linux/module.h>
@@ -36,20 +23,20 @@
 #include <linux/wait.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
-#include <linux/wait.h>
-#include <linux/slab.h>
 
 #include "mpu.h"
 #include "slaveirq.h"
 #include "mldl_cfg.h"
 #include "mpu-i2c.h"
+#include <linux/wait.h>
+#include <linux/slab.h>
 
 /* function which gets slave data and sends it to SLAVE */
 
 struct slaveirq_dev_data {
 	struct miscdevice dev;
 	struct i2c_client *slave_client;
-	struct mpuirq_data data;
+	struct irq_data data;
 	wait_queue_head_t slaveirq_wait;
 	int irq;
 	int pid;
@@ -169,14 +156,16 @@ static irqreturn_t slaveirq_handler(int irq, void *dev_id)
 
 	/* wake up (unblock) for reading data from userspace */
 	/* and ignore first interrupt generated in module init */
-	data->data_ready = 1;
+	if (data->data.interruptcount > 1) {
+		data->data_ready = 1;
 
-	do_gettimeofday(&irqtime);
-	data->data.irqtime = (((long long) irqtime.tv_sec) << 32);
-	data->data.irqtime += irqtime.tv_usec;
-	data->data.data_type |= 1;
+		do_gettimeofday(&irqtime);
+		data->data.irqtime = (((long long) irqtime.tv_sec) << 32);
+		data->data.irqtime += irqtime.tv_usec;
+		data->data.data_type |= 1;
 
-	wake_up_interruptible(&data->slaveirq_wait);
+		wake_up_interruptible(&data->slaveirq_wait);
+	}
 
 	return IRQ_HANDLED;
 

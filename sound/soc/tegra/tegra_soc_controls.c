@@ -428,10 +428,12 @@ int tegra_controls_init(struct snd_soc_codec *codec)
 		if (err < 0)
 			goto fail;
 
+#ifndef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
 		/* Add jack detection */
 		err = tegra_jack_init(codec);
 		if (err < 0)
 			goto fail;
+#endif
 
 		/* Default to HP output */
 		tegra_jack_func = TEGRA_HP;
@@ -453,7 +455,9 @@ fail:
 
 void tegra_controls_exit(void)
 {
+#ifndef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
 	tegra_jack_exit();
+#endif
 
 	if (audio_data) {
 		kfree(audio_data);

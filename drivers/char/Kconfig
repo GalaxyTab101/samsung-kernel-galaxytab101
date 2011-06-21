@@ -1146,5 +1146,10 @@ config RAMOOPS
 	  This enables panic and oops messages to be logged to a circular
 	  buffer in RAM where it can be read back at some later point.
 
+# AUTOHAPTIC S
+config IMAGIS_HAPTIC
+	bool "Support for /dev/haptic"
+	default y
+# AUTOHAPTIC E
 endmenu
 

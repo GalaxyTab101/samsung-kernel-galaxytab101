@@ -793,7 +793,9 @@ struct net_device {
 	 * of the interface.
 	 */
 	char			name[IFNAMSIZ];
-
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+	char			interface_iden[8];
+#endif
 	struct pm_qos_request_list pm_qos_req;
 
 	/* device name hash chain */

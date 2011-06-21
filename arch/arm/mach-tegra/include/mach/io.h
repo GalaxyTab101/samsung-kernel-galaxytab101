@@ -61,6 +61,10 @@
 #define IO_HOST1X_VIRT	0xFE700000
 #define IO_HOST1X_SIZE	SZ_4M
 
+#define IO_DPRAM_PHYS	0xD0000000
+#define IO_DPRAM_VIRT	0xFEB00000
+#define IO_DPRAM_SIZE	SZ_16K
+
 #define IO_TO_VIRT_BETWEEN(p, st, sz)	((p) >= (st) && (p) < ((st) + (sz)))
 #define IO_TO_VIRT_XLATE(p, pst, vst)	(((p) - (pst) + (vst)))
 
@@ -79,6 +83,8 @@
 		IO_TO_VIRT_XLATE((n), IO_USB_PHYS, IO_USB_VIRT) :	\
 	IO_TO_VIRT_BETWEEN((n), IO_SDMMC_PHYS, IO_SDMMC_SIZE) ?		\
 		IO_TO_VIRT_XLATE((n), IO_SDMMC_PHYS, IO_SDMMC_VIRT) :	\
+	IO_TO_VIRT_BETWEEN((n), IO_DPRAM_PHYS, IO_DPRAM_SIZE) ?		\
+		IO_TO_VIRT_XLATE((n), IO_DPRAM_PHYS, IO_DPRAM_VIRT) :	\
 	0)
 
 #ifndef __ASSEMBLER__

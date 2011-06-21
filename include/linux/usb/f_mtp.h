@@ -29,7 +29,7 @@ struct mtp_file_range {
 	/* offset in file for start of transfer */
 	loff_t  	offset;
 	/* number of bytes to transfer */
-	int64_t		length;
+	size_t		length;
 };
 
 struct mtp_event {

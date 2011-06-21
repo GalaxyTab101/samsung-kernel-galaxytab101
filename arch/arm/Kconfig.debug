@@ -128,4 +128,11 @@ config DEBUG_S3C_UART
 	  The uncompressor code port configuration is now handled
 	  by CONFIG_S3C_LOWLEVEL_UART_PORT.
 
+config KERNEL_DEBUG_SEC
+	bool "AP and CP crash dump support"
+	default n
+	help
+	  Say Y here if you want to enable AP and CP crash dump code.
+	  Resets into bootloader to get the dump using special host tool.
+
 endmenu

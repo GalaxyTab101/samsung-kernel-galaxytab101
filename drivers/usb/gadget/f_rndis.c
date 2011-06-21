@@ -198,9 +198,8 @@ rndis_iad_descriptor = {
 
 	.bFirstInterface =	0, /* XXX, hardcoded */
 	.bInterfaceCount = 	2,	// control + data
-#ifdef CONFIG_USB_ANDROID_RNDIS_WCEIS
-	/* "Wireless" RNDIS; auto-detected by Windows */
-	.bFunctionClass =	USB_CLASS_WIRELESS_CONTROLLER,
+#  ifdef CONFIG_USB_ANDROID_SAMSUNG_RNDIS_WITH_MS_COMPOSITE
+	.bFunctionClass =	0xe0,
 	.bFunctionSubClass =	0x01,
 	.bFunctionProtocol =	0x03,
 #else
@@ -325,6 +324,23 @@ static struct usb_ether_platform_data *rndis_pdata;
 
 /*-------------------------------------------------------------------------*/
 
+static u32 lastMsgType;
+static u32 curMsgType;
+
+static inline void rndis_get_command(void *buf, u32 *type)
+{
+	__le32 *tmp;
+
+	if (buf == NULL) {
+		pr_debug("[RNDIS] %s: buf is NULL\n", __func__);
+		return;
+	}
+
+	tmp = (__le32 *) buf;
+
+	*type = ~(1U << 31) & get_unaligned_le32(tmp++); 
+}
+
 static struct sk_buff *rndis_add_header(struct gether *port,
 					struct sk_buff *skb)
 {
@@ -409,6 +425,8 @@ static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 	struct usb_composite_dev	*cdev = rndis->port.func.config->cdev;
 	int				status;
 
+	rndis_get_command(req->buf, &lastMsgType);
+
 	/* received RNDIS command from USB_CDC_SEND_ENCAPSULATED_COMMAND */
 //	spin_lock(&dev->lock);
 	status = rndis_msg_parser(rndis->config, (u8 *) req->buf);
@@ -417,6 +435,23 @@ static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 			status, req->actual, req->length);
 //	spin_unlock(&dev->lock);
 }
+
+static void rndis_command_queue(struct usb_ep *ep0, struct usb_request *req, u16 w_length, int value)
+{
+	/* respond with data transfer or status phase? */
+	if (value >= 0) {
+		req->zero = (value < w_length);
+		req->length = value;
+//		udelay(700);		
+		value = usb_ep_queue(ep0, req, GFP_ATOMIC);
+		if (value < 0)
+			pr_debug("[RNDIS] %s: rndis response on err %d\n", __func__, value);
+	}
+	else {
+		pr_debug("[RNDIS] %s: value is under zero!!~~\n", __func__);
+	}
+}
+
 
 static int
 rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
@@ -447,6 +482,7 @@ rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 		req->complete = rndis_command_complete;
 		req->context = rndis;
 		/* later, rndis_response_available() sends a notification */
+		rndis_command_queue(cdev->gadget->ep0, req, w_length, value);
 		break;
 
 	case ((USB_DIR_IN | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
@@ -457,13 +493,60 @@ rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 			u8 *buf;
 			u32 n;
 
-			/* return the result */
+			if(lastMsgType == REMOTE_NDIS_RESET_MSG) {
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE				
+				pr_err("[RNDIS] received REMOTE_NDIS_RESET_MSG...\n");
+#else
+				pr_debug("[RNDIS] received REMOTE_NDIS_RESET_MSG...\n");
+#endif
+				while(buf = rndis_get_next_response(rndis->config, &n)) {
+					rndis_get_command(buf, &curMsgType);
+					if(curMsgType == REMOTE_NDIS_RESET_MSG) {
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE							
+						pr_err("[RNDIS] found REMOTE_NDIS_RESET_MSG from reponseQ\n");
+#else
+						pr_debug("[RNDIS] found REMOTE_NDIS_RESET_MSG from reponseQ\n");
+#endif
+						memcpy(req->buf, buf, n);
+						req->complete = rndis_response_complete;
+						rndis_free_response(rndis->config, buf);
+						value = n;
+						rndis_command_queue(cdev->gadget->ep0, req, w_length, value);
+						break;
+					}
+					else {
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE						
+						pr_err("[RNDIS] lastMsgType = %d, curMsgType = %d, \
+								value = %d\n", lastMsgType, curMsgType, value);
+#else
+						pr_debug("[RNDIS] lastMsgType = %d, curMsgType = %d, \
+								value = %d\n", lastMsgType, curMsgType, value);
+#endif
+						rndis_free_response(rndis->config, buf);
+					}
+				}
+			}
+			else {
 			buf = rndis_get_next_response(rndis->config, &n);
-			if (buf) {
+				rndis_get_command(buf, &curMsgType);
+				while(buf) {
+					// send queued responses...
 				memcpy(req->buf, buf, n);
 				req->complete = rndis_response_complete;
 				rndis_free_response(rndis->config, buf);
 				value = n;
+
+					rndis_command_queue(cdev->gadget->ep0, req, w_length, value);
+
+					buf = rndis_get_next_response(rndis->config, &n);
+					if(buf == NULL) break;
+					rndis_get_command(buf, &curMsgType);
+
+					// let pc side know response availability...
+					rndis_response_available(rndis);
+					pr_debug("[RNDIS] lastMsgType = %d, curMsgType = %d,\
+							value = %d\n", lastMsgType, curMsgType, value);
+				}
 			}
 			/* else stalls ... spec says to avoid that */
 		}
@@ -474,18 +557,6 @@ invalid:
 		VDBG(cdev, "invalid control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length);
-	}
-
-	/* respond with data transfer or status phase? */
-	if (value >= 0) {
-		DBG(cdev, "rndis req%02x.%02x v%04x i%04x l%d\n",
-			ctrl->bRequestType, ctrl->bRequest,
-			w_value, w_index, w_length);
-		req->zero = (value < w_length);
-		req->length = value;
-		value = usb_ep_queue(cdev->gadget->ep0, req, GFP_ATOMIC);
-		if (value < 0)
-			ERROR(cdev, "rndis response on err %d\n", value);
 	}
 
 	/* device either stalls (value < 0) or reports success */
@@ -794,6 +865,74 @@ static inline bool can_support_rndis(struct usb_configuration *c)
 	return true;
 }
 
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+static int rndis_set_interface_id(struct usb_function *f,
+	int intf_num,
+	int index_num)
+{
+	int ret = 0;
+	struct f_rndis		*rndis = func_to_rndis(f);
+
+	if (gadget_is_dualspeed(f->config->cdev->gadget)) {
+		if (index_num == 0) {
+			if (usb_change_interface_num(eth_hs_function,
+				f->hs_descriptors, &rndis_control_intf,
+				intf_num)) {
+				rndis->ctrl_id = intf_num;
+			}
+			usb_change_cdc_union_num(eth_hs_function,
+				f->hs_descriptors, &rndis_union_desc,
+				intf_num, 1);
+			usb_change_iad_num(eth_hs_function,
+				f->hs_descriptors, &rndis_iad_descriptor,
+				intf_num);
+			ret = 1;
+		} else if (index_num == 1) {
+			if (usb_change_interface_num(eth_hs_function,
+				f->hs_descriptors, &rndis_data_intf,
+				intf_num)) {
+				rndis->data_id = intf_num;
+			}
+			usb_change_cdc_union_num(eth_hs_function,
+				f->hs_descriptors, &rndis_union_desc,
+				intf_num, 0);
+			ret = 1;
+		} else {
+			printk(KERN_DEBUG "usb rndis has only 2 interface. please check it\n");
+		}
+	} else {
+		if (index_num == 0) {
+			if (usb_change_interface_num(eth_fs_function,
+				f->descriptors, &rndis_control_intf,
+				intf_num)) {
+				rndis->ctrl_id = intf_num;
+			}
+			usb_change_cdc_union_num(eth_fs_function,
+				f->descriptors, &rndis_union_desc,
+				intf_num, 1);
+			usb_change_iad_num(eth_fs_function,
+				f->descriptors, &rndis_iad_descriptor,
+				intf_num);
+			ret = 1;
+		} else if (index_num == 1) {
+			if (usb_change_interface_num(eth_fs_function,
+				f->descriptors, &rndis_data_intf,
+				intf_num)) {
+				rndis->data_id = intf_num;
+			}
+			usb_change_cdc_union_num(eth_fs_function,
+				f->descriptors, &rndis_union_desc,
+				intf_num, 0);
+			ret = 1;
+		} else {
+			printk(KERN_DEBUG "usb rndis has only 2 interface. please check it\n");
+		}
+
+	}
+	return ret;
+}
+#endif
+
 /**
  * rndis_bind_config - add RNDIS network link to a configuration
  * @c: the configuration to support the network link
@@ -873,6 +1012,9 @@ rndis_bind_config(struct usb_configuration *c, u8 ethaddr[ETH_ALEN])
 #ifdef CONFIG_USB_ANDROID_RNDIS
 	/* start disabled */
 	rndis->port.func.disabled = 1;
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	rndis->port.func.set_intf_num = rndis_set_interface_id;
+#endif
 #endif
 
 	status = usb_add_function(c, &rndis->port.func);

@@ -54,6 +54,19 @@
 #define TPS6586X_SMODE1		0x47
 #define TPS6586X_SMODE2		0x48
 
+/* SM0/1 slew rate settings */
+#define TPS6586X_SMSL_INSTANTLY    0x0
+#define TPS6586X_SMSL_0_11 0x1 /* mV/us */
+#define TPS6586X_SMSL_0_22 0x2
+#define TPS6586X_SMSL_0_44 0x3
+#define TPS6586X_SMSL_0_88 0x4
+#define TPS6586X_SMSL_1_76 0x5
+#define TPS6586X_SMSL_3_52 0x6
+#define TPS6586X_SMSL_7_04 0x7
+#define TPS6586X_SMSL_MASK 0x7
+
+
+
 struct tps6586x_regulator {
 	struct regulator_desc desc;
 
@@ -93,10 +106,6 @@ static int __tps6586x_ldo_set_voltage(struct device *parent,
 
 	for (val = 0; val < ri->desc.n_voltages; val++) {
 		uV = ri->voltages[val] * 1000;
-
-		/* LDO0 has minimal voltage 1.2 rather than 1.25 */
-		if (ri->desc.id == TPS6586X_ID_LDO_0 && val == 0)
-			uV -= 50 * 1000;
 
 		/* use the first in-range value */
 		if (min_uV <= uV && uV <= max_uV) {
@@ -217,6 +226,10 @@ static int tps6586x_ldo_voltages[] = {
 	1250, 1500, 1800, 2500, 2700, 2850, 3100, 3300,
 };
 
+static int tps6586x_ldo0_voltages[] = {
+	1200, 1500, 1800, 2500, 2700, 2850, 3100, 3300,
+};
+
 static int tps6586x_ldo4_voltages[] = {
 	1700, 1725, 1750, 1775, 1800, 1825, 1850, 1875,
 	1900, 1925, 1950, 1975, 2000, 2025, 2050, 2075,
@@ -224,12 +237,21 @@ static int tps6586x_ldo4_voltages[] = {
 	2300, 2325, 2350, 2375, 2400, 2425, 2450, 2475,
 };
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+static int tps6586x_sm2_voltages[] = {
+	1700, 1725, 1750, 1775, 1800, 1825, 1850, 1875,
+	1900, 1925, 1950, 1975, 2000, 2025, 2050, 2075,
+	2100, 2125, 2150, 2175, 2200, 2225, 2250, 2275,
+	2300, 2325, 2350, 2375, 2400, 2425, 2450, 2475,
+};
+#else
 static int tps6586x_sm2_voltages[] = {
 	3000, 3050, 3100, 3150, 3200, 3250, 3300, 3350,
 	3400, 3450, 3500, 3550, 3600, 3650, 3700, 3750,
 	3800, 3850, 3900, 3950, 4000, 4050, 4100, 4150,
 	4200, 4250, 4300, 4350, 4400, 4450, 4500, 4550,
 };
+#endif
 
 static int tps6586x_dvm_voltages[] = {
 	 725,  750,  775,  800,  825,  850,  875,  900,
@@ -278,7 +300,7 @@ static int tps6586x_dvm_voltages[] = {
 }
 
 static struct tps6586x_regulator tps6586x_regulator[] = {
-	TPS6586X_LDO(LDO_0, ldo, SUPPLYV1, 5, 3, ENC, 0, END, 0, 4000),
+	TPS6586X_LDO(LDO_0, ldo0, SUPPLYV1, 5, 3, ENC, 0, END, 0, 4000),
 	TPS6586X_LDO(LDO_1, dvm, SUPPLYV1, 0, 5, ENC, 1, END, 1, 4000),
 	TPS6586X_LDO(LDO_3, ldo, SUPPLYV4, 0, 3, ENC, 2, END, 2, 3000),
 	TPS6586X_LDO(LDO_5, ldo, SUPPLYV6, 0, 3, ENE, 6, ENE, 6, 3000),
@@ -305,6 +327,31 @@ static inline int tps6586x_regulator_preinit(struct device *parent,
 {
 	uint8_t val1, val2;
 	int ret;
+
+	/* To prevent voltage negative overshoot, set slew rate to 1.76mV/us
+	 * from 7.04mV/us. Because voltage negative overshoot was occured
+	 * on some devices. */
+	if (ri->desc.id == TPS6586X_ID_SM_1) {
+		ret = tps6586x_update(parent, TPS6586X_SM1SL,
+				TPS6586X_SMSL_1_76, TPS6586X_SMSL_MASK);
+		if (ret)
+			return ret;
+	}
+
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	// set SM0V1 : 1.325V --> 1.2V
+	// because the default TPS6586X SM0V1[0x26]:1.325V, SM0V2:1.2V,  but SM0 voltage selector points SM0V1
+	// our spec of v_core : 1.2V
+	if (ri->desc.id == TPS6586X_ID_SM_0)
+	{
+		int ret;
+		ret = tps6586x_write(parent, TPS6586X_SM0V1, 0x13);
+		if (ret)
+			return ret;
+	}
+
+#endif
+	tps6586x_write(parent, TPS6586X_SMODE1, 0x3);
 
 	if (ri->enable_reg[0] == ri->enable_reg[1] &&
 	    ri->enable_bit[0] == ri->enable_bit[1])
@@ -334,6 +381,40 @@ static inline int tps6586x_regulator_preinit(struct device *parent,
 
 	return tps6586x_clr_bits(parent, ri->enable_reg[1],
 				 1 << ri->enable_bit[1]);
+}
+
+static inline int tps6586x_regulator_set_pwm_mode(struct platform_device *pdev)
+{
+	struct device *parent = pdev->dev.parent;
+	struct regulator_init_data *p = pdev->dev.platform_data;
+	struct tps6586x_settings *setting = p->driver_data;
+	int ret = 0;
+	uint8_t mask;
+
+	if (setting == NULL)
+		return 0;
+
+	switch (pdev->id) {
+	case TPS6586X_ID_SM_0:
+		mask = 1 << SM0_PWM_BIT;
+		break;
+	case TPS6586X_ID_SM_1:
+		mask = 1 << SM1_PWM_BIT;
+		break;
+	case TPS6586X_ID_SM_2:
+		mask = 1 << SM2_PWM_BIT;
+		break;
+	default:
+		/* not all regulators have PWM/PFM option */
+		return 0;
+	}
+
+	if (setting->sm_pwm_mode == PWM_ONLY)
+		ret = tps6586x_set_bits(parent, TPS6586X_SMODE1, mask);
+	else if (setting->sm_pwm_mode == AUTO_PWM_PFM)
+		ret = tps6586x_clr_bits(parent, TPS6586X_SMODE1, mask);
+
+	return ret;
 }
 
 static inline struct tps6586x_regulator *find_regulator_info(int id)
@@ -378,7 +459,7 @@ static int __devinit tps6586x_regulator_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, rdev);
 
-	return 0;
+	return tps6586x_regulator_set_pwm_mode(pdev);
 }
 
 static int __devexit tps6586x_regulator_remove(struct platform_device *pdev)

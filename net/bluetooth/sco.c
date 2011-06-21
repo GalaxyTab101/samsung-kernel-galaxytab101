@@ -51,9 +51,10 @@
 #include <net/bluetooth/sco.h>
 
 #define VERSION "0.6"
-
-static int disable_esco = 0;
-
+// BEGIN SS_BLUEZ_BT +kjh 2011.06.13
+// disable esco for wifi coex
+static int disable_esco = 1;//0;
+// END SS_BLUEZ_BT
 static const struct proto_ops sco_sock_ops;
 
 static struct bt_sock_list sco_sk_list = {

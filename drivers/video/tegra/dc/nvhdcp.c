@@ -25,6 +25,9 @@
 #include <linux/workqueue.h>
 #include <asm/atomic.h>
 
+#include <linux/hrtimer.h>
+#include <linux/ktime.h>
+
 #include <mach/dc.h>
 #include <mach/nvhost.h>
 #include <mach/kfuse.h>
@@ -36,6 +39,12 @@
 #include "hdmi_reg.h"
 #include "hdmi.h"
 
+/* To use hrtimer */
+#define	MS_TO_NS(x)	(x * 1000000)
+
+static struct hrtimer hr_five_s_timer;
+static bool five_s_expired;
+
 /* for 0x40 Bcaps */
 #define BCAPS_REPEATER (1 << 6)
 #define BCAPS_READY (1 << 5)
@@ -45,6 +54,7 @@
 #define BSTATUS_MAX_DEVS_EXCEEDED	(1 << 7)
 #define BSTATUS_MAX_CASCADE_EXCEEDED	(1 << 11)
 
+#define VERBOSE_DEBUG
 #ifdef VERBOSE_DEBUG
 #define nvhdcp_vdbg(...)	\
 		printk("nvhdcp: " __VA_ARGS__)
@@ -100,6 +110,9 @@ struct tegra_nvhdcp {
 	int				fail_count;
 };
 
+enum hrtimer_restart hrtimer_five_s_callback(struct hrtimer *timer);
+void start_hrtimer_five_s(void);
+
 static inline bool nvhdcp_is_plugged(struct tegra_nvhdcp *nvhdcp)
 {
 	rmb();
@@ -108,14 +121,20 @@ static inline bool nvhdcp_is_plugged(struct tegra_nvhdcp *nvhdcp)
 
 static inline bool nvhdcp_set_plugged(struct tegra_nvhdcp *nvhdcp, bool plugged)
 {
-	return nvhdcp->plugged = plugged;
+	nvhdcp->plugged = plugged;
 	wmb();
+	return plugged;
 }
+
+static struct clk *cpu_clk; 
+static spinlock_t temp_lock = SPIN_LOCK_UNLOCKED;
 
 static int nvhdcp_i2c_read(struct tegra_nvhdcp *nvhdcp, u8 reg,
 					size_t len, void *data)
 {
 	int status;
+	unsigned long flags;
+	int retries = 15;
 	struct i2c_msg msg[] = {
 		{
 			.addr = 0x74 >> 1, /* primary link */
@@ -130,8 +149,40 @@ static int nvhdcp_i2c_read(struct tegra_nvhdcp *nvhdcp, u8 reg,
 			.buf = data,
 		},
 	};
+/*************************************************************************
+ * This is a workaround for S/W i2c fail problem.
+ * 
+ */
+#ifdef SAMSUNG_MHL_SW_I2C
+	if (cpu_clk == NULL) {
+		printk("get CPU clk for i2c ***************\n");
+		cpu_clk = clk_get_sys(NULL, "cpu");
+	}
+	if (clk_enable(cpu_clk))
+		printk("nvhdcp failed to enable cpu clock *********88\n");
+	clk_set_rate(cpu_clk, 1000*1000*1000);
+#endif
+	do {
+		if (!nvhdcp_is_plugged(nvhdcp)) {
+			nvhdcp_err("disconnect during i2c xfer\n");
+			return -EIO;
+		}
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+		spin_lock_irqsave(&temp_lock, flags);
+#endif
+		status = i2c_transfer(nvhdcp->client->adapter,
+			msg, ARRAY_SIZE(msg));
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+		spin_unlock_irqrestore(&temp_lock, flags);
+#endif
 
-	status = i2c_transfer(nvhdcp->client->adapter, msg, ARRAY_SIZE(msg));
+		if (retries > 1)
+			msleep(250);
+	} while ((status < 0) && retries--);
+
+#ifdef SAMSUNG_MHL_SW_I2C
+	clk_put(cpu_clk);
+#endif
 
 	if (status < 0) {
 		nvhdcp_err("i2c xfer error %d\n", status);
@@ -154,11 +205,39 @@ static int nvhdcp_i2c_write(struct tegra_nvhdcp *nvhdcp, u8 reg,
 			.buf = buf,
 		},
 	};
+	int retries = 15;
+	unsigned long flags;
 
 	buf[0] = reg;
 	memcpy(buf + 1, data, len);
-
-	status = i2c_transfer(nvhdcp->client->adapter, msg, ARRAY_SIZE(msg));
+#ifdef SAMSUNG_MHL_SW_I2C
+	if (cpu_clk == NULL) {
+		printk("get CPU clk for i2c ***************\n");
+		cpu_clk = clk_get_sys(NULL, "cpu");
+	}
+	if (clk_enable(cpu_clk))
+		printk("nvhdcp failed to enable cpu clock *********88\n");
+	clk_set_rate(cpu_clk, 1000*1000*1000);
+#endif
+	do {
+		if (!nvhdcp_is_plugged(nvhdcp)) {
+			nvhdcp_err("disconnect during i2c xfer\n");
+			return -EIO;
+		}
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+		spin_lock_irqsave(&temp_lock, flags);
+#endif
+		status = i2c_transfer(nvhdcp->client->adapter,
+			msg, ARRAY_SIZE(msg));
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+		spin_unlock_irqrestore(&temp_lock, flags);
+#endif
+		if (retries > 1)
+			msleep(250);
+	} while ((status < 0) && retries--);
+#ifdef SAMSUNG_MHL_SW_I2C
+	clk_put(cpu_clk);
+#endif
 
 	if (status < 0) {
 		nvhdcp_err("i2c xfer error %d\n", status);
@@ -320,16 +399,7 @@ static inline int get_receiver_ri(struct tegra_nvhdcp *nvhdcp, u16 *r)
 
 static int get_bcaps(struct tegra_nvhdcp *nvhdcp, u8 *b_caps)
 {
-	int e, retries = 4;
-	do {
-		e = nvhdcp_i2c_read8(nvhdcp, 0x40, b_caps);
-		if (!e)
-			return 0;
-		if (retries > 1)
-			msleep(100);
-	} while (--retries);
-
-	return -EIO;
+	return nvhdcp_i2c_read8(nvhdcp, 0x40, b_caps);
 }
 
 static int get_ksvfifo(struct tegra_nvhdcp *nvhdcp,
@@ -342,6 +412,9 @@ static int get_ksvfifo(struct tegra_nvhdcp *nvhdcp,
 
 	if (!ksv_list || num_bksv_list > TEGRA_NVHDCP_MAX_DEVS)
 		return -EINVAL;
+
+	if (num_bksv_list == 0)
+		return 0;
 
 	buf = kmalloc(buf_len, GFP_KERNEL);
 	if (IS_ERR_OR_NULL(buf))
@@ -751,6 +824,7 @@ static int get_repeater_info(struct tegra_nvhdcp *nvhdcp)
 
 	/* wait up to 5 seconds for READY on repeater */
 	retries = 51;
+	start_hrtimer_five_s();
 	do {
 		if (!nvhdcp_is_plugged(nvhdcp)) {
 			nvhdcp_err("disconnect while waiting for repeater\n");
@@ -764,6 +838,11 @@ static int get_repeater_info(struct tegra_nvhdcp *nvhdcp)
 		}
 		if (retries > 1)
 			msleep(100);
+		printk(KERN_ERR "[HDCP] Repeater retries = %d\n", retries);
+		if (five_s_expired) {
+			retries = 0;
+			break;
+		}
 	} while (--retries);
 	if (!retries) {
 		nvhdcp_err("repeater Bcaps read timeout\n");
@@ -969,11 +1048,11 @@ static void nvhdcp_downstream_worker(struct work_struct *work)
 	nvhdcp_info("link verified!\n");
 
 	while (1) {
-		if (nvhdcp->state != STATE_LINK_VERIFY)
-			goto failure;
-
 		if (!nvhdcp_is_plugged(nvhdcp))
 			goto lost_hdmi;
+
+		if (nvhdcp->state != STATE_LINK_VERIFY)
+			goto failure;
 
 		e = verify_link(nvhdcp, true);
 		if (e) {
@@ -992,7 +1071,9 @@ failure:
 	        nvhdcp_err("nvhdcp failure - too many failures, giving up!\n");
 	} else {
 		nvhdcp_err("nvhdcp failure - renegotiating in 1.75 seconds\n");
+		mutex_unlock(&nvhdcp->lock);
 		msleep(1750);
+		mutex_lock(&nvhdcp->lock);
 		queue_work(nvhdcp->downstream_wq, &nvhdcp->work);
 	}
 
@@ -1003,19 +1084,6 @@ lost_hdmi:
 err:
 	mutex_unlock(&nvhdcp->lock);
 	return;
-}
-
-void tegra_nvhdcp_set_plug(struct tegra_nvhdcp *nvhdcp, bool hpd)
-{
-	nvhdcp_debug("hdmi hotplug detected (hpd = %d)\n", hpd);
-
-	nvhdcp_set_plugged(nvhdcp, hpd);
-
-	if (hpd) {
-		queue_work(nvhdcp->downstream_wq, &nvhdcp->work);
-	} else {
-		flush_workqueue(nvhdcp->downstream_wq);
-	}
 }
 
 static int tegra_nvhdcp_on(struct tegra_nvhdcp *nvhdcp)
@@ -1036,6 +1104,18 @@ static int tegra_nvhdcp_off(struct tegra_nvhdcp *nvhdcp)
 	mutex_unlock(&nvhdcp->lock);
 	flush_workqueue(nvhdcp->downstream_wq);
 	return 0;
+}
+
+void tegra_nvhdcp_set_plug(struct tegra_nvhdcp *nvhdcp, bool hpd)
+{
+	nvhdcp_debug("hdmi hotplug detected (hpd = %d)\n", hpd);
+
+	if (hpd) {
+		nvhdcp_set_plugged(nvhdcp, true);
+		tegra_nvhdcp_on(nvhdcp);
+	} else {
+		tegra_nvhdcp_off(nvhdcp);
+	}
 }
 
 int tegra_nvhdcp_set_policy(struct tegra_nvhdcp *nvhdcp, int pol)
@@ -1069,6 +1149,11 @@ void tegra_nvhdcp_suspend(struct tegra_nvhdcp *nvhdcp)
 	tegra_nvhdcp_off(nvhdcp);
 }
 
+void tegra_nvhdcp_resume(struct tegra_nvhdcp *nvhdcp)
+{
+	if (!nvhdcp) return;
+	tegra_nvhdcp_renegotiate(nvhdcp);
+}
 
 static long nvhdcp_dev_ioctl(struct file *filp,
                 unsigned int cmd, unsigned long arg)
@@ -1210,6 +1295,10 @@ struct tegra_nvhdcp *tegra_nvhdcp_create(struct tegra_dc_hdmi_data *hdmi,
 
 	nvhdcp_vdbg("%s(): created misc device %s\n", __func__, nvhdcp->name);
 
+	hrtimer_init(&hr_five_s_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	hr_five_s_timer.function = &hrtimer_five_s_callback;
+	five_s_expired = false;
+
 	return nvhdcp;
 free_workqueue:
 	destroy_workqueue(nvhdcp->downstream_wq);
@@ -1218,6 +1307,22 @@ free_nvhdcp:
 	kfree(nvhdcp);
 	nvhdcp_err("unable to create device.\n");
 	return ERR_PTR(e);
+}
+
+enum hrtimer_restart hrtimer_five_s_callback(struct hrtimer *timer)
+{
+	five_s_expired = true;
+//	hrtimer_cancel(&hr_wake_timer);
+	return HRTIMER_NORESTART;
+}
+
+void start_hrtimer_five_s(void)
+{
+	hrtimer_cancel(&hr_five_s_timer);
+	ktime_t ktime;
+	ktime = ktime_set(5, 0);
+	five_s_expired = false;
+	hrtimer_start(&hr_five_s_timer, ktime, HRTIMER_MODE_REL);
 }
 
 void tegra_nvhdcp_destroy(struct tegra_nvhdcp *nvhdcp)

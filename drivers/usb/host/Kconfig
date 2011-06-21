@@ -436,3 +436,8 @@ config USB_IMX21_HCD
          To compile this driver as a module, choose M here: the
          module will be called "imx21-hcd".
 
+config USB_EHCI_ONOFF_FEATURE
+       boolean "EHCI ON/OFF Feature"
+	depends on USB && USB_EHCI_HCD
+	---help---
+	Enable support for turning EHCI Off and On

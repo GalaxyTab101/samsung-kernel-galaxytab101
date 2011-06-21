@@ -25,6 +25,9 @@ struct outer_cache_fns {
 	void (*inv_range)(unsigned long, unsigned long);
 	void (*clean_range)(unsigned long, unsigned long);
 	void (*flush_range)(unsigned long, unsigned long);
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+	void (*flush_all)(void);
+#endif
 #ifdef CONFIG_OUTER_CACHE_SYNC
 	void (*sync)(void);
 #endif
@@ -49,6 +52,13 @@ static inline void outer_flush_range(unsigned long start, unsigned long end)
 	if (outer_cache.flush_range)
 		outer_cache.flush_range(start, end);
 }
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+static inline void outer_flush_all(void)
+{
+	if (outer_cache.flush_all)
+		outer_cache.flush_all();
+}
+#endif
 
 #else
 
@@ -58,7 +68,9 @@ static inline void outer_clean_range(unsigned long start, unsigned long end)
 { }
 static inline void outer_flush_range(unsigned long start, unsigned long end)
 { }
-
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+static inline void outer_flush_all(void) { }
+#endif
 #endif
 
 #ifdef CONFIG_OUTER_CACHE_SYNC

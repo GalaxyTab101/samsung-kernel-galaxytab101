@@ -3,6 +3,7 @@
 #
 
 obj-$(CONFIG_IBM_ASM)		+= ibmasm/
+obj-$(CONFIG_BCM4751_RFKILL)	+= bcm4751-rfkill.o
 obj-$(CONFIG_AD525X_DPOT)	+= ad525x_dpot.o
 obj-$(CONFIG_AD525X_DPOT_I2C)	+= ad525x_dpot-i2c.o
 obj-$(CONFIG_AD525X_DPOT_SPI)	+= ad525x_dpot-spi.o
@@ -42,7 +43,21 @@ obj-$(CONFIG_WL127X_RFKILL)	+= wl127x-rfkill.o
 obj-$(CONFIG_APANIC)		+= apanic.o
 obj-$(CONFIG_SENSORS_AK8975)	+= akm8975.o
 obj-$(CONFIG_BCM4329_RFKILL)	+= bcm4329_rfkill.o
-obj-$(CONFIG_MPU_SENSORS_MPU3050)	+= mpu3050/
+obj-$(CONFIG_BCM4330_RFKILL)	+= bcm4330_rfkill.o
+obj-$(CONFIG_SAMSUNG_JACK)	+= sec_jack.o
+obj-$(CONFIG_BCM4751_POWER)	+= bcm4751-power.o
+obj-$(CONFIG_BCM4751_RFKILL)	+= bcm4751-rfkill.o
+ifeq ($(CONFIG_MACH_SAMSUNG_P4LTE), y)
+obj-$(CONFIG_SEC_MISC)		+= sec_misc-p4lte.o
+else
+obj-$(CONFIG_SEC_MISC)		+= sec_misc.o
+endif
+obj-$(CONFIG_SEC_MISC)	+= max1237.o
+obj-$(CONFIG_SEC_MISC)	+= stmpe811.o
+obj-$(CONFIG_SEC_MODEM)		+= smdctl/
+obj-$(CONFIG_SEC_MODEM)		+= smd-hsic/
+obj-y				+= mpu3050/
+obj-$(CONFIG_VIBTONZ)		+= vibtonz/
 obj-$(CONFIG_SENSORS_NCT1008)	+= nct1008.o
 obj-$(CONFIG_TEGRA_CRYPTO_DEV)	+= tegra-cryptodev.o
 obj-$(CONFIG_MAX1749_VIBRATOR)	+= max1749.o

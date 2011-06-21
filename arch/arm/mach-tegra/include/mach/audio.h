@@ -22,6 +22,7 @@
 
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <linux/regulator/consumer.h>
 #include <mach/i2s.h>
 
 #define FIFO1		0
@@ -55,6 +56,7 @@ struct tegra_audio_platform_data {
 	int dsp_bus_width; /* 16-bit for DSP data format */
 	int mask; /* enable tx and rx? */
 	bool stereo_capture; /* True if hardware supports stereo */
+	bool en_dmic; /* True if digital mic is default*/
 	void *driver_data;
 };
 
@@ -62,6 +64,10 @@ struct tegra_wired_jack_conf {
 	int hp_det_n;   /* headphone jack detection gpio pin */
 	int en_mic_ext; /* external mic enable gpio pin */
 	int en_mic_int; /* internal mic enable gpio pin */
+	int cdc_irq;    /* mic jack detection pin(IRQ-mode or generic gpio) */
+	int en_spkr;    /* gpio pin to drive amplifier */
+	const char *spkr_amp_reg;    /* regulator name for speaker amp */
+	struct regulator *amp_reg;   /* regulator for speaker amp */
 };
 
 #endif /* __ARCH_ARM_MACH_TEGRA_AUDIO_H */

@@ -457,7 +457,10 @@ void hci_conn_del_sysfs(struct hci_conn *conn);
 #define lmp_encrypt_capable(dev)   ((dev)->features[0] & LMP_ENCRYPT)
 #define lmp_sniff_capable(dev)     ((dev)->features[0] & LMP_SNIFF)
 #define lmp_sniffsubr_capable(dev) ((dev)->features[5] & LMP_SNIFF_SUBR)
-#define lmp_esco_capable(dev)      ((dev)->features[3] & LMP_ESCO)
+// BEGIN SS_BLUEZ_BT +kjh 2011.06.13
+// disable esco for wifi coex
+#define lmp_esco_capable(dev)      0x00 //((dev)->features[3] & LMP_ESCO)
+// END SS_BLUEZ_BT
 #define lmp_ssp_capable(dev)       ((dev)->features[6] & LMP_SIMPLE_PAIR)
 #define lmp_no_flush_capable(dev)  ((dev)->features[6] & LMP_NO_FLUSH)
 

@@ -1,7 +1,7 @@
 /*
  * arch/arm/mach-tegra/board-whistler-sensors.c
  *
- * Copyright (c) 2010-2011, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2011, NVIDIA CORPORATION, All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are

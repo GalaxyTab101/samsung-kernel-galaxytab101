@@ -24,5 +24,10 @@ int whistler_panel_init(void);
 int whistler_kbc_init(void);
 int whistler_sensors_init(void);
 int whistler_baseband_init(void);
+int whistler_emc_init(void);
+
+/* Interrupt numbers from external peripherals */
+#define MAX8907C_INT_BASE       TEGRA_NR_IRQS
+#define MAX8907C_INT_END        (MAX8907C_INT_BASE + 32)
 
 #endif

@@ -1441,6 +1441,9 @@ void mmc_rescan(struct work_struct *work)
 
 	if (host->rescan_disable) {
 		spin_unlock_irqrestore(&host->lock, flags);
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+		wake_unlock(&mmc_delayed_work_wake_lock); //temp ( need fare wake lock )
+#endif			
 		return;
 	}
 
@@ -1696,9 +1699,10 @@ int mmc_suspend_host(struct mmc_host *host)
 	}
 	mmc_bus_put(host);
 
-	if (!err && !(host->pm_flags & MMC_PM_KEEP_POWER))
-		mmc_power_off(host);
-
+	if (!err && !(host->pm_flags & MMC_PM_KEEP_POWER)) {
+		if(!host->card || host->card->type != MMC_TYPE_SDIO)
+			mmc_power_off(host);
+	}
 	return err;
 }
 
@@ -1721,7 +1725,8 @@ int mmc_resume_host(struct mmc_host *host)
 
 	if (host->bus_ops && !host->bus_dead) {
 		if (!(host->pm_flags & MMC_PM_KEEP_POWER)) {
-			mmc_power_up(host);
+			if(!host->card || host->card->type != MMC_TYPE_SDIO)
+				mmc_power_up(host);
 			mmc_select_voltage(host, host->ocr);
 		}
 		BUG_ON(!host->bus_ops->resume);
@@ -1788,7 +1793,8 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		}
 		host->rescan_disable = 0;
 		spin_unlock_irqrestore(&host->lock, flags);
-		mmc_detect_change(host, 0);
+		if(!host->card || host->card->type != MMC_TYPE_SDIO)
+			mmc_detect_change(host, 0);
 
 	}
 

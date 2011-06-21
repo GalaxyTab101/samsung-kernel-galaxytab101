@@ -1,20 +1,7 @@
 /*
- $License:
-    Copyright (C) 2010 InvenSense Corporation, All Rights Reserved.
-
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-  $
+ * $License:
+ *    Copyright (C) 2010 InvenSense Corporation, All Rights Reserved.
+ * $
  */
 
 /**
@@ -46,10 +33,13 @@ int sensor_i2c_write(struct i2c_adapter *i2c_adap,
 	msgs[0].len = len;
 
 	res = i2c_transfer(i2c_adap, msgs, 1);
-	if (res < 1)
+	if (res < 1) {
+		pr_err("%s: i2c_transfer() failed on slave addr 0x%x\n",
+			__func__, address);
+		WARN(1, "mpu sensor_i2c_write()");
 		return res;
-	else
-		return 0;
+	}
+	return 0;
 }
 
 int sensor_i2c_write_register(struct i2c_adapter *i2c_adap,
@@ -85,10 +75,13 @@ int sensor_i2c_read(struct i2c_adapter *i2c_adap,
 	msgs[1].len = len;
 
 	res = i2c_transfer(i2c_adap, msgs, 2);
-	if (res < 2)
+	if (res < 2) {
+		pr_err("%s: i2c_transfer() failed on slave addr 0x%x\n",
+			__func__, address);
+		WARN(1, "mpu sensor_i2c_read()");
 		return res;
-	else
-		return 0;
+	}
+	return 0;
 }
 
 int mpu_memory_read(struct i2c_adapter *i2c_adap,
@@ -136,10 +129,11 @@ int mpu_memory_read(struct i2c_adapter *i2c_adap,
 	msgs[3].len = len;
 
 	ret = i2c_transfer(i2c_adap, msgs, 4);
-	if (ret != 4)
+	if (ret != 4) {
+		WARN(1, "mpu_memory_read()");
 		return ret;
-	else
-		return 0;
+	}
+	return 0;
 }
 
 int mpu_memory_write(struct i2c_adapter *i2c_adap,
@@ -185,10 +179,11 @@ int mpu_memory_write(struct i2c_adapter *i2c_adap,
 	msgs[2].len = len + 1;
 
 	ret = i2c_transfer(i2c_adap, msgs, 3);
-	if (ret != 3)
+	if (ret != 3) {
+		WARN(1, "mpu_memory_write()");
 		return ret;
-	else
-		return 0;
+	}
+	return 0;
 }
 
 /**

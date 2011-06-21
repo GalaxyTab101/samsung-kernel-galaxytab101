@@ -16,6 +16,7 @@
 static struct tegra_usb_phy *phy;
 static struct clk *udc_clk;
 static struct clk *emc_clk;
+static struct clk *sclk_clk;
 static void *udc_base;
 
 int fsl_udc_clk_init(struct platform_device *pdev)
@@ -34,6 +35,16 @@ int fsl_udc_clk_init(struct platform_device *pdev)
 
 	clk_enable(udc_clk);
 
+	sclk_clk = clk_get(&pdev->dev, "sclk");
+	if (IS_ERR(sclk_clk)) {
+		dev_err(&pdev->dev, "Can't get sclk clock\n");
+		err = PTR_ERR(sclk_clk);
+		goto err_sclk;
+	}
+
+	clk_set_rate(sclk_clk, 80000000);
+	clk_enable(sclk_clk);
+
 	emc_clk = clk_get(&pdev->dev, "emc");
 	if (IS_ERR(emc_clk)) {
 		dev_err(&pdev->dev, "Can't get emc clock\n");
@@ -42,8 +53,11 @@ int fsl_udc_clk_init(struct platform_device *pdev)
 	}
 
 	clk_enable(emc_clk);
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	clk_set_rate(emc_clk, 150000000);
+#else	
 	clk_set_rate(emc_clk, 400000000);
-
+#endif	
 	/* we have to remap the registers ourselves as fsl_udc does not
 	 * export them for us.
 	 */
@@ -79,6 +93,9 @@ err0:
 	clk_disable(emc_clk);
 	clk_put(emc_clk);
 err_emc:
+	clk_disable(sclk_clk);
+	clk_put(sclk_clk);
+err_sclk:
 	clk_disable(udc_clk);
 	clk_put(udc_clk);
 	return err;
@@ -97,6 +114,9 @@ void fsl_udc_clk_release(void)
 	clk_disable(udc_clk);
 	clk_put(udc_clk);
 
+	clk_disable(sclk_clk);
+	clk_put(sclk_clk);
+
 	clk_disable(emc_clk);
 	clk_put(emc_clk);
 }
@@ -105,12 +125,30 @@ void fsl_udc_clk_suspend(void)
 {
 	tegra_usb_phy_power_off(phy);
 	clk_disable(udc_clk);
+	clk_disable(sclk_clk);
 	clk_disable(emc_clk);
 }
 
 void fsl_udc_clk_resume(void)
 {
 	clk_enable(emc_clk);
+	clk_enable(sclk_clk);
 	clk_enable(udc_clk);
 	tegra_usb_phy_power_on(phy);
 }
+
+void fsl_udc_dtd_prepare(void)
+{
+	/* When we are programming two DTDs very close to each other,
+	 * the second DTD is being prefetched before it is actually written
+	 * to DDR. To prevent this, we disable prefetcher before programming
+	 * any new DTD and re-enable it before priming endpoint.
+	 */
+	tegra_usb_phy_memory_prefetch_off(phy);
+}
+
+void fsl_udc_ep_barrier(void)
+{
+	tegra_usb_phy_memory_prefetch_on(phy);
+}
+

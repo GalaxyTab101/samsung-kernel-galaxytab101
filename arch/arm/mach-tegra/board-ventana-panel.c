@@ -75,6 +75,8 @@ static int ventana_backlight_notify(struct device *unused, int brightness)
 	return brightness;
 }
 
+static int ventana_disp1_check_fb(struct device *dev, struct fb_info *info);
+
 static struct platform_pwm_backlight_data ventana_backlight_data = {
 	.pwm_id		= 2,
 	.max_brightness	= 255,
@@ -83,6 +85,8 @@ static struct platform_pwm_backlight_data ventana_backlight_data = {
 	.init		= ventana_backlight_init,
 	.exit		= ventana_backlight_exit,
 	.notify		= ventana_backlight_notify,
+	/* Only toggle backlight on fb blank notifications for disp1 */
+	.check_fb   = ventana_disp1_check_fb,
 };
 
 static struct platform_device ventana_backlight_device = {
@@ -191,7 +195,7 @@ static struct resource ventana_disp2_resources[] = {
 
 static struct tegra_dc_mode ventana_panel_modes[] = {
 	{
-		.pclk = 62200000,
+		.pclk = 72072000,
 		.h_ref_to_sync = 11,
 		.v_ref_to_sync = 1,
 		.h_sync_width = 58,
@@ -224,6 +228,8 @@ static struct tegra_dc_out ventana_disp1_out = {
 
 	.align		= TEGRA_DC_ALIGN_MSB,
 	.order		= TEGRA_DC_ORDER_RED_BLUE,
+	.depth		= 18,
+	.dither		= TEGRA_DC_ORDERED_DITHER,
 
 	.modes	 	= ventana_panel_modes,
 	.n_modes 	= ARRAY_SIZE(ventana_panel_modes),
@@ -267,6 +273,11 @@ static struct nvhost_device ventana_disp1_device = {
 		.platform_data = &ventana_disp1_pdata,
 	},
 };
+
+static int ventana_disp1_check_fb(struct device *dev, struct fb_info *info)
+{
+	return info->device == &ventana_disp1_device.dev;
+}
 
 static struct nvhost_device ventana_disp2_device = {
 	.name		= "tegradc",

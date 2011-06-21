@@ -26,4 +26,5 @@ obj-$(CONFIG_USB_NET_INT51X1)	+= int51x1.o
 obj-$(CONFIG_USB_CDC_PHONET)	+= cdc-phonet.o
 obj-$(CONFIG_USB_IPHETH)	+= ipheth.o
 obj-$(CONFIG_USB_SIERRA_NET)	+= sierra_net.o
+obj-$(CONFIG_SAMSUNG_PHONE_SVNET)	+= cdc-svnet.o sipc4.o pdp.o
 

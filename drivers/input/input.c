@@ -26,6 +26,11 @@
 #include <linux/rcupdate.h>
 #include <linux/smp_lock.h>
 #include "input-compat.h"
+#include <linux/delay.h>
+
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+#include <linux/kernel_sec_common.h>
+#endif
 
 MODULE_AUTHOR("Vojtech Pavlik <vojtech@suse.cz>");
 MODULE_DESCRIPTION("Input core");
@@ -326,6 +331,24 @@ static void input_handle_event(struct input_dev *dev,
 		input_pass_event(dev, type, code, value);
 }
 
+#if defined(CONFIG_KERNEL_DEBUG_SEC)
+static bool forced_upload;
+static void enter_upload_mode(unsigned long val)
+{
+	int debuglevel = kernel_sec_get_debug_level();
+	if (forced_upload
+		&& (debuglevel == KERNEL_SEC_DEBUG_LEVEL_MID
+		    || debuglevel == KERNEL_SEC_DEBUG_LEVEL_HIGH)) {
+		pr_err("[debug] forced upload mode!!!!\n");
+		dump_all_task_info();
+		dump_cpu_stat();
+		mdelay(1000);
+		dump_cpu_stat();
+		panic("Forced_Upload");
+	}
+}
+#endif
+
 /**
  * input_event() - report new input event
  * @dev: device that generated the event
@@ -347,6 +370,37 @@ void input_event(struct input_dev *dev,
 		 unsigned int type, unsigned int code, int value)
 {
 	unsigned long flags;
+
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+	static bool first;
+	static int loopcount;
+	if (value) {
+		if (code == KEY_VOLUMEDOWN)
+			first = true;
+		if (first) {
+			if (code == KEY_POWER) {
+				if (++loopcount == 2) {
+					forced_upload = true;
+					enter_upload_mode(0);
+				}
+				pr_info("count for enter forced upload : %d\n",
+					loopcount);
+			}
+		}
+	} else {
+		if (code == KEY_VOLUMEDOWN) {
+			loopcount = 0;
+			first = false;
+			forced_upload = false;
+		}
+	}
+#endif
+
+#if defined(CONFIG_MACH_SAMSUNG_P5) || defined(CONFIG_MACH_SAMSUNG_P5WIFI)
+	if ((type == EV_KEY)&&((dev->name == "sec_key")||
+		(dev->name == "sec_power_key")||(dev->name == "sec_keyboard")))
+		pr_info("[Key] %d %s\n", code, value ? "P" : "R");
+#endif
 
 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
 

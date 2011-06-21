@@ -26,6 +26,8 @@
 #include <linux/workqueue.h>
 #include <linux/gpio.h>
 
+#define SEC_DEBUG 1
+
 struct gpio_button_data {
 	struct gpio_keys_button *button;
 	struct input_dev *input;
@@ -77,6 +79,25 @@ struct gpio_keys_drvdata {
  *
  * We can disable only those keys which don't allow sharing the irq.
  */
+
+/* For checking H/W faulty. */
+static ssize_t keyshort_test(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int i, ret=0;
+	int count=0;
+	struct gpio_keys_platform_data *pdata = dev->platform_data;
+
+	for(i = 0; i < pdata->nbuttons; i++ )
+	{
+	    struct gpio_keys_button *button = &pdata->buttons[i];
+	    if(gpio_get_value(button->gpio))
+	        count++;
+	}
+
+	ret = sprintf(buf,"%d\n", count);
+	return ret;
+}
+static DEVICE_ATTR(gpiokey_pressed, S_IRUGO | S_IWUSR | S_IWOTH | S_IXOTH, keyshort_test, NULL);
 
 /**
  * get_n_events_by_type() - returns maximum number of events per @type
@@ -324,6 +345,9 @@ static void gpio_keys_report_event(struct gpio_button_data *bdata)
 	unsigned int type = button->type ?: EV_KEY;
 	int state = (gpio_get_value(button->gpio) ? 1 : 0) ^ button->active_low;
 
+#if SEC_DEBUG
+	printk("Key: %s (%s)\n", (button->code == KEY_POWER)?"Power":"Unknown", (state)?"pressed":"released" );
+#endif
 	input_event(input, type, button->code, !!state);
 	input_sync(input);
 }
@@ -468,7 +492,11 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, ddata);
 	input_set_drvdata(input, ddata);
 
+#ifdef CONFIG_SAMSUNG_INPUT
+	input->name = "sec_power_key";
+#else
 	input->name = pdev->name;
+#endif
 	input->phys = "gpio-keys/input0";
 	input->dev.parent = &pdev->dev;
 	input->open = gpio_keys_open;
@@ -501,6 +529,10 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 		input_set_capability(input, type, button->code);
 	}
 
+#ifdef CONFIG_SAMSUNG_INPUT
+	input_set_capability(input, EV_KEY, KEY_WAKEUP);
+#endif
+
 	error = sysfs_create_group(&pdev->dev.kobj, &gpio_keys_attr_group);
 	if (error) {
 		dev_err(dev, "Unable to export keys/switches, error: %d\n",
@@ -521,6 +553,12 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 	input_sync(input);
 
 	device_init_wakeup(&pdev->dev, wakeup);
+
+	/* For checking H/W faulty. */
+	if (device_create_file(&pdev->dev, &dev_attr_gpiokey_pressed) < 0)
+	{
+		pr_err("Failed to create device file(%s)!\n", dev_attr_gpiokey_pressed.attr.name);
+	}
 
 	return 0;
 
@@ -609,14 +647,28 @@ static int gpio_keys_resume(struct device *dev)
 
 			if (wakeup_key == button->code) {
 				unsigned int type = button->type ?: EV_KEY;
-
-				input_event(ddata->input, type, button->code, 1);
-				input_event(ddata->input, type, button->code, 0);
+#ifdef CONFIG_SAMSUNG_INPUT
+				input_event(ddata->input, type, KEY_WAKEUP, 1);
+				input_event(ddata->input, type, KEY_WAKEUP, 0);
 				input_sync(ddata->input);
+#endif
 			}
 		}
 
+#ifdef CONFIG_SAMSUNG_LPM_MODE
+		if (pdata->check_lpm) {
+			if (pdata->check_lpm() && button->code == KEY_POWER) {
+				mod_timer(&ddata->data[i].timer,
+				jiffies + msecs_to_jiffies(1500));
+			}
+
+		} else {
+			gpio_keys_report_event(&ddata->data[i]);
+		}
+
+#else
 		gpio_keys_report_event(&ddata->data[i]);
+#endif
 	}
 	input_sync(ddata->input);
 

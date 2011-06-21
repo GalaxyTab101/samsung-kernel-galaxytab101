@@ -1052,6 +1052,12 @@ int gpiochip_add(struct gpio_chip *chip)
 		chip->base = base;
 	}
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	pr_info("gpiochip_add: gpios %d..%d (%s) try to register\n",
+		chip->base, chip->base + chip->ngpio - 1,
+		chip->label ? : "generic");
+#endif
+	
 	/* these GPIO numbers must not be managed by another gpio_chip */
 	for (id = base; id < base + chip->ngpio; id++) {
 		if (gpio_desc[id].chip != NULL) {
@@ -1179,15 +1185,24 @@ int gpio_request(unsigned gpio, const char *label)
 
 	spin_lock_irqsave(&gpio_lock, flags);
 
-	if (!gpio_is_valid(gpio))
+	if (!gpio_is_valid(gpio)) {
+		pr_err("%s: gpio-%d \"%s\" is not valid.\n", __func__,
+			gpio, label);
 		goto done;
+	}
+
 	desc = &gpio_desc[gpio];
 	chip = desc->chip;
-	if (chip == NULL)
+	if (chip == NULL) {
+		pr_err("%s: gpio-%d \"%s\" has no chip\n", __func__,
+			gpio, label);
 		goto done;
-
-	if (!try_module_get(chip->owner))
+	}
+	if (!try_module_get(chip->owner)) {
+		pr_err("%s: gpio-%d \"%s\": can't get module\n",
+			__func__, gpio, label);
 		goto done;
+	}
 
 	/* NOTE:  gpio_request() can be called in early boot,
 	 * before IRQs are enabled, for non-sleeping (SOC) GPIOs.
@@ -1197,6 +1212,8 @@ int gpio_request(unsigned gpio, const char *label)
 		desc_set_label(desc, label ? : "?");
 		status = 0;
 	} else {
+		pr_err("%s: gpio-%d \"%s\": gpio already requested\n",
+			__func__, gpio, label);
 		status = -EBUSY;
 		module_put(chip->owner);
 		goto done;
@@ -1209,6 +1226,8 @@ int gpio_request(unsigned gpio, const char *label)
 		spin_lock_irqsave(&gpio_lock, flags);
 
 		if (status < 0) {
+			pr_err("%s: gpio-%d \"%s\": chip request failed (%d)\n",
+				__func__, gpio, label, status);
 			desc_set_label(desc, NULL);
 			module_put(chip->owner);
 			clear_bit(FLAG_REQUESTED, &desc->flags);
@@ -1217,7 +1236,7 @@ int gpio_request(unsigned gpio, const char *label)
 
 done:
 	if (status)
-		pr_debug("gpio_request: gpio-%d (%s) status %d\n",
+		pr_debug("%s: gpio-%d (%s) status %d\n", __func__,
 			gpio, label ? : "?", status);
 	spin_unlock_irqrestore(&gpio_lock, flags);
 	return status;

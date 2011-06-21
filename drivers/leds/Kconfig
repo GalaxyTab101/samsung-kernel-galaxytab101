@@ -253,6 +253,13 @@ config LEDS_REGULATOR
 	depends on REGULATOR
 	help
 	  This option enables support for regulator driven LEDs.
+	  
+config LEDS_TPS6586X
+	tristate "TI TPS6586X RGB LED"
+	depends on I2C
+	select MFD_TPS6586X
+	help
+	  This option enables support for TI TPS6586X RGB LED.
 
 config LEDS_BD2802
 	tristate "LED driver for BD2802 RGB LED"

@@ -480,6 +480,7 @@ static int mmc_sdio_init_card(struct mmc_host *host, u32 ocr,
 		card = oldcard;
 		return 0;
 	}
+	mmc_fixup_device(card, NULL);
 
 	if (card->type == MMC_TYPE_SD_COMBO) {
 		err = mmc_sd_setup_card(host, card, oldcard != NULL);
@@ -595,6 +596,7 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 {
 	int i, err = 0;
 
+#ifndef CONFIG_WLAN_VENDOR_BCM
 	for (i = 0; i < host->card->sdio_funcs; i++) {
 		struct sdio_func *func = host->card->sdio_func[i];
 		if (func && sdio_func_present(func) && func->dev.driver) {
@@ -621,14 +623,15 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 		sdio_disable_wide(host->card);
 		mmc_release_host(host);
 	}
-
+#endif
 	return err;
 }
 
 static int mmc_sdio_resume(struct mmc_host *host)
 {
 	int i, err;
-
+	err = 0;
+#ifndef CONFIG_WLAN_VENDOR_BCM
 	BUG_ON(!host);
 	BUG_ON(!host->card);
 
@@ -665,7 +668,7 @@ static int mmc_sdio_resume(struct mmc_host *host)
 			err = pmops->resume(&func->dev);
 		}
 	}
-
+#endif
 	return err;
 }
 

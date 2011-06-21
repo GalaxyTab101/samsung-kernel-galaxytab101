@@ -47,6 +47,8 @@
 
 #define res_size(res)	((res)->end - (res)->start + 1)
 
+#define SEC_DEBUG 1
+
 struct tegra_kbc {
 	void __iomem *mmio;
 	struct input_dev *idev;
@@ -64,7 +66,40 @@ struct tegra_kbc {
 	int row_seq[KBC_MAX_ROW];
 	int col_seq[KBC_MAX_COL];
 	int ncols;
+      unsigned int pressed_cnt;
 };
+
+static struct tegra_kbc *p3_kbc;
+
+#if SEC_DEBUG
+static char* code_to_str(int code)
+{
+	switch (code) {
+	case KEY_VOLUMEUP:
+		return "Vol-Up";
+	case KEY_VOLUMEDOWN:
+		return "Vol-Dn";
+	};
+	return "Unknown";
+}
+#endif
+
+/* For checking H/W faulty. */
+static ssize_t tegra_kbc_keyshort_test(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int pressed = 0;
+
+	printk("KBC: tegra_kbc_keyshort_test\n");
+
+//    printk("[Key] 0x%x", p3_kbc->pressed_cnt);
+        if(p3_kbc->pressed_cnt)
+        {
+            pressed++;
+        }
+
+	return sprintf(buf, "%d\n", pressed);
+}
+static DEVICE_ATTR(matrixkey_pressed, S_IRUGO | S_IWUSR | S_IWOTH | S_IXOTH, tegra_kbc_keyshort_test, NULL);
 
 static int tegra_kbc_filter_keys(struct tegra_kbc *kbc, int *prows, int *pcols,
 		int nkey_pressed)
@@ -227,7 +262,11 @@ static void tegra_kbc_report_keys(struct tegra_kbc *kbc, int *fifo)
 		}
 		if (i != KBC_MAX_KPRESS_EVENT) {
 			fifo[i] = curr_fifo[j];
+#if SEC_DEBUG
+			printk("Key: %s (%s)\n", code_to_str(fifo[i]), "pressed");
+#endif
 			input_report_key(kbc->idev, fifo[i], 1);
+			kbc->pressed_cnt |= 1 << i;
 		} else
 			WARN_ON(1);
 	}
@@ -254,7 +293,11 @@ static void tegra_kbc_key_repeat(struct work_struct *work)
 			for (i = 0; i < ARRAY_SIZE(fifo); i++) {
 				if (fifo[i] == -1)
 					continue;
+#if SEC_DEBUG
+				printk("Key: %s (%s)\n", code_to_str(fifo[i]), "released");
+#endif
 				input_report_key(kbc->idev, fifo[i], 0);
+				kbc->pressed_cnt &= ~(1 << i);;
 			}
 			break;
 		}
@@ -520,7 +563,11 @@ static int __devinit tegra_kbc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, kbc);
 
 	kbc->dev = &pdev->dev;
+#ifdef CONFIG_SAMSUNG_INPUT
+	kbc->idev->name = "sec_key";
+#else
 	kbc->idev->name = pdev->name;
+#endif
 	input_set_drvdata(kbc->idev, kbc);
 	kbc->idev->id.bustype = BUS_HOST;
 	kbc->idev->open = tegra_kbc_open;
@@ -595,6 +642,13 @@ static int __devinit tegra_kbc_probe(struct platform_device *pdev)
 	}
 
 	device_init_wakeup(&pdev->dev, 1);
+
+	kbc->pressed_cnt = 0;
+	p3_kbc = kbc;
+	if (device_create_file(&pdev->dev, &dev_attr_matrixkey_pressed) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_matrixkey_pressed.attr.name);
+
+
 	return 0;
 
 fail:
@@ -660,7 +714,12 @@ static int tegra_kbc_resume(struct platform_device *pdev)
 
 	dev_dbg(&pdev->dev, "KBC: tegra_kbc_resume\n");
 
+#ifdef CONFIG_MACH_SAMSUNG_VARIATION_TEGRA
+	if (device_may_wakeup(&pdev->dev) &&
+		(kbc->pdata->is_wake_on_any_key || kbc->pdata->wake_key_cnt)) {
+#else
 	if (device_may_wakeup(&pdev->dev)) {
+#endif
 		disable_irq_wake(kbc->irq);
 		tegra_kbc_setup_wakekeys(kbc, false);
 	} else if (kbc->idev->users)
